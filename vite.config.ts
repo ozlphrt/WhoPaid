@@ -13,32 +13,24 @@ export default defineConfig({
         name: 'WhoPaid — Group Expense Sharing',
         short_name: 'WhoPaid',
         description: 'Fast, mobile-first multi-currency group expense tracker for trips and friends.',
-        theme_color: '#0d9488',
-        background_color: '#0f172a',
+        theme_color: '#101217',
+        background_color: '#101217',
         display: 'standalone',
         orientation: 'portrait',
-        scope: '/',
-        start_url: '/',
+        scope: './',
+        start_url: './',
         icons: [
           {
-            src: '/icons/icon-192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: '/icons/icon-512.png',
+            src: './icons/icon-512.svg',
             sizes: '512x512',
-            type: 'image/png'
-          },
-          {
-            src: '/icons/icon-512.png',
-            sizes: '512x512',
-            type: 'image/png',
+            type: 'image/svg+xml',
             purpose: 'any maskable'
           }
         ]
       },
       workbox: {
+        skipWaiting: true,
+        clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         runtimeCaching: [
           {
