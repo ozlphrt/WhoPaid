@@ -12,7 +12,7 @@ interface TopNavProps {
 }
 
 export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
-  const { activeTrip, currentUser, isOnline } = useApp();
+  const { activeTrip, currentUser, isOnline, expenses } = useApp();
   const [showMenu, setShowMenu] = useState(false);
   const [showUserSwitcher, setShowUserSwitcher] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
@@ -39,19 +39,35 @@ export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
     }
   };
 
-  const formatDateRange = (startStr?: string, endStr?: string, currency?: string) => {
-    if (!startStr || !endStr) return currency || '';
-    try {
-      const s = new Date(startStr);
-      const e = new Date(endStr);
-      const sMonth = s.toLocaleDateString('en-US', { month: 'short' });
-      const sDay = s.getDate();
-      const eDay = e.getDate();
-      return `${sMonth} ${sDay}–${eDay} · ${currency}`;
-    } catch {
-      return `${startStr} – ${endStr} · ${currency}`;
+  const activeTripExpenses = expenses.filter(e => !e.isDeleted);
+
+  const dynamicDateSubtitle = React.useMemo(() => {
+    if (!activeTrip) return '';
+    if (activeTripExpenses.length === 0) {
+      return `Active · ${activeTrip.mainCurrency}`;
     }
-  };
+    const timestamps = activeTripExpenses
+      .map(e => new Date(e.date).getTime())
+      .filter(t => !isNaN(t));
+
+    if (timestamps.length === 0) return `${activeTrip.mainCurrency}`;
+
+    const minD = new Date(Math.min(...timestamps));
+    const maxD = new Date(Math.max(...timestamps));
+
+    const sMonth = minD.toLocaleDateString('en-US', { month: 'short' });
+    const eMonth = maxD.toLocaleDateString('en-US', { month: 'short' });
+    const sDay = minD.getDate();
+    const eDay = maxD.getDate();
+
+    if (sMonth === eMonth) {
+      if (sDay === eDay) {
+        return `${sMonth} ${sDay} · ${activeTrip.mainCurrency}`;
+      }
+      return `${sMonth} ${sDay}–${eDay} · ${activeTrip.mainCurrency}`;
+    }
+    return `${sMonth} ${sDay} – ${eMonth} ${eDay} · ${activeTrip.mainCurrency}`;
+  }, [activeTripExpenses, activeTrip]);
 
   const getNavTitle = () => {
     switch (currentView) {
@@ -120,7 +136,7 @@ export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
                 {activeTrip.name}
               </h1>
               <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', lineHeight: 1.2 }}>
-                {formatDateRange(activeTrip.startDate, activeTrip.endDate, activeTrip.mainCurrency)}
+                {dynamicDateSubtitle}
               </span>
             </div>
           ) : (
