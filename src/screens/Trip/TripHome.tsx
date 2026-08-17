@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../../store/AppContext';
 import { formatMoney, getCurrencySymbol } from '../../lib/decimal';
-import { Plus, ChevronRight, Scale, HandCoins, FileSpreadsheet, Settings, AlertCircle, Users, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
+import { Plus, ChevronRight, Scale, HandCoins, FileSpreadsheet, Settings, AlertCircle, Users, ArrowUpRight, ArrowDownLeft, Receipt, PieChart } from 'lucide-react';
 import { AddExpenseSheet } from '../../components/AddExpenseSheet';
 import { ExpenseDetailModal } from '../../components/ExpenseDetailModal';
 import { CategoryIcon } from '../../components/CategoryIcon';
@@ -202,7 +202,7 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
             <h2 style={{ fontSize: '0.92rem', fontWeight: 800, letterSpacing: '-0.01em' }}>Group Members ({members.length})</h2>
           </div>
           <button
-            onClick={() => onNavigateTab('balances')}
+            onClick={() => onNavigateTab('report')}
             style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 2 }}
           >
             <span>Breakdown</span>
@@ -363,34 +363,34 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
       {/* 4. Floating Bottom Navigation Dock */}
       <nav className="floating-bottom-dock">
         <button
-          onClick={() => onNavigateTab('balances')}
+          onClick={() => onNavigateTab('expenses')}
           className="dock-tab-btn"
         >
-          <Scale size={20} />
-          <span>Balances</span>
-        </button>
-
-        <button
-          onClick={() => onNavigateTab('settle')}
-          className="dock-tab-btn"
-        >
-          <HandCoins size={20} />
-          <span>Settle Up</span>
+          <Receipt size={19} />
+          <span>Expenses</span>
         </button>
 
         <button
           onClick={() => onNavigateTab('report')}
           className="dock-tab-btn"
         >
-          <FileSpreadsheet size={20} />
-          <span>Report</span>
+          <PieChart size={19} />
+          <span>Summary</span>
+        </button>
+
+        <button
+          onClick={() => onNavigateTab('settle')}
+          className="dock-tab-btn"
+        >
+          <HandCoins size={19} />
+          <span>Settle Up</span>
         </button>
 
         <button
           onClick={() => onNavigateTab('settings')}
           className="dock-tab-btn"
         >
-          <Settings size={20} />
+          <Settings size={19} />
           <span>Settings</span>
         </button>
       </nav>
