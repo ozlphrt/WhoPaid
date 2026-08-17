@@ -81,6 +81,7 @@ interface AppContextType {
   // Sync state
   isOnline: boolean;
   isSyncing: boolean;
+  isInitialized: boolean;
   refreshData: () => Promise<void>;
 }
 
@@ -119,40 +120,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
+  const [isInitialized, setIsInitialized] = useState<boolean>(false);
+
   // Initial load
   const refreshData = useCallback(async () => {
-    await seedInitialDataIfNeeded();
+    try {
+      await seedInitialDataIfNeeded();
 
-    const uList = await db.users.toArray();
-    setAllUsers(uList);
+      const uList = await db.users.toArray();
+      setAllUsers(uList);
 
-    const loggedIn = uList.find(u => u.id === currentUser.id) || uList[0];
-    if (loggedIn) setCurrentUser(loggedIn);
+      const loggedIn = uList.find(u => u.id === currentUser.id) || uList[0];
+      if (loggedIn) setCurrentUser(loggedIn);
 
-    const allTrips = await db.trips.toArray();
-    setTrips(allTrips);
+      const allTrips = await db.trips.toArray();
+      setTrips(allTrips);
 
-    if (activeTripId) {
-      const tripMembers = await db.tripMembers.where('tripId').equals(activeTripId).toArray();
-      setMembers(tripMembers);
+      if (activeTripId) {
+        const tripMembers = await db.tripMembers.where('tripId').equals(activeTripId).toArray();
+        setMembers(tripMembers);
 
-      const tripHouseholds = await db.households.where('tripId').equals(activeTripId).toArray();
-      setHouseholds(tripHouseholds);
+        const tripHouseholds = await db.households.where('tripId').equals(activeTripId).toArray();
+        setHouseholds(tripHouseholds);
 
-      const tripExpenses = await db.expenses.where('tripId').equals(activeTripId).toArray();
-      // Sort newest first
-      tripExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      setExpenses(tripExpenses);
+        const tripExpenses = await db.expenses.where('tripId').equals(activeTripId).toArray();
+        // Sort newest first
+        tripExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setExpenses(tripExpenses);
 
-      const tripSettlements = await db.settlements.where('tripId').equals(activeTripId).toArray();
-      setSettlements(tripSettlements);
+        const tripSettlements = await db.settlements.where('tripId').equals(activeTripId).toArray();
+        setSettlements(tripSettlements);
 
-      const tripActivities = await db.activities.where('tripId').equals(activeTripId).toArray();
-      tripActivities.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      setActivities(tripActivities);
+        const tripActivities = await db.activities.where('tripId').equals(activeTripId).toArray();
+        tripActivities.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+        setActivities(tripActivities);
 
-      const tripNotifs = await db.notifications.where('userId').equals(currentUser.id).toArray();
-      setNotifications(tripNotifs);
+        const tripNotifs = await db.notifications.where('userId').equals(currentUser.id).toArray();
+        setNotifications(tripNotifs);
+      }
+    } catch (err) {
+      console.warn('IndexedDB initial load error, continuing with fallback:', err);
+    } finally {
+      setIsInitialized(true);
     }
   }, [activeTripId, currentUser.id]);
 
@@ -160,7 +169,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     refreshData();
   }, [refreshData]);
 
-  const activeTrip = trips.find(t => t.id === activeTripId && !t.isDeleted) || null;
+  const activeTrip = trips.find(t => t.id === activeTripId && !t.isDeleted) || (trips.length > 0 ? trips[0] : null);
   const archivedTrips = trips.filter(t => t.isClosed && !t.isDeleted);
   const deletedTrips = trips.filter(t => t.isDeleted);
 
@@ -668,6 +677,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         markNotificationRead,
         isOnline,
         isSyncing,
+        isInitialized,
         refreshData
       }}
     >

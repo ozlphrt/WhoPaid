@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Component, ErrorInfo, ReactNode } from 'react';
 import { AppProvider, useApp } from './store/AppContext';
 import { TopNav } from './components/TopNav';
 import { TripsHome } from './screens/Home/TripsHome';
@@ -17,8 +17,92 @@ import './styles/components.css';
 
 type AppView = 'trips' | 'trip-home' | 'expenses' | 'balances' | 'settle' | 'report' | 'settings' | 'activity' | 'archive' | 'profile';
 
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error?: Error;
+}
+
+class GlobalErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('WhoPaid App caught error:', error, errorInfo);
+  }
+
+  handleReset = () => {
+    localStorage.clear();
+    window.location.reload();
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          minHeight: '100vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          textAlign: 'center',
+          background: '#101217',
+          color: '#f8fafc',
+          fontFamily: 'sans-serif'
+        }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>💳</div>
+          <h1 style={{ fontSize: '1.4rem', fontWeight: 800, marginBottom: 8 }}>Something went wrong</h1>
+          <p style={{ fontSize: '0.85rem', color: '#94a3b8', maxWidth: 320, marginBottom: 20 }}>
+            {this.state.error?.message || 'An unexpected error occurred.'}
+          </p>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              padding: '12px 24px',
+              borderRadius: '9999px',
+              background: '#ffffff',
+              color: '#101217',
+              fontWeight: 800,
+              fontSize: '0.9rem',
+              border: 'none',
+              cursor: 'pointer',
+              marginBottom: 10
+            }}
+          >
+            Reload App
+          </button>
+          <button
+            onClick={this.handleReset}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#64748b',
+              fontSize: '0.78rem',
+              textDecoration: 'underline',
+              cursor: 'pointer'
+            }}
+          >
+            Reset local cache & reload
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const AppContent: React.FC = () => {
-  const { activeTrip, setActiveTripId } = useApp();
+  const { activeTrip, setActiveTripId, isInitialized } = useApp();
   const [currentView, setCurrentView] = useState<AppView>('trip-home');
 
   // Handle invitation URL if query params exist (?tripId=...&code=...)
@@ -36,6 +120,39 @@ const AppContent: React.FC = () => {
     setActiveTripId(tripId);
     setCurrentView('trip-home');
   };
+
+  if (!isInitialized) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'var(--bg-primary)',
+        color: 'var(--text-primary)',
+        gap: 14
+      }}>
+        <div style={{
+          width: 54,
+          height: 54,
+          borderRadius: 16,
+          background: 'var(--btn-primary-bg)',
+          color: 'var(--btn-primary-text)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: '1.6rem',
+          boxShadow: 'var(--shadow-md)'
+        }}>
+          💳
+        </div>
+        <div style={{ fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
+          WhoPaid
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app-container">
@@ -75,9 +192,11 @@ const AppContent: React.FC = () => {
 
 export function App() {
   return (
-    <AppProvider>
-      <AppContent />
-    </AppProvider>
+    <GlobalErrorBoundary>
+      <AppProvider>
+        <AppContent />
+      </AppProvider>
+    </GlobalErrorBoundary>
   );
 }
 
