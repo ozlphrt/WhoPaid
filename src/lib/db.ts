@@ -654,6 +654,11 @@ export const TEST_20_EXPENSES: Expense[] = [
 
 // Seed initial mock trip and data
 export async function seedInitialDataIfNeeded(force = false) {
+  const existingTrip = await db.trips.get('trip_leros_2026');
+  if (existingTrip && !force) {
+    return;
+  }
+
   const ozalpUser: User = {
     id: 'user_ozalp',
     name: 'Ozalp',
