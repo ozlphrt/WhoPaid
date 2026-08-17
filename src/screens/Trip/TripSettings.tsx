@@ -152,33 +152,7 @@ export const TripSettings: React.FC = () => {
           />
         </div>
 
-        {/* Dates */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-              Start Date
-            </label>
-            <input
-              type="date"
-              value={startDate}
-              disabled={!isOwner}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="input-pill"
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-              End Date
-            </label>
-            <input
-              type="date"
-              value={endDate}
-              disabled={!isOwner}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="input-pill"
-            />
-          </div>
-        </div>
+
 
         {/* Main Currency */}
         <div>

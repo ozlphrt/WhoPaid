@@ -136,34 +136,7 @@ export const CreateTripModal: React.FC<CreateTripModalProps> = ({ isOpen, onClos
           )}
         </div>
 
-        {/* Dates */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-tertiary)', marginBottom: 6 }}>
-              START DATE
-            </label>
-            <input
-              type="date"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-              className="input-pill"
-              required
-            />
-          </div>
 
-          <div>
-            <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-tertiary)', marginBottom: 6 }}>
-              END DATE
-            </label>
-            <input
-              type="date"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-              className="input-pill"
-              required
-            />
-          </div>
-        </div>
 
         {/* Main Currency */}
         <div>
