@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-  base: './',
+  base: '/WhoPaid/',
   plugins: [
     react(),
     VitePWA({
@@ -17,11 +17,11 @@ export default defineConfig({
         background_color: '#101217',
         display: 'standalone',
         orientation: 'portrait',
-        scope: './',
-        start_url: './',
+        scope: '/WhoPaid/',
+        start_url: '/WhoPaid/',
         icons: [
           {
-            src: './icons/icon-512.svg',
+            src: '/WhoPaid/icons/icon-512.svg',
             sizes: '512x512',
             type: 'image/svg+xml',
             purpose: 'any maskable'

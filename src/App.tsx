@@ -28,7 +28,7 @@ const AppContent: React.FC = () => {
     if (joinTripId) {
       setActiveTripId(joinTripId);
       setCurrentView('trip-home');
-      window.history.replaceState({}, '', '/');
+      window.history.replaceState({}, '', window.location.pathname);
     }
   }, [setActiveTripId]);
 
