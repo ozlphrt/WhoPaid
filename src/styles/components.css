@@ -1,0 +1,340 @@
+/* ==========================================================================
+   WhoPaid — Ultra-Luxury Component Styles
+   ========================================================================== */
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+/* Header */
+.top-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: var(--bg-surface);
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  border-bottom: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-sm);
+}
+
+.top-nav-title {
+  font-size: 1.18rem;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  transition: all var(--duration-fast) var(--ease-luxury);
+}
+
+.nav-icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+
+.nav-icon-btn:active {
+  transform: scale(0.95);
+}
+
+/* Primary Action Buttons */
+.btn-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  border: 1px solid var(--btn-primary-border);
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 13px 22px;
+  border-radius: var(--radius-lg);
+  transition: all var(--duration-fast) var(--ease-luxury);
+  width: 100%;
+  box-shadow: var(--shadow-md);
+  letter-spacing: -0.01em;
+  cursor: pointer;
+}
+
+.btn-primary:hover {
+  background: var(--btn-primary-hover);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lg);
+}
+
+.btn-primary:active {
+  transform: scale(0.98);
+  background: var(--btn-primary-active);
+}
+
+/* Big Circular + Action Button */
+.btn-fab-circle {
+  width: 66px;
+  height: 66px;
+  border-radius: var(--radius-full);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  border: 1px solid var(--btn-primary-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.22), 0 4px 10px rgba(0, 0, 0, 0.1);
+  transition: all var(--duration-fast) var(--ease-luxury);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.btn-fab-circle:hover {
+  background: var(--btn-primary-hover);
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.3), 0 6px 14px rgba(0, 0, 0, 0.14);
+}
+
+.btn-fab-circle:active {
+  transform: scale(0.94);
+  background: var(--btn-primary-active);
+}
+
+.btn-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  background: var(--bg-subtle);
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 0.88rem;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+  transition: all var(--duration-fast) var(--ease-luxury);
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+
+.btn-secondary:active {
+  transform: scale(0.98);
+}
+
+.btn-danger {
+  background: var(--negative-bg);
+  color: var(--negative-text);
+  border: 1px solid var(--negative-border);
+  font-weight: 600;
+  padding: 10px 16px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: all var(--duration-fast) var(--ease-luxury);
+  cursor: pointer;
+}
+
+/* Luxury Sculpted Cards */
+.card {
+  background: var(--bg-surface);
+  border-radius: var(--radius-xl);
+  padding: 20px 22px;
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--duration-fast) var(--ease-luxury), border-color var(--duration-fast) var(--ease-luxury), box-shadow var(--duration-fast) var(--ease-luxury);
+}
+
+.card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+}
+
+/* Transaction Card Row */
+.transaction-row {
+  background: var(--bg-surface);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  transition: transform var(--duration-fast) var(--ease-luxury), border-color var(--duration-fast) var(--ease-luxury), box-shadow var(--duration-fast) var(--ease-luxury);
+}
+
+.transaction-row:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.transaction-row:active {
+  transform: scale(0.99);
+}
+
+/* Hero Executive Balance Card */
+.hero-balance-card {
+  background: var(--hero-card-bg);
+  border-radius: var(--radius-xl);
+  padding: 24px 24px 20px;
+  border: 1px solid var(--hero-card-border);
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Floating Bottom Navigation Dock */
+.floating-bottom-dock {
+  position: fixed;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 32px);
+  max-width: 480px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-xl);
+  padding: 8px 10px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  z-index: 40;
+  box-shadow: var(--shadow-dock);
+}
+
+.dock-tab-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: transparent;
+  transition: all var(--duration-fast) var(--ease-luxury);
+  cursor: pointer;
+}
+
+.dock-tab-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-subtle);
+}
+
+.dock-tab-btn:active {
+  transform: scale(0.95);
+}
+
+/* Forms & Inputs */
+.amount-hero-input {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  margin: 12px 0 20px;
+}
+
+.amount-symbol {
+  font-size: 2.2rem;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.amount-field {
+  font-size: 2.8rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  width: 170px;
+  text-align: left;
+  border-bottom: 2px solid var(--border-strong);
+  padding: 2px 4px;
+  font-family: var(--font-mono);
+  letter-spacing: -0.02em;
+}
+
+.amount-field:focus {
+  border-bottom-color: var(--text-primary);
+}
+
+.input-pill {
+  width: 100%;
+  background: var(--bg-subtle);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  transition: border-color var(--duration-fast) var(--ease-luxury), background-color var(--duration-fast) var(--ease-luxury);
+}
+
+.input-pill:focus {
+  border-color: var(--border-strong);
+  background: var(--bg-surface);
+}
+
+/* Bottom Sheet Modal */
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(8px);
+  z-index: 50;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.sheet-content {
+  background: var(--bg-surface);
+  width: 100%;
+  max-width: 520px;
+  border-top-left-radius: var(--radius-xl);
+  border-top-right-radius: var(--radius-xl);
+  padding: 22px 24px calc(30px + env(safe-area-inset-bottom, 0px));
+  max-height: 88vh;
+  overflow-y: auto;
+  box-shadow: var(--shadow-dock);
+  border-top: 1px solid var(--border-strong);
+}
+
+.sheet-handle {
+  width: 38px;
+  height: 4px;
+  background: var(--border-strong);
+  border-radius: var(--radius-full);
+  margin: -6px auto 18px;
+}
