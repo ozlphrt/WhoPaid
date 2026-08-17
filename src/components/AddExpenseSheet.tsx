@@ -395,6 +395,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                 className={`category-chip ${category === cat.id ? 'active' : ''}`}
                 onClick={() => setCategory(cat.id)}
               >
+                <span>{cat.emoji}</span>
                 <span>{cat.label}</span>
               </button>
             ))}

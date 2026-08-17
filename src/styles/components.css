@@ -162,6 +162,48 @@
   cursor: pointer;
 }
 
+/* Category Chips Grid in Add Expense Sheet */
+.category-chips-grid {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: none;
+}
+
+.category-chips-grid::-webkit-scrollbar {
+  display: none;
+}
+
+.category-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: var(--radius-full);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-luxury);
+  flex-shrink: 0;
+}
+
+.category-chip:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.category-chip.active {
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  border-color: var(--btn-primary-border);
+  box-shadow: var(--shadow-sm);
+}
+
 /* Luxury Sculpted Cards */
 .card {
   background: var(--bg-surface);
@@ -262,10 +304,10 @@
 /* Forms & Inputs */
 .amount-hero-input {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: center;
-  gap: 8px;
-  margin: 12px 0 20px;
+  gap: 12px;
+  margin: 10px 0 18px;
 }
 
 .amount-symbol {
@@ -275,15 +317,17 @@
 }
 
 .amount-field {
-  font-size: 2.8rem;
-  font-weight: 700;
+  font-size: 2.6rem;
+  font-weight: 800;
   color: var(--text-primary);
-  width: 170px;
+  flex: 1;
+  max-width: 240px;
   text-align: left;
   border-bottom: 2px solid var(--border-strong);
-  padding: 2px 4px;
+  padding: 4px 6px;
   font-family: var(--font-mono);
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
+  background: transparent;
 }
 
 .amount-field:focus {
