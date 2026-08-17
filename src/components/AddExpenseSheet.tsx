@@ -4,9 +4,8 @@ import { BottomSheet } from './BottomSheet';
 import { CATEGORIES, suggestCategory } from '../lib/category';
 import { getCurrencySymbol, roundMoney, add, sub } from '../lib/decimal';
 import { CurrencyCode, ExpenseCategory, ExpensePayer, ExpenseParticipant } from '../types';
-import { ChevronDown, ChevronUp, Camera, AlertCircle, Plus, Trash2, Check } from 'lucide-react';
+import { ChevronDown, ChevronUp, Camera, AlertCircle, Plus, Trash2, Check, User, Users } from 'lucide-react';
 import { checkForDuplicateExpense } from '../lib/duplicate';
-import { CategoryIcon } from './CategoryIcon';
 
 interface AddExpenseSheetProps {
   isOpen: boolean;
@@ -14,7 +13,7 @@ interface AddExpenseSheetProps {
   editExpenseId?: string;
 }
 
-const COMMON_CURRENCIES: CurrencyCode[] = ['EUR', 'USD', 'TRY', 'GBP', 'CHF', 'CAD', 'AUD', 'SEK', 'NOK', 'DKK', 'PLN', 'JPY'];
+const COMMON_CURRENCIES: CurrencyCode[] = ['EUR', 'USD', 'TRY', 'GBP', 'CHF', 'CAD', 'AUD', 'JPY'];
 
 export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   isOpen,
@@ -57,6 +56,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
 
   // Autocomplete Suggestions
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
+  const [showCurrencyDropdown, setShowCurrencyDropdown] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize or Reset form
@@ -108,9 +108,10 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     setIsManualFx(false);
     setManualFxRate('1.00');
     setShowMoreOptions(false);
+    setShowCurrencyDropdown(false);
   }, [isOpen, editExpenseId, expenses, lastUsedCurrency, currentUser.id, activeMembers]);
 
-  // Autocomplete descriptions from current trip only (Section 17)
+  // Autocomplete descriptions from current trip
   const tripDescriptions = useMemo(() => {
     const unique = new Set<string>();
     expenses.forEach(e => {
@@ -149,6 +150,14 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
       editExpenseId
     );
   }, [parsedAmount, description, currency, paidByUserId, isMultiPayer, payers, currentUser.id, date, expenses, editExpenseId]);
+
+  // Amount input filter (clean numbers without stepper arrows)
+  const handleAmountChange = (val: string) => {
+    // Allow digits and at most one decimal point
+    if (/^\d*\.?\d*$/.test(val)) {
+      setAmountStr(val);
+    }
+  };
 
   // Receipt File upload handler
   const handleReceiptUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -196,11 +205,11 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!parsedAmount || parsedAmount <= 0) {
-      alert('Please enter a valid amount');
+      alert('Please enter a valid amount greater than 0');
       return;
     }
     if (!description.trim()) {
-      alert('Please enter a description');
+      alert('Please enter a description (e.g. Dinner, Taxi)');
       return;
     }
     if (includedUserIds.length === 0) {
@@ -267,13 +276,15 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     onClose();
   };
 
+  const payerName = members.find(m => m.userId === paidByUserId)?.name || 'You';
+
   return (
     <BottomSheet 
       isOpen={isOpen} 
       onClose={onClose} 
       title={editExpenseId ? 'Edit Expense' : 'Add Expense'}
     >
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         
         {/* Possible Duplicate Warning */}
         {duplicateCheck.isDuplicate && (
@@ -296,50 +307,117 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
           </div>
         )}
 
-        {/* 1. Large Amount Input */}
-        <div className="amount-hero-input">
+        {/* 1. Large Amount Input Container */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 12,
+          padding: '14px 16px',
+          borderRadius: 'var(--radius-lg)',
+          background: 'var(--bg-subtle)',
+          border: '1px solid var(--border-subtle)',
+          position: 'relative'
+        }}>
+          {/* Currency Pill Dropdown */}
           <button 
             type="button"
-            onClick={() => setShowMoreOptions(true)}
+            onClick={() => setShowCurrencyDropdown(prev => !prev)}
             style={{ 
-              display: 'flex', 
+              display: 'inline-flex', 
               alignItems: 'center', 
-              gap: 4, 
-              background: 'var(--bg-subtle)', 
+              gap: 6, 
+              background: 'var(--bg-surface)', 
               border: '1px solid var(--border-subtle)',
-              padding: '6px 10px', 
+              padding: '6px 12px', 
               borderRadius: 'var(--radius-full)',
-              fontSize: '1rem',
-              fontWeight: 700,
-              color: 'var(--text-primary)'
+              fontSize: '0.95rem',
+              fontWeight: 800,
+              color: 'var(--text-primary)',
+              cursor: 'pointer',
+              flexShrink: 0
             }}
           >
             <span>{getCurrencySymbol(currency)}</span>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>{currency}</span>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{currency}</span>
+            <ChevronDown size={14} color="var(--text-tertiary)" />
           </button>
-          
+
+          {/* Amount Number Input (Clean, No Stepper Arrows) */}
           <input
-            type="number"
-            step="any"
+            type="text"
             inputMode="decimal"
             autoFocus
-            placeholder="0"
-            className="amount-field"
+            placeholder="0.00"
             value={amountStr}
-            onChange={(e) => setAmountStr(e.target.value)}
+            onChange={(e) => handleAmountChange(e.target.value)}
+            style={{
+              fontSize: '2.4rem',
+              fontWeight: 800,
+              color: 'var(--text-primary)',
+              width: '100%',
+              textAlign: 'left',
+              border: 'none',
+              outline: 'none',
+              background: 'transparent',
+              fontFamily: 'var(--font-mono)',
+              letterSpacing: '-0.03em'
+            }}
             required
           />
+
+          {/* Currency Dropdown Menu */}
+          {showCurrencyDropdown && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              left: 14,
+              zIndex: 30,
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-strong)',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: 'var(--shadow-lg)',
+              padding: 6,
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: 4,
+              marginTop: 6
+            }}>
+              {COMMON_CURRENCIES.map(curr => (
+                <button
+                  key={curr}
+                  type="button"
+                  onClick={() => {
+                    setCurrency(curr);
+                    setShowCurrencyDropdown(false);
+                  }}
+                  style={{
+                    padding: '8px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    background: currency === curr ? 'var(--btn-primary-bg)' : 'transparent',
+                    color: currency === curr ? 'var(--btn-primary-text)' : 'var(--text-primary)',
+                    fontWeight: 700,
+                    fontSize: '0.8rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {curr}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* 2. Description with Autocomplete */}
+        {/* 2. Description Input with Autocomplete */}
         <div style={{ position: 'relative' }}>
           <input
             type="text"
-            placeholder="What was this for? (e.g. Dinner, Taxi)"
+            placeholder="What was this for? (e.g. Dinner, Taxi, Groceries)"
             className="input-pill"
             value={description}
             onChange={(e) => handleDescriptionChange(e.target.value)}
             onFocus={() => setShowSuggestions(true)}
+            style={{ fontSize: '0.95rem', padding: '13px 16px' }}
             required
           />
 
@@ -353,7 +431,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
               border: '1px solid var(--border-strong)',
               borderRadius: 'var(--radius-md)',
               boxShadow: 'var(--shadow-md)',
-              zIndex: 10,
+              zIndex: 20,
               marginTop: 4,
               overflow: 'hidden'
             }}>
@@ -372,7 +450,9 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                     padding: '10px 14px',
                     fontSize: '0.88rem',
                     color: 'var(--text-primary)',
-                    borderBottom: idx < filteredSuggestions.length - 1 ? '1px solid var(--border-subtle)' : 'none'
+                    borderBottom: idx < filteredSuggestions.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                    background: 'transparent',
+                    cursor: 'pointer'
                   }}
                 >
                   {suggestion}
@@ -382,27 +462,129 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
           )}
         </div>
 
-        {/* 3. Category Quick Chips */}
+        {/* 3. Category Quick Pill Selectors (Inline Bulletproof Styling) */}
         <div>
-          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
             Category
           </label>
-          <div className="category-chips-grid">
-            {CATEGORIES.map(cat => (
-              <button
-                key={cat.id}
-                type="button"
-                className={`category-chip ${category === cat.id ? 'active' : ''}`}
-                onClick={() => setCategory(cat.id)}
-              >
-                <span>{cat.emoji}</span>
-                <span>{cat.label}</span>
-              </button>
-            ))}
+          <div style={{
+            display: 'flex',
+            gap: 8,
+            overflowX: 'auto',
+            paddingBottom: 4,
+            WebkitOverflowScrolling: 'touch'
+          }}>
+            {CATEGORIES.map(cat => {
+              const isSelected = category === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setCategory(cat.id)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 14px',
+                    borderRadius: 'var(--radius-full)',
+                    background: isSelected ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
+                    color: isSelected ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
+                    border: `1px solid ${isSelected ? 'var(--btn-primary-border)' : 'var(--border-subtle)'}`,
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                    boxShadow: isSelected ? 'var(--shadow-sm)' : 'none',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <span style={{ fontSize: '1rem' }}>{cat.emoji}</span>
+                  <span>{cat.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* Expand / Collapse More Options */}
+        {/* 4. Quick Payer & Split Summary Row */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: '1fr 1fr',
+          gap: 10,
+          padding: '12px 14px',
+          background: 'var(--bg-subtle)',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border-subtle)'
+        }}>
+          <div>
+            <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>
+              Paid by
+            </span>
+            <select
+              value={isMultiPayer ? 'multi' : paidByUserId}
+              onChange={(e) => {
+                if (e.target.value === 'multi') {
+                  setIsMultiPayer(true);
+                  setShowMoreOptions(true);
+                } else {
+                  setIsMultiPayer(false);
+                  setPaidByUserId(e.target.value);
+                }
+              }}
+              style={{
+                width: '100%',
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '6px 8px',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                color: 'var(--text-primary)'
+              }}
+            >
+              {activeMembers.map(m => (
+                <option key={m.userId} value={m.userId}>
+                  {m.userId === currentUser.id ? 'You' : m.name}
+                </option>
+              ))}
+              <option value="multi">Multiple people...</option>
+            </select>
+          </div>
+
+          <div>
+            <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>
+              Split with
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowMoreOptions(true)}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 'var(--radius-sm)',
+                padding: '6px 8px',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                color: 'var(--text-primary)',
+                cursor: 'pointer'
+              }}
+            >
+              <span>
+                {includedUserIds.length === activeMembers.length 
+                  ? `All (${activeMembers.length})` 
+                  : `${includedUserIds.length} people`}
+              </span>
+              <ChevronDown size={14} color="var(--text-tertiary)" />
+            </button>
+          </div>
+        </div>
+
+        {/* 5. More Options Toggle */}
         <button
           type="button"
           onClick={() => setShowMoreOptions(prev => !prev)}
@@ -412,336 +594,150 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             justifyContent: 'center',
             gap: 6,
             color: 'var(--text-secondary)',
-            fontWeight: 600,
-            fontSize: '0.85rem',
-            padding: '6px 0',
-            margin: '2px 0'
+            fontWeight: 700,
+            fontSize: '0.82rem',
+            padding: '4px 0',
+            cursor: 'pointer'
           }}
         >
-          <span>{showMoreOptions ? 'Fewer options' : 'More options'}</span>
-          {showMoreOptions ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+          <span>{showMoreOptions ? 'Fewer options' : 'More options (date, notes, splits)'}</span>
+          {showMoreOptions ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
         </button>
 
         {/* Expanded Options */}
         {showMoreOptions && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14, borderTop: '1px solid var(--border-subtle)', paddingTop: 14 }}>
             
-            {/* Currency */}
+            {/* Date Time */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
-                Currency
-              </label>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {COMMON_CURRENCIES.slice(0, 6).map(curr => (
-                  <button
-                    key={curr}
-                    type="button"
-                    onClick={() => setCurrency(curr)}
-                    style={{
-                      padding: '6px 12px',
-                      borderRadius: 'var(--radius-full)',
-                      background: currency === curr ? 'var(--brand-primary)' : 'var(--bg-subtle)',
-                      color: currency === curr ? 'var(--brand-text)' : 'var(--text-secondary)',
-                      border: '1px solid var(--border-subtle)',
-                      fontWeight: 600,
-                      fontSize: '0.8rem'
-                    }}
-                  >
-                    {curr}
-                  </button>
-                ))}
-              </div>
-
-              {currency !== activeTrip?.mainCurrency && (
-                <div style={{ marginTop: 8 }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.82rem', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={isManualFx}
-                      onChange={(e) => setIsManualFx(e.target.checked)}
-                    />
-                    <span>Manually override exchange rate</span>
-                  </label>
-
-                  {isManualFx && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                        1 {currency} =
-                      </span>
-                      <input
-                        type="number"
-                        step="any"
-                        value={manualFxRate}
-                        onChange={(e) => setManualFxRate(e.target.value)}
-                        className="input-pill"
-                        style={{ width: 90, padding: '6px 10px' }}
-                      />
-                      <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>
-                        {activeTrip?.mainCurrency}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Paid By */}
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Paid By
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setIsMultiPayer(prev => !prev)}
-                  style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600, textDecoration: 'underline' }}
-                >
-                  {isMultiPayer ? 'Single payer' : 'Split payment'}
-                </button>
-              </div>
-
-              {!isMultiPayer ? (
-                <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
-                  {activeMembers.map(m => (
-                    <button
-                      key={m.userId}
-                      type="button"
-                      onClick={() => setPaidByUserId(m.userId)}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: 'var(--radius-full)',
-                        background: paidByUserId === m.userId ? 'var(--brand-primary)' : 'var(--bg-subtle)',
-                        color: paidByUserId === m.userId ? 'var(--brand-text)' : 'var(--text-secondary)',
-                        border: '1px solid var(--border-subtle)',
-                        fontWeight: 600,
-                        fontSize: '0.8rem',
-                        whiteSpace: 'nowrap'
-                      }}
-                    >
-                      {m.userId === currentUser.id ? 'You' : m.name}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {activeMembers.map(m => {
-                    const payerObj = payers.find(p => p.userId === m.userId);
-                    return (
-                      <div key={m.userId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{m.name}</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>{currency}</span>
-                          <input
-                            type="number"
-                            step="any"
-                            placeholder="0.00"
-                            value={payerObj?.amount || ''}
-                            onChange={(e) => handlePayerAmountChange(m.userId, e.target.value)}
-                            className="input-pill"
-                            style={{ width: 90, padding: '6px 8px', textAlign: 'right' }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                  <div style={{ fontSize: '0.78rem', textAlign: 'right', color: Math.abs(multiPayerTotal - parsedAmount) < 0.01 ? 'var(--positive-text)' : 'var(--negative-text)' }}>
-                    Total: {currency} {multiPayerTotal.toFixed(2)} / {parsedAmount.toFixed(2)}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Split With */}
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Split With ({includedUserIds.length === activeMembers.length ? 'Everyone' : `${includedUserIds.length} people`})
-                </label>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  <button
-                    type="button"
-                    onClick={() => setSplitMode('equal')}
-                    style={{
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      padding: '3px 8px',
-                      borderRadius: 'var(--radius-sm)',
-                      background: splitMode === 'equal' ? 'var(--brand-primary)' : 'var(--bg-subtle)',
-                      color: splitMode === 'equal' ? 'var(--brand-text)' : 'var(--text-secondary)'
-                    }}
-                  >
-                    Equal
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSplitMode('custom')}
-                    style={{
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      padding: '3px 8px',
-                      borderRadius: 'var(--radius-sm)',
-                      background: splitMode === 'custom' ? 'var(--brand-primary)' : 'var(--bg-subtle)',
-                      color: splitMode === 'custom' ? 'var(--brand-text)' : 'var(--text-secondary)'
-                    }}
-                  >
-                    Custom
-                  </button>
-                </div>
-              </div>
-
-              {splitMode === 'equal' ? (
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {activeMembers.map(m => {
-                    const isSelected = includedUserIds.includes(m.userId);
-                    return (
-                      <button
-                        key={m.userId}
-                        type="button"
-                        onClick={() => {
-                          if (isSelected) {
-                            if (includedUserIds.length > 1) {
-                              setIncludedUserIds(prev => prev.filter(id => id !== m.userId));
-                            }
-                          } else {
-                            setIncludedUserIds(prev => [...prev, m.userId]);
-                          }
-                        }}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4,
-                          padding: '6px 12px',
-                          borderRadius: 'var(--radius-full)',
-                          background: isSelected ? 'var(--brand-primary)' : 'var(--bg-subtle)',
-                          color: isSelected ? 'var(--brand-text)' : 'var(--text-tertiary)',
-                          border: '1px solid var(--border-subtle)',
-                          fontWeight: 600,
-                          fontSize: '0.8rem'
-                        }}
-                      >
-                        {isSelected && <Check size={12} />}
-                        <span>{m.name}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {activeMembers.map(m => {
-                    const isIncluded = includedUserIds.includes(m.userId);
-                    return (
-                      <div key={m.userId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
-                          <input
-                            type="checkbox"
-                            checked={isIncluded}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setIncludedUserIds(prev => [...prev, m.userId]);
-                              } else if (includedUserIds.length > 1) {
-                                setIncludedUserIds(prev => prev.filter(id => id !== m.userId));
-                              }
-                            }}
-                          />
-                          <span>{m.name}</span>
-                        </label>
-
-                        {isIncluded && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>{currency}</span>
-                            <input
-                              type="number"
-                              step="any"
-                              placeholder="0.00"
-                              value={customShares[m.userId] || ''}
-                              onChange={(e) => handleCustomShareChange(m.userId, e.target.value)}
-                              className="input-pill"
-                              style={{ width: 85, padding: '5px 8px', textAlign: 'right' }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Date */}
-            <div>
-              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-                Date & Time
+              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                Expense Date & Time
               </label>
               <input
                 type="datetime-local"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 className="input-pill"
+                style={{ padding: '8px 12px', fontSize: '0.85rem' }}
               />
             </div>
 
-            {/* Note */}
+            {/* Split Mode & Participants Selector */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Split Mode
+                </label>
+                <div style={{ display: 'flex', gap: 4 }}>
+                  <button
+                    type="button"
+                    onClick={() => setSplitMode('equal')}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: 'var(--radius-sm)',
+                      background: splitMode === 'equal' ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
+                      color: splitMode === 'equal' ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
+                      fontSize: '0.75rem',
+                      fontWeight: 700
+                    }}
+                  >
+                    Equally
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSplitMode('custom')}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: 'var(--radius-sm)',
+                      background: splitMode === 'custom' ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
+                      color: splitMode === 'custom' ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
+                      fontSize: '0.75rem',
+                      fontWeight: 700
+                    }}
+                  >
+                    Custom Exact
+                  </button>
+                </div>
+              </div>
+
+              {/* Member Checkboxes & Custom Inputs */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-subtle)', padding: 10, borderRadius: 'var(--radius-md)' }}>
+                {activeMembers.map(m => {
+                  const isChecked = includedUserIds.includes(m.userId);
+                  return (
+                    <div key={m.userId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setIncludedUserIds(prev => [...prev, m.userId]);
+                            } else {
+                              setIncludedUserIds(prev => prev.filter(id => id !== m.userId));
+                            }
+                          }}
+                        />
+                        <span>{m.name} {m.userId === currentUser.id && '(You)'}</span>
+                      </label>
+
+                      {splitMode === 'custom' && isChecked && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>{currency}</span>
+                          <input
+                            type="number"
+                            step="any"
+                            placeholder="0.00"
+                            value={customShares[m.userId] || ''}
+                            onChange={(e) => handleCustomShareChange(m.userId, e.target.value)}
+                            style={{
+                              width: 80,
+                              padding: '4px 6px',
+                              borderRadius: 'var(--radius-sm)',
+                              border: '1px solid var(--border-subtle)',
+                              background: 'var(--bg-surface)',
+                              fontSize: '0.85rem',
+                              fontFamily: 'var(--font-mono)'
+                            }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Note & Receipt */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
                 Note (Optional)
               </label>
               <input
                 type="text"
-                placeholder="e.g. Ali wasn't with us"
+                placeholder="Additional notes..."
+                className="input-pill"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                className="input-pill"
+                style={{ padding: '8px 12px', fontSize: '0.85rem' }}
               />
-            </div>
-
-            {/* Receipt Photo */}
-            <div>
-              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
-                Receipt Photo
-              </label>
-              <input
-                type="file"
-                accept="image/*"
-                ref={fileInputRef}
-                onChange={handleReceiptUpload}
-                style={{ display: 'none' }}
-              />
-              
-              {!receiptUrl ? (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="btn-secondary"
-                  style={{ width: '100%' }}
-                >
-                  <Camera size={16} />
-                  <span>Attach Receipt Photo</span>
-                </button>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-subtle)', padding: 8, borderRadius: 'var(--radius-md)' }}>
-                  <img
-                    src={receiptUrl}
-                    alt="Receipt"
-                    style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 'var(--radius-sm)' }}
-                  />
-                  <span style={{ fontSize: '0.82rem', flex: 1, fontWeight: 600 }}>Receipt attached</span>
-                  <button
-                    type="button"
-                    onClick={() => setReceiptUrl(undefined)}
-                    className="nav-icon-btn"
-                    style={{ width: 30, height: 30 }}
-                  >
-                    <Trash2 size={14} color="var(--negative-text)" />
-                  </button>
-                </div>
-              )}
             </div>
 
           </div>
         )}
 
-        {/* Submit Button */}
-        <button type="submit" className="btn-primary" style={{ marginTop: 6 }}>
+        {/* Big Submit Button */}
+        <button
+          type="submit"
+          className="btn-primary"
+          style={{
+            marginTop: 4,
+            padding: '14px',
+            fontSize: '1rem',
+            fontWeight: 800,
+            borderRadius: 'var(--radius-lg)'
+          }}
+        >
           <span>{editExpenseId ? 'Save Changes' : 'Add Expense'}</span>
         </button>
 
