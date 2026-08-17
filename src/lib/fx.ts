@@ -66,7 +66,7 @@ export async function fetchHistoricalExchangeRate(
   try {
     const url = `https://api.frankfurter.app/${dateStr}?from=${from}&to=${to}`;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const timeoutId = setTimeout(() => controller.abort(), 1500);
 
     const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timeoutId);
