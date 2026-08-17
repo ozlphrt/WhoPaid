@@ -412,7 +412,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
         <div style={{ position: 'relative' }}>
           <input
             type="text"
-            placeholder="What was this for? (e.g. Dinner, Taxi, Groceries)"
+            placeholder="Expense name (e.g. Pizza Hut, Uber, Whole Foods)"
             className="input-pill"
             value={description}
             onChange={(e) => handleDescriptionChange(e.target.value)}
