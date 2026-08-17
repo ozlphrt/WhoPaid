@@ -54,12 +54,11 @@ export const ExpenseList: React.FC = () => {
         return false;
       }
 
-      // 3. Person filter (matches if person is payer OR participant)
+      // 3. Person filter (filters strictly by who paid for the expense)
       if (selectedPerson !== 'all') {
         const isMainPayer = exp.paidByUserId === selectedPerson;
-        const isMultiPayer = exp.payers?.some(p => p.userId === selectedPerson);
-        const isParticipant = exp.participants?.some(p => p.userId === selectedPerson);
-        if (!isMainPayer && !isMultiPayer && !isParticipant) {
+        const isMultiPayer = exp.payers?.some(p => p.userId === selectedPerson && p.amount > 0);
+        if (!isMainPayer && !isMultiPayer) {
           return false;
         }
       }
@@ -119,7 +118,7 @@ export const ExpenseList: React.FC = () => {
       {/* Filter Chips (People) */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-tertiary)' }}>
-          Filter by Person
+          Paid by Person
         </span>
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
           <button
