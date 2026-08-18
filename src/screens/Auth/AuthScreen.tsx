@@ -27,7 +27,15 @@ export const AuthScreen: React.FC = () => {
       await loginWithGoogleAuth();
     } catch (err: any) {
       console.error('Google Sign In Error:', err);
-      setErrorMsg(err.message || 'Google sign-in failed. Please try again.');
+      if (err.code === 'auth/unauthorized-domain') {
+        setErrorMsg('Domain not authorized: Please add "ozlphrt.github.io" to Firebase Console -> Authentication -> Settings -> Authorized domains.');
+      } else if (err.code === 'auth/operation-not-allowed') {
+        setErrorMsg('Google Sign-In is not enabled: Please enable Google in Firebase Console -> Authentication -> Sign-in method.');
+      } else if (err.code === 'auth/popup-blocked') {
+        setErrorMsg('Popup was blocked by your browser. Redirecting to Google...');
+      } else {
+        setErrorMsg(err.message || 'Google sign-in failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

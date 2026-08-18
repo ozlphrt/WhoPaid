@@ -927,9 +927,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const loginWithGoogleAuth = async () => {
     try {
-      await fbLoginGoogle();
-    } catch (err) {
+      const fbUser = await fbLoginGoogle();
+      if (fbUser) {
+        const u: User = {
+          id: fbUser.uid,
+          name: fbUser.displayName || 'User',
+          email: fbUser.email || 'user@whopaid.app',
+          defaultCurrency: 'EUR',
+          avatarUrl: fbUser.photoURL || undefined
+        };
+        setCurrentUser(u);
+      }
+    } catch (err: any) {
       console.error('Google login failed:', err);
+      throw err;
     }
   };
 
