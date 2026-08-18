@@ -1,8 +1,8 @@
 /* ==========================================================================
-   WhoPaid — Pure Neutral Luxury Tokens with Vibrant High-Contrast Highlights
+   WhoPaid — Pure Neutral Luxury Tokens with Dark Muted Slate Accents
    ========================================================================== */
 
-/* 1. Light Mode (Crisp White Surfaces on Soft Warm Sand Canvas with Vibrant Sapphire/Indigo CTA) */
+/* 1. Light Mode (Soft Warm Sand Canvas + Deep Muted Slate Navy CTA) */
 :root, [data-theme="light"] {
   --bg-primary: #e8e4db;
   --bg-surface: #ffffff;
@@ -15,22 +15,22 @@
   --text-tertiary: #64748b;
   --text-inverse: #ffffff;
 
-  /* Vibrant Signature Primary Action & Active Highlight (Rich Sapphire Indigo) */
-  --accent-primary: #2563eb;
-  --accent-primary-hover: #1d4ed8;
-  --accent-primary-subtle: #eff6ff;
-  --accent-primary-border: #bfdbfe;
+  /* Darker, Less Saturated Muted Slate Accent */
+  --accent-primary: #344256;
+  --accent-primary-hover: #283344;
+  --accent-primary-subtle: rgba(52, 66, 86, 0.09);
+  --accent-primary-border: #94a3b8;
 
-  --btn-primary-bg: #2563eb;
-  --btn-primary-hover: #1d4ed8;
-  --btn-primary-active: #1e40af;
+  --btn-primary-bg: #344256;
+  --btn-primary-hover: #283344;
+  --btn-primary-active: #1e2633;
   --btn-primary-text: #ffffff;
-  --btn-primary-border: #2563eb;
+  --btn-primary-border: #344256;
 
-  /* Active Pill Highlights */
-  --pill-active-bg: #2563eb;
+  /* Active Pill Highlights (Deep Muted Slate) */
+  --pill-active-bg: #344256;
   --pill-active-text: #ffffff;
-  --pill-active-border: #2563eb;
+  --pill-active-border: #344256;
 
   /* Financial Status Badges */
   --positive-text: #047857;
@@ -45,8 +45,8 @@
   --warning-bg: #fffbeb;
   --warning-border: #fde68a;
 
-  --info-text: #2563eb;
-  --info-bg: #eff6ff;
+  --info-text: #334155;
+  --info-bg: #f1f5f9;
 
   /* Crisp Hairline Borders */
   --border-subtle: #d6cfbf;
@@ -76,7 +76,7 @@
   --duration-fast: 150ms;
 }
 
-/* 2. Dark Mode (Space Gray Titanium with Vibrant High-Contrast Blue Highlights) */
+/* 2. Dark Mode (Space Gray Titanium with Muted Slate/Zinc Highlights) */
 [data-theme="dark"] {
   --bg-primary: #18191c;
   --bg-surface: #222327;
@@ -89,22 +89,22 @@
   --text-tertiary: #94a3b8;
   --text-inverse: #0f172a;
 
-  /* Vibrant Signature Primary Action & Active Highlight */
-  --accent-primary: #3b82f6;
-  --accent-primary-hover: #60a5fa;
-  --accent-primary-subtle: rgba(59, 130, 246, 0.2);
-  --accent-primary-border: rgba(59, 130, 246, 0.45);
+  /* Muted Slate Zinc Accent */
+  --accent-primary: #78889e;
+  --accent-primary-hover: #8f9fad;
+  --accent-primary-subtle: rgba(120, 136, 158, 0.22);
+  --accent-primary-border: rgba(120, 136, 158, 0.45);
 
-  --btn-primary-bg: #3b82f6;
-  --btn-primary-hover: #60a5fa;
-  --btn-primary-active: #2563eb;
+  --btn-primary-bg: #475466;
+  --btn-primary-hover: #58677c;
+  --btn-primary-active: #3b4756;
   --btn-primary-text: #ffffff;
-  --btn-primary-border: #3b82f6;
+  --btn-primary-border: #5e6f85;
 
   /* Active Pill Highlights */
-  --pill-active-bg: #3b82f6;
+  --pill-active-bg: #475466;
   --pill-active-text: #ffffff;
-  --pill-active-border: #3b82f6;
+  --pill-active-border: #5e6f85;
 
   /* Luminous Indicators */
   --positive-text: #34d399;
@@ -119,8 +119,8 @@
   --warning-bg: rgba(251, 191, 36, 0.14);
   --warning-border: rgba(251, 191, 36, 0.32);
 
-  --info-text: #38bdf8;
-  --info-bg: rgba(56, 189, 248, 0.14);
+  --info-text: #94a3b8;
+  --info-bg: rgba(148, 163, 184, 0.14);
 
   /* Pure Neutral Hairline Borders */
   --border-subtle: #383940;
