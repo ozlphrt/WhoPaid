@@ -2,6 +2,8 @@ export type CurrencyCode = 'EUR' | 'USD' | 'GBP' | 'TRY' | 'JPY' | 'CHF' | 'CAD'
 
 export type ExpenseCategory = 'Food' | 'Drinks' | 'Transport' | 'Hotel' | 'Tickets' | 'Other';
 
+export type AppView = 'trips' | 'trip-home' | 'expenses' | 'balances' | 'settle' | 'report' | 'settings' | 'activity' | 'archive' | 'profile';
+
 export interface User {
   id: string;
   name: string;

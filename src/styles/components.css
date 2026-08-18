@@ -301,9 +301,9 @@
 }
 
 .dock-tab-btn.active {
-  color: var(--btn-primary-text);
-  background: var(--btn-primary-bg);
-  box-shadow: var(--shadow-sm);
+  color: var(--accent-primary);
+  background: var(--accent-primary-subtle);
+  font-weight: 800;
 }
 
 .dock-tab-btn:active {

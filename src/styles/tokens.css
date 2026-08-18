@@ -1,26 +1,36 @@
 /* ==========================================================================
-   WhoPaid — Pure Neutral Luxury Tokens (Zero Blue Tint in Dark Mode)
+   WhoPaid — Pure Neutral Luxury Tokens with Vibrant High-Contrast Highlights
    ========================================================================== */
 
-/* 1. Light Mode (Crisp White Surfaces on Soft Warm Sand Canvas) */
+/* 1. Light Mode (Crisp White Surfaces on Soft Warm Sand Canvas with Vibrant Sapphire/Indigo CTA) */
 :root, [data-theme="light"] {
-  --bg-primary: #e6e2d8;
+  --bg-primary: #e8e4db;
   --bg-surface: #ffffff;
-  --bg-subtle: #f0ece3;
+  --bg-subtle: #f2eee6;
   --bg-elevated: #ffffff;
-  --bg-hover: #f1ede3;
+  --bg-hover: #ece7dc;
   
-  --text-primary: #0d0f14;
-  --text-secondary: #454a57;
-  --text-tertiary: #7c8292;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #64748b;
   --text-inverse: #ffffff;
 
-  /* Obsidian Action Button */
-  --btn-primary-bg: #12141a;
-  --btn-primary-hover: #222632;
-  --btn-primary-active: #08090d;
+  /* Vibrant Signature Primary Action & Active Highlight (Rich Sapphire Indigo) */
+  --accent-primary: #2563eb;
+  --accent-primary-hover: #1d4ed8;
+  --accent-primary-subtle: #eff6ff;
+  --accent-primary-border: #bfdbfe;
+
+  --btn-primary-bg: #2563eb;
+  --btn-primary-hover: #1d4ed8;
+  --btn-primary-active: #1e40af;
   --btn-primary-text: #ffffff;
-  --btn-primary-border: #12141a;
+  --btn-primary-border: #2563eb;
+
+  /* Active Pill Highlights */
+  --pill-active-bg: #2563eb;
+  --pill-active-text: #ffffff;
+  --pill-active-border: #2563eb;
 
   /* Financial Status Badges */
   --positive-text: #047857;
@@ -39,8 +49,8 @@
   --info-bg: #eff6ff;
 
   /* Crisp Hairline Borders */
-  --border-subtle: #d3cdc0;
-  --border-strong: #b8b09f;
+  --border-subtle: #d6cfbf;
+  --border-strong: #bcb4a3;
   --border-glass: rgba(255, 255, 255, 0.8);
 
   /* Deep Multi-Layer Ambient Drop Shadows */
@@ -66,25 +76,35 @@
   --duration-fast: 150ms;
 }
 
-/* 2. Dark Mode (Pure Neutral Space Gray / Titanium Charcoal — Zero Blue Tint) */
+/* 2. Dark Mode (Space Gray Titanium with Vibrant High-Contrast Blue Highlights) */
 [data-theme="dark"] {
-  --bg-primary: #212124;
-  --bg-surface: #2c2c30;
-  --bg-subtle: #38383e;
-  --bg-elevated: #42424a;
-  --bg-hover: #4a4a54;
+  --bg-primary: #18191c;
+  --bg-surface: #222327;
+  --bg-subtle: #2d2e34;
+  --bg-elevated: #373840;
+  --bg-hover: #40414a;
   
-  --text-primary: #f4f4f6;
-  --text-secondary: #a8a8b2;
-  --text-tertiary: #767682;
-  --text-inverse: #212124;
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-tertiary: #94a3b8;
+  --text-inverse: #0f172a;
 
-  /* Neutral Titanium Action Button */
-  --btn-primary-bg: #3b3b42;
-  --btn-primary-hover: #484852;
-  --btn-primary-active: #2e2e34;
+  /* Vibrant Signature Primary Action & Active Highlight */
+  --accent-primary: #3b82f6;
+  --accent-primary-hover: #60a5fa;
+  --accent-primary-subtle: rgba(59, 130, 246, 0.2);
+  --accent-primary-border: rgba(59, 130, 246, 0.45);
+
+  --btn-primary-bg: #3b82f6;
+  --btn-primary-hover: #60a5fa;
+  --btn-primary-active: #2563eb;
   --btn-primary-text: #ffffff;
-  --btn-primary-border: #52525c;
+  --btn-primary-border: #3b82f6;
+
+  /* Active Pill Highlights */
+  --pill-active-bg: #3b82f6;
+  --pill-active-text: #ffffff;
+  --pill-active-border: #3b82f6;
 
   /* Luminous Indicators */
   --positive-text: #34d399;
@@ -103,17 +123,17 @@
   --info-bg: rgba(56, 189, 248, 0.14);
 
   /* Pure Neutral Hairline Borders */
-  --border-subtle: #3d3d44;
-  --border-strong: #52525c;
+  --border-subtle: #383940;
+  --border-strong: #4e505a;
   --border-glass: rgba(255, 255, 255, 0.1);
 
   /* Deep Dark Shadows */
-  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.28);
-  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.38);
-  --shadow-lg: 0 14px 34px rgba(0, 0, 0, 0.48);
-  --shadow-dock: 0 20px 52px rgba(0, 0, 0, 0.58);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.32);
+  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.44);
+  --shadow-lg: 0 14px 34px rgba(0, 0, 0, 0.54);
+  --shadow-dock: 0 20px 52px rgba(0, 0, 0, 0.65);
 
   /* Hero Balance Card */
-  --hero-card-bg: linear-gradient(145deg, #303036 0%, #27272b 100%);
-  --hero-card-border: #44444c;
+  --hero-card-bg: linear-gradient(145deg, #27282d 0%, #1e1f23 100%);
+  --hero-card-border: #3d3e45;
 }
