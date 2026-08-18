@@ -145,7 +145,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const [trips, setTrips] = useState<Trip[]>([]);
-  const [activeTripId, setActiveTripId] = useState<string | null>('trip_leros_2026');
+  const [activeTripId, setActiveTripId] = useState<string | null>(null);
   const [members, setMembers] = useState<TripMember[]>([]);
   const [households, setHouseholds] = useState<Household[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
@@ -215,8 +215,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const uList = await db.users.toArray();
       setAllUsers(uList);
 
-      const loggedIn = uList.find(u => u.id === currentUser.id) || uList[0];
-      if (loggedIn) setCurrentUser(loggedIn);
+      if (storedUser) {
+        const loggedIn = uList.find(u => u.id === storedUser.id);
+        if (loggedIn) setStoredUser(loggedIn);
+      }
 
       const allTrips = await db.trips.toArray();
       setTrips(allTrips);
@@ -342,7 +344,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [activeTripId, isOnline]);
 
-  const activeTrip = trips.find(t => t.id === activeTripId && !t.isDeleted) || (trips.length > 0 ? trips[0] : null);
+  const activeTrip = trips.find(t => t.id === activeTripId && !t.isDeleted) || (activeTripId === null && trips.length > 0 ? trips[0] : null);
   const archivedTrips = trips.filter(t => t.isClosed && !t.isDeleted);
   const deletedTrips = trips.filter(t => t.isDeleted);
 
