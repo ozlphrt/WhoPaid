@@ -110,25 +110,32 @@ export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
               <ChevronLeft size={20} />
             </button>
           ) : (
-            <div style={{
-              width: 30,
-              height: 30,
-              borderRadius: 'var(--radius-sm)',
-              background: 'var(--btn-primary-bg)',
-              border: '1px solid var(--btn-primary-border)',
-              color: 'var(--btn-primary-text)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 800,
-              fontSize: '0.85rem',
-              flexShrink: 0
-            }}>
-              W
-            </div>
+            <img 
+              src={`${import.meta.env.BASE_URL}apple-touch-icon.png`} 
+              alt="WhoPaid Icon" 
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: 9,
+                objectFit: 'cover',
+                flexShrink: 0,
+                boxShadow: '0 2px 6px rgba(0,0,0,0.15)'
+              }}
+            />
           )}
 
-          {currentView === 'trip-home' && activeTrip ? (
+          {currentView === 'trips' ? (
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <span style={{
+                fontSize: '1.18rem',
+                fontWeight: 800,
+                letterSpacing: '-0.03em',
+                color: 'var(--text-primary)'
+              }}>
+                WhoPaid
+              </span>
+            </div>
+          ) : currentView === 'trip-home' && activeTrip ? (
             <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
               <h1 style={{
                 fontSize: '1.15rem',
