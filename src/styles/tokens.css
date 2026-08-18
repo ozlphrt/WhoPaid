@@ -1,8 +1,8 @@
 /* ==========================================================================
-   WhoPaid — Pure Neutral Luxury Tokens with Dark Muted Slate Accents
+   WhoPaid — Pure Luxury Tokens (High Contrast Surface Separation & Muted Slate)
    ========================================================================== */
 
-/* 1. Light Mode (Soft Warm Sand Canvas + Deep Muted Slate Navy CTA) */
+/* 1. Light Mode (Warm Sand Canvas + Pure White Elevated Cards + Muted Slate Navy CTA) */
 :root, [data-theme="light"] {
   --bg-primary: #e8e4db;
   --bg-surface: #ffffff;
@@ -15,7 +15,7 @@
   --text-tertiary: #64748b;
   --text-inverse: #ffffff;
 
-  /* Darker, Less Saturated Muted Slate Accent */
+  /* Darker, Less Saturated Muted Slate Navy Accent */
   --accent-primary: #344256;
   --accent-primary-hover: #283344;
   --accent-primary-subtle: rgba(52, 66, 86, 0.09);
@@ -27,7 +27,7 @@
   --btn-primary-text: #ffffff;
   --btn-primary-border: #344256;
 
-  /* Active Pill Highlights (Deep Muted Slate) */
+  /* Active Pill Highlights */
   --pill-active-bg: #344256;
   --pill-active-text: #ffffff;
   --pill-active-border: #344256;
@@ -76,37 +76,37 @@
   --duration-fast: 150ms;
 }
 
-/* 2. Dark Mode (Space Gray Titanium with Muted Slate/Zinc Highlights) */
+/* 2. Dark Mode (Distinct Surface Contrast: Deep Obsidian Canvas + Lighter Titanium Slate Cards) */
 [data-theme="dark"] {
-  --bg-primary: #18191c;
-  --bg-surface: #222327;
-  --bg-subtle: #2d2e34;
-  --bg-elevated: #373840;
-  --bg-hover: #40414a;
+  --bg-primary: #121316;
+  --bg-surface: #24262c;
+  --bg-subtle: #30333b;
+  --bg-elevated: #3c404a;
+  --bg-hover: #484c58;
   
   --text-primary: #f8fafc;
   --text-secondary: #cbd5e1;
   --text-tertiary: #94a3b8;
   --text-inverse: #0f172a;
 
-  /* Muted Slate Zinc Accent */
-  --accent-primary: #78889e;
-  --accent-primary-hover: #8f9fad;
-  --accent-primary-subtle: rgba(120, 136, 158, 0.22);
-  --accent-primary-border: rgba(120, 136, 158, 0.45);
+  /* Muted Slate / Titanium Blue Accent */
+  --accent-primary: #5b6b82;
+  --accent-primary-hover: #6d7f99;
+  --accent-primary-subtle: rgba(91, 107, 130, 0.25);
+  --accent-primary-border: rgba(91, 107, 130, 0.5);
 
-  --btn-primary-bg: #475466;
-  --btn-primary-hover: #58677c;
-  --btn-primary-active: #3b4756;
+  --btn-primary-bg: #4c5a6e;
+  --btn-primary-hover: #5d6e85;
+  --btn-primary-active: #3e4a5b;
   --btn-primary-text: #ffffff;
-  --btn-primary-border: #5e6f85;
+  --btn-primary-border: #64758e;
 
   /* Active Pill Highlights */
-  --pill-active-bg: #475466;
+  --pill-active-bg: #4c5a6e;
   --pill-active-text: #ffffff;
-  --pill-active-border: #5e6f85;
+  --pill-active-border: #64758e;
 
-  /* Luminous Indicators */
+  /* Luminous Status Indicators */
   --positive-text: #34d399;
   --positive-bg: rgba(52, 211, 153, 0.14);
   --positive-border: rgba(52, 211, 153, 0.32);
@@ -122,18 +122,18 @@
   --info-text: #94a3b8;
   --info-bg: rgba(148, 163, 184, 0.14);
 
-  /* Pure Neutral Hairline Borders */
-  --border-subtle: #383940;
-  --border-strong: #4e505a;
-  --border-glass: rgba(255, 255, 255, 0.1);
+  /* Crisp Hairline Borders for Sharp Card Definition */
+  --border-subtle: #363942;
+  --border-strong: #4a4e5a;
+  --border-glass: rgba(255, 255, 255, 0.12);
 
   /* Deep Dark Shadows */
-  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.32);
-  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.44);
-  --shadow-lg: 0 14px 34px rgba(0, 0, 0, 0.54);
-  --shadow-dock: 0 20px 52px rgba(0, 0, 0, 0.65);
+  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.48);
+  --shadow-lg: 0 14px 34px rgba(0, 0, 0, 0.58);
+  --shadow-dock: 0 20px 52px rgba(0, 0, 0, 0.7);
 
   /* Hero Balance Card */
-  --hero-card-bg: linear-gradient(145deg, #27282d 0%, #1e1f23 100%);
-  --hero-card-border: #3d3e45;
+  --hero-card-bg: linear-gradient(145deg, #2b2e35 0%, #202227 100%);
+  --hero-card-border: #424650;
 }
