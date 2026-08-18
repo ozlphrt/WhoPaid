@@ -260,19 +260,21 @@
 /* Floating Bottom Navigation Dock */
 .floating-bottom-dock {
   position: fixed;
-  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   width: calc(100% - 32px);
   max-width: 480px;
   background: var(--bg-surface);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-xl);
-  padding: 8px 10px;
+  padding: 6px 8px;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  z-index: 40;
+  gap: 6px;
+  z-index: 50;
   box-shadow: var(--shadow-dock);
 }
 
@@ -281,20 +283,27 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 3px;
   padding: 8px 4px;
   border-radius: var(--radius-md);
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-size: 0.78rem;
+  font-weight: 700;
   color: var(--text-secondary);
   background: transparent;
   transition: all var(--duration-fast) var(--ease-luxury);
   cursor: pointer;
+  border: none;
 }
 
 .dock-tab-btn:hover {
   color: var(--text-primary);
   background: var(--bg-subtle);
+}
+
+.dock-tab-btn.active {
+  color: var(--btn-primary-text);
+  background: var(--btn-primary-bg);
+  box-shadow: var(--shadow-sm);
 }
 
 .dock-tab-btn:active {

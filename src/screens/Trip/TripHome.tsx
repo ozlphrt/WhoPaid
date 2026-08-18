@@ -362,41 +362,6 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
         )}
       </div>
 
-      {/* 4. Floating Bottom Navigation Dock */}
-      <nav className="floating-bottom-dock">
-        <button
-          onClick={() => onNavigateTab('expenses')}
-          className="dock-tab-btn"
-        >
-          <Receipt size={19} />
-          <span>Expenses</span>
-        </button>
-
-        <button
-          onClick={() => onNavigateTab('report')}
-          className="dock-tab-btn"
-        >
-          <PieChart size={19} />
-          <span>Summary</span>
-        </button>
-
-        <button
-          onClick={() => onNavigateTab('settle')}
-          className="dock-tab-btn"
-        >
-          <HandCoins size={19} />
-          <span>Settle Up</span>
-        </button>
-
-        <button
-          onClick={() => onNavigateTab('settings')}
-          className="dock-tab-btn"
-        >
-          <Settings size={19} />
-          <span>Settings</span>
-        </button>
-      </nav>
-
       {/* Modals */}
       <AddExpenseSheet
         isOpen={isAddOpen}

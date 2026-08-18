@@ -101,7 +101,11 @@ class GlobalErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySta
   }
 }
 
-const AppContent: React.FC = () => {
+import { FloatingBottomDock } from './components/FloatingBottomDock';
+
+interface AppContentProps {}
+
+const AppContent: React.FC<AppContentProps> = () => {
   const { activeTrip, setActiveTripId, isInitialized } = useApp();
   const [currentView, setCurrentView] = useState<AppView>('trip-home');
 
@@ -154,6 +158,13 @@ const AppContent: React.FC = () => {
     );
   }
 
+  const showTripDock = Boolean(
+    activeTrip && 
+    currentView !== 'trips' && 
+    currentView !== 'archive' && 
+    currentView !== 'profile'
+  );
+
   return (
     <div className="app-container">
       <TopNav
@@ -161,7 +172,7 @@ const AppContent: React.FC = () => {
         onNavigate={(view) => setCurrentView(view)}
       />
 
-      <main style={{ flex: 1 }}>
+      <main style={{ flex: 1, paddingBottom: showTripDock ? 70 : 20 }}>
         {currentView === 'trips' && (
           <TripsHome
             onSelectTrip={handleSelectTrip}
@@ -184,6 +195,13 @@ const AppContent: React.FC = () => {
         {currentView === 'archive' && <ArchiveScreen onSelectTrip={handleSelectTrip} />}
         {currentView === 'profile' && <ProfileScreen />}
       </main>
+
+      {showTripDock && (
+        <FloatingBottomDock
+          currentView={currentView}
+          onNavigate={(view) => setCurrentView(view)}
+        />
+      )}
 
       <UndoToast />
     </div>
