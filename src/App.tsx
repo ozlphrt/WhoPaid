@@ -7,6 +7,7 @@ import { ExpenseList } from './screens/Trip/ExpenseList';
 import { Balances } from './screens/Trip/Balances';
 import { Settle } from './screens/Trip/Settle';
 import { ProfileScreen } from './screens/Profile/ProfileScreen';
+import { AuthScreen } from './screens/Auth/AuthScreen';
 import { UndoToast } from './components/UndoToast';
 import './styles/global.css';
 import './styles/components.css';
@@ -107,7 +108,7 @@ import { FloatingBottomDock } from './components/FloatingBottomDock';
 interface AppContentProps {}
 
 const AppContent: React.FC<AppContentProps> = () => {
-  const { activeTrip, setActiveTripId, isInitialized } = useApp();
+  const { activeTrip, setActiveTripId, isInitialized, isAuthenticated, currentUser } = useApp();
   const [currentView, setCurrentView] = useState<AppView>('trip-home');
 
   // Handle invitation URL if query params exist (?join=... or ?tripId=...)
@@ -157,6 +158,11 @@ const AppContent: React.FC<AppContentProps> = () => {
         </div>
       </div>
     );
+  }
+
+  // If not signed in, show Auth Gate
+  if (!isAuthenticated || !currentUser) {
+    return <AuthScreen />;
   }
 
   const showTripDock = Boolean(

@@ -36,6 +36,7 @@ interface UndoState {
 interface AppContextType {
   currentUser: User;
   setCurrentUser: (u: User) => void;
+  isAuthenticated: boolean;
   allUsers: User[];
   
   // Active Trip
@@ -116,14 +117,32 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | null>(null);
 
+const DEFAULT_USER: User = {
+  id: 'guest',
+  name: 'Guest',
+  email: 'guest@whopaid.app',
+  defaultCurrency: 'EUR'
+};
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [allUsers, setAllUsers] = useState<User[]>([]);
-  const [currentUser, setCurrentUser] = useState<User>({
-    id: 'user_ozalp',
-    name: 'Ozalp',
-    email: 'ozalp@example.com',
-    defaultCurrency: 'EUR'
+  const [storedUser, setStoredUser] = useState<User | null>(() => {
+    try {
+      const stored = localStorage.getItem('whopaid_auth_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
   });
+
+  const currentUser: User = storedUser || DEFAULT_USER;
+  const isAuthenticated = storedUser !== null;
+
+  const setCurrentUser = (u: User) => {
+    setStoredUser(u);
+    localStorage.setItem('whopaid_auth_user', JSON.stringify(u));
+    db.users.put(u);
+  };
 
   const [trips, setTrips] = useState<Trip[]>([]);
   const [activeTripId, setActiveTripId] = useState<string | null>('trip_leros_2026');
@@ -170,18 +189,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const unsubscribeAuth = subscribeToAuthChanges((fbUser) => {
       setFirebaseUser(fbUser);
       if (fbUser) {
-        // Update user information from Firebase if available
-        if (fbUser.displayName || fbUser.email) {
-          const updatedUser: User = {
-            id: fbUser.uid,
-            name: fbUser.displayName || currentUser.name || 'User',
-            email: fbUser.email || currentUser.email || 'guest@whopaid.app',
-            defaultCurrency: currentUser.defaultCurrency || 'EUR',
-            avatarUrl: fbUser.photoURL || undefined
-          };
-          setCurrentUser(updatedUser);
-          db.users.put(updatedUser);
-        }
+        const updatedUser: User = {
+          id: fbUser.uid,
+          name: fbUser.displayName || 'User',
+          email: fbUser.email || 'user@whopaid.app',
+          defaultCurrency: 'EUR',
+          avatarUrl: fbUser.photoURL || undefined
+        };
+        setCurrentUser(updatedUser);
       }
     });
 
@@ -922,6 +937,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch (err) {
       console.error('Logout failed:', err);
     }
+    localStorage.removeItem('whopaid_auth_user');
+    setStoredUser(null);
+    setActiveTripId(null);
   };
 
   const enableNotifications = async () => {
@@ -934,6 +952,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       value={{
         currentUser,
         setCurrentUser,
+        isAuthenticated,
         allUsers,
         activeTrip,
         setActiveTripId,
