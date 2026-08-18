@@ -5,8 +5,8 @@
 .app-container {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
-  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  min-height: 100%;
+  min-height: 100dvh;
 }
 
 /* Header */
@@ -65,77 +65,47 @@
   transform: scale(0.95);
 }
 
-/* Primary Action Buttons */
+/* Base Buttons */
 .btn-primary {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   background: var(--btn-primary-bg);
   color: var(--btn-primary-text);
   border: 1px solid var(--btn-primary-border);
+  padding: 12px 18px;
+  border-radius: var(--radius-md);
   font-weight: 700;
-  font-size: 0.95rem;
-  padding: 13px 22px;
-  border-radius: var(--radius-lg);
+  font-size: 0.92rem;
+  box-shadow: var(--shadow-sm);
   transition: all var(--duration-fast) var(--ease-luxury);
-  width: 100%;
-  box-shadow: var(--shadow-md);
-  letter-spacing: -0.01em;
   cursor: pointer;
 }
 
 .btn-primary:hover {
   background: var(--btn-primary-hover);
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-lg);
+  border-color: var(--btn-primary-hover);
+  box-shadow: var(--shadow-md);
 }
 
 .btn-primary:active {
+  background: var(--btn-primary-active);
   transform: scale(0.98);
-  background: var(--btn-primary-active);
-}
-
-/* Big Circular + Action Button */
-.btn-fab-circle {
-  width: 66px;
-  height: 66px;
-  border-radius: var(--radius-full);
-  background: var(--btn-primary-bg);
-  color: var(--btn-primary-text);
-  border: 1px solid var(--btn-primary-border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.22), 0 4px 10px rgba(0, 0, 0, 0.1);
-  transition: all var(--duration-fast) var(--ease-luxury);
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.btn-fab-circle:hover {
-  background: var(--btn-primary-hover);
-  transform: translateY(-2px) scale(1.05);
-  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.3), 0 6px 14px rgba(0, 0, 0, 0.14);
-}
-
-.btn-fab-circle:active {
-  transform: scale(0.94);
-  background: var(--btn-primary-active);
 }
 
 .btn-secondary {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
-  background: var(--bg-subtle);
+  gap: 8px;
+  background: var(--bg-surface);
   color: var(--text-primary);
-  font-weight: 600;
-  font-size: 0.88rem;
-  padding: 10px 16px;
-  border-radius: var(--radius-md);
   border: 1px solid var(--border-subtle);
+  padding: 12px 18px;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  font-size: 0.92rem;
   transition: all var(--duration-fast) var(--ease-luxury);
   cursor: pointer;
 }
@@ -143,56 +113,126 @@
 .btn-secondary:hover {
   background: var(--bg-hover);
   border-color: var(--border-strong);
-  transform: translateY(-1px);
 }
 
 .btn-secondary:active {
   transform: scale(0.98);
 }
 
-.btn-danger {
-  background: var(--negative-bg);
-  color: var(--negative-text);
-  border: 1px solid var(--negative-border);
-  font-weight: 600;
-  padding: 10px 16px;
-  border-radius: var(--radius-md);
+/* Floating Action Button (FAB) */
+.fab-btn {
+  position: fixed;
+  bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  right: 20px;
+  width: 58px;
+  height: 58px;
+  border-radius: var(--radius-full);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  box-shadow: var(--shadow-lg);
+  z-index: 35;
+  border: 1px solid var(--btn-primary-border);
   transition: all var(--duration-fast) var(--ease-luxury);
   cursor: pointer;
 }
 
-/* Category Chips Grid in Add Expense Sheet */
-.category-chips-grid {
+.fab-btn:hover {
+  background: var(--btn-primary-hover);
+  transform: translateY(-2px) scale(1.05);
+}
+
+.fab-btn:active {
+  transform: scale(0.94);
+}
+
+/* Action Strip Pill Buttons */
+.action-strip-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-full);
+  padding: 10px 16px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  box-shadow: var(--shadow-sm);
+  transition: all var(--duration-fast) var(--ease-luxury);
+  cursor: pointer;
+}
+
+.action-strip-btn:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-hover);
+  transform: translateY(-1px);
+}
+
+.action-strip-btn:active {
+  transform: scale(0.98);
+}
+
+/* Quick Member / Category Filter Pills */
+.pill-row {
   display: flex;
   gap: 8px;
   overflow-x: auto;
-  padding-bottom: 4px;
+  padding: 4px 0;
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
 
-.category-chips-grid::-webkit-scrollbar {
+.pill-row::-webkit-scrollbar {
   display: none;
 }
 
+.filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: var(--radius-full);
+  font-size: 0.82rem;
+  font-weight: 700;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  transition: all var(--duration-fast) var(--ease-luxury);
+  cursor: pointer;
+}
+
+.filter-pill:hover {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.filter-pill.active {
+  background: var(--pill-active-bg);
+  color: var(--pill-active-text);
+  border-color: var(--pill-active-border);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Category Quick Selector Chips */
 .category-chip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 8px 14px;
   border-radius: var(--radius-full);
-  background: var(--bg-subtle);
-  color: var(--text-secondary);
+  background: var(--bg-surface);
   border: 1px solid var(--border-subtle);
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
+  color: var(--text-secondary);
   transition: all var(--duration-fast) var(--ease-luxury);
-  flex-shrink: 0;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 .category-chip:hover {
@@ -264,17 +304,15 @@
 .floating-bottom-dock {
   position: fixed;
   bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 0;
+  right: 0;
+  margin: 0 auto;
   width: 100%;
   max-width: 520px;
   background: var(--bg-surface);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border-top: 1px solid var(--border-subtle);
-  border-left: 1px solid var(--border-subtle);
-  border-right: 1px solid var(--border-subtle);
-  border-bottom: none;
   border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
   display: grid;
