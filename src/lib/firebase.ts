@@ -11,6 +11,8 @@ import {
   Auth, 
   signInAnonymously, 
   signInWithPopup, 
+  signInWithRedirect,
+  getRedirectResult,
   GoogleAuthProvider, 
   linkWithPopup,
   signOut, 
@@ -170,16 +172,15 @@ export async function loginAnonymously(): Promise<FirebaseUser | null> {
 
 export async function loginWithGoogle(): Promise<FirebaseUser | null> {
   const { auth } = getFirebaseInstances();
-  if (!auth) return null;
+  if (!auth) throw new Error('Firebase Auth is not configured.');
+
   try {
     if (auth.currentUser && auth.currentUser.isAnonymous) {
-      // Link anonymous account to Google so we don't lose created trips/expenses
       try {
         const res = await linkWithPopup(auth.currentUser, googleProvider);
         return res.user;
       } catch (linkErr: any) {
         if (linkErr.code === 'auth/credential-already-in-use') {
-          // If Google account already exists, switch to it
           const res = await signInWithPopup(auth, googleProvider);
           return res.user;
         }
@@ -188,8 +189,12 @@ export async function loginWithGoogle(): Promise<FirebaseUser | null> {
     }
     const res = await signInWithPopup(auth, googleProvider);
     return res.user;
-  } catch (err) {
-    console.error('[Firebase Auth] Google sign-in failed:', err);
+  } catch (err: any) {
+    console.warn('[Firebase Auth] Popup failed, falling back to redirect:', err);
+    if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user' || /mobile|iphone|android|ipad/i.test(navigator.userAgent)) {
+      await signInWithRedirect(auth, googleProvider);
+      return null;
+    }
     throw err;
   }
 }
@@ -207,5 +212,17 @@ export function subscribeToAuthChanges(callback: (user: FirebaseUser | null) => 
     callback(null);
     return () => {};
   }
+
+  // Check if returning from a mobile redirect
+  getRedirectResult(auth)
+    .then((res) => {
+      if (res?.user) {
+        callback(res.user);
+      }
+    })
+    .catch((err) => {
+      console.warn('[Firebase Auth] Redirect result error:', err);
+    });
+
   return onAuthStateChanged(auth, callback);
 }
