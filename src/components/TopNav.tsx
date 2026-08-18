@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../store/AppContext';
-import { ChevronLeft, MoreVertical, Activity, User, Archive, Users, UserPlus, Sun, Moon } from 'lucide-react';
+import { ChevronLeft, MoreVertical, Activity, User, Archive, Users, UserPlus, Sun, Moon, LogOut } from 'lucide-react';
 import { UserSwitcherModal } from './UserSwitcherModal';
 import { QRCodeModal } from './QRCodeModal';
 
@@ -12,7 +12,7 @@ interface TopNavProps {
 }
 
 export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
-  const { activeTrip, currentUser, isOnline, expenses } = useApp();
+  const { activeTrip, currentUser, isOnline, expenses, logoutUser } = useApp();
   const [showMenu, setShowMenu] = useState(false);
   const [showUserSwitcher, setShowUserSwitcher] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
@@ -329,6 +329,23 @@ export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
                 >
                   <Users size={15} color="var(--text-secondary)" />
                   <span>Switch User ({currentUser.name})</span>
+                </button>
+
+                <button
+                  onClick={logoutUser}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '10px 14px',
+                    fontSize: '0.82rem',
+                    color: '#ef4444',
+                    fontWeight: 700,
+                    textAlign: 'left'
+                  }}
+                >
+                  <LogOut size={15} color="#ef4444" />
+                  <span>Log Out</span>
                 </button>
               </div>
             )}

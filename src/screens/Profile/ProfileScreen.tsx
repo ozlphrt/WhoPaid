@@ -330,6 +330,46 @@ export const ProfileScreen: React.FC = () => {
         </button>
       </form>
 
+      {/* Account Logout Action */}
+      <div className="card" style={{
+        marginTop: 12,
+        padding: '16px 20px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        borderRadius: 'var(--radius-xl)',
+        border: '1px solid var(--border-subtle)'
+      }}>
+        <div>
+          <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block' }}>
+            Active Session: {currentUser.name}
+          </span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+            {currentUser.email || 'Guest User'}
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={logoutUser}
+          style={{
+            padding: '8px 16px',
+            borderRadius: 'var(--radius-lg)',
+            background: 'rgba(239, 68, 68, 0.12)',
+            color: '#ef4444',
+            border: '1px solid rgba(239, 68, 68, 0.25)',
+            fontWeight: 700,
+            fontSize: '0.85rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            cursor: 'pointer'
+          }}
+        >
+          <LogOut size={16} />
+          <span>Log Out</span>
+        </button>
+      </div>
+
       {/* Firebase Modal */}
       {showFirebaseModal && (
         <div className="sheet-backdrop" onClick={() => setShowFirebaseModal(false)}>

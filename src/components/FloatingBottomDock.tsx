@@ -1,6 +1,6 @@
 import React from 'react';
 import { AppView } from '../types';
-import { Receipt, PieChart, HandCoins, Settings, Home } from 'lucide-react';
+import { Receipt, PieChart, HandCoins, Settings, User } from 'lucide-react';
 
 interface FloatingBottomDockProps {
   currentView: AppView;
@@ -51,6 +51,16 @@ export const FloatingBottomDock: React.FC<FloatingBottomDockProps> = ({
       >
         <Settings size={18} />
         <span>Settings</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={() => onNavigate('profile')}
+        className={`dock-tab-btn ${currentView === 'profile' ? 'active' : ''}`}
+        aria-label="Profile & Account"
+      >
+        <User size={18} />
+        <span>Profile</span>
       </button>
     </nav>
   );
