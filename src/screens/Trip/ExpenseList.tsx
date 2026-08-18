@@ -245,31 +245,33 @@ export const ExpenseList: React.FC = () => {
                 onClick={() => setSelectedExpenseId(exp.id)}
                 className="transaction-row"
               >
-                <CategoryIcon category={exp.category} size={42} iconSize={18} />
+                <CategoryIcon category={exp.category} variant="strip" iconSize={17} />
 
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <strong style={{ fontSize: '0.95rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {exp.description}
-                    </strong>
-                    {exp.isFlaggedWrong && (
-                      <AlertCircle size={14} color="var(--negative-text)" />
+                <div style={{ flex: 1, minWidth: 0, padding: '12px 16px 12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <strong style={{ fontSize: '0.95rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {exp.description}
+                      </strong>
+                      {exp.isFlaggedWrong && (
+                        <AlertCircle size={14} color="var(--negative-text)" />
+                      )}
+                    </div>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                      Paid by {payerName} · {dateStr}
+                    </span>
+                  </div>
+
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: '1rem', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                      {getCurrencySymbol(exp.originalCurrency)}{exp.originalAmount.toFixed(2)}
+                    </div>
+                    {exp.originalCurrency !== exp.mainCurrency && (
+                      <span style={{ fontSize: '0.74rem', color: 'var(--text-tertiary)' }}>
+                        ≈ {formatMoney(exp.convertedAmount, exp.mainCurrency)}
+                      </span>
                     )}
                   </div>
-                  <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                    Paid by {payerName} · {dateStr}
-                  </span>
-                </div>
-
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontSize: '1rem', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                    {getCurrencySymbol(exp.originalCurrency)}{exp.originalAmount.toFixed(2)}
-                  </div>
-                  {exp.originalCurrency !== exp.mainCurrency && (
-                    <span style={{ fontSize: '0.74rem', color: 'var(--text-tertiary)' }}>
-                      ≈ {formatMoney(exp.convertedAmount, exp.mainCurrency)}
-                    </span>
-                  )}
                 </div>
               </div>
             );

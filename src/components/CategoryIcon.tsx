@@ -6,13 +6,15 @@ interface CategoryIconProps {
   size?: number;
   iconSize?: number;
   className?: string;
+  variant?: 'badge' | 'strip';
 }
 
 export const CategoryIcon: React.FC<CategoryIconProps> = ({
   category,
   size = 42,
-  iconSize = 20,
-  className = ''
+  iconSize = 18,
+  className = '',
+  variant = 'badge'
 }) => {
   const getCategoryConfig = () => {
     switch (category) {
@@ -28,8 +30,8 @@ export const CategoryIcon: React.FC<CategoryIconProps> = ({
               <path d="M16 3a3 3 0 0 1 3 3v3a3 3 0 0 1-3 3h0v9" />
             </svg>
           ),
-          gradient: 'linear-gradient(135deg, #b88648 0%, #99682e 100%)',
-          shadow: '0 2px 6px rgba(0, 0, 0, 0.08)'
+          gradient: 'linear-gradient(180deg, #b88648 0%, #99682e 100%)',
+          shadow: 'none'
         };
 
       case 'Drinks':
@@ -44,8 +46,8 @@ export const CategoryIcon: React.FC<CategoryIconProps> = ({
               <path d="M13.5 6.5L17 3" />
             </svg>
           ),
-          gradient: 'linear-gradient(135deg, #8a6ea6 0%, #6e508c 100%)',
-          shadow: '0 2px 6px rgba(0, 0, 0, 0.08)'
+          gradient: 'linear-gradient(180deg, #8a6ea6 0%, #6e508c 100%)',
+          shadow: 'none'
         };
 
       case 'Transport':
@@ -56,8 +58,8 @@ export const CategoryIcon: React.FC<CategoryIconProps> = ({
               <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3.5c-.5-.5-2.5 0-4 1.5L13.5 8.5 5.3 6.7c-.8-.2-1.6.2-2 .9l-.8 1.4 6 3.5-3 3-2.5-.5-1.5 1 3 2 2 3 1-1.5-.5-2.5 3-3 3.5 6 1.4-.8c.7-.4 1.1-1.2.9-2Z" />
             </svg>
           ),
-          gradient: 'linear-gradient(135deg, #4f809e 0%, #366582 100%)',
-          shadow: '0 2px 6px rgba(0, 0, 0, 0.08)'
+          gradient: 'linear-gradient(180deg, #4f809e 0%, #366582 100%)',
+          shadow: 'none'
         };
 
       case 'Hotel':
@@ -72,8 +74,8 @@ export const CategoryIcon: React.FC<CategoryIconProps> = ({
               <path d="M14 7h4a2 2 0 0 1 2 2v1h-6V7Z" />
             </svg>
           ),
-          gradient: 'linear-gradient(135deg, #4e8d78 0%, #35725e 100%)',
-          shadow: '0 2px 6px rgba(0, 0, 0, 0.08)'
+          gradient: 'linear-gradient(180deg, #4e8d78 0%, #35725e 100%)',
+          shadow: 'none'
         };
 
       case 'Tickets':
@@ -89,8 +91,8 @@ export const CategoryIcon: React.FC<CategoryIconProps> = ({
               <path d="M12 9v6" strokeDasharray="2 2" />
             </svg>
           ),
-          gradient: 'linear-gradient(135deg, #a8586f 0%, #8c3f55 100%)',
-          shadow: '0 2px 6px rgba(0, 0, 0, 0.08)'
+          gradient: 'linear-gradient(180deg, #a8586f 0%, #8c3f55 100%)',
+          shadow: 'none'
         };
 
       case 'Other':
@@ -99,18 +101,36 @@ export const CategoryIcon: React.FC<CategoryIconProps> = ({
           // Muted Graphite Slate
           icon: (
             <svg width={iconSize} height={iconSize} viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 2v20" />
-              <path d="M2 12h20" />
-              <circle cx="12" cy="12" r="3" fill="#ffffff" />
+              <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+              <circle cx="7" cy="7" r="1.5" fill="#ffffff" />
             </svg>
           ),
-          gradient: 'linear-gradient(135deg, #5b6270 0%, #464c58 100%)',
-          shadow: '0 2px 6px rgba(0, 0, 0, 0.08)'
+          gradient: 'linear-gradient(180deg, #5b6270 0%, #464c58 100%)',
+          shadow: 'none'
         };
     }
   };
 
   const config = getCategoryConfig();
+
+  if (variant === 'strip') {
+    return (
+      <div
+        className={`category-left-strip ${className}`}
+        style={{
+          width: 36,
+          alignSelf: 'stretch',
+          background: config.gradient,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0
+        }}
+      >
+        {config.icon}
+      </div>
+    );
+  }
 
   return (
     <div

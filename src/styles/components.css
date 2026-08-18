@@ -223,12 +223,12 @@
 .transaction-row {
   background: var(--bg-surface);
   border-radius: var(--radius-lg);
-  padding: 14px 16px;
+  padding: 0;
+  overflow: hidden;
   border: 1px solid var(--border-subtle);
   box-shadow: var(--shadow-sm);
   display: flex;
-  align-items: center;
-  gap: 14px;
+  align-items: stretch;
   cursor: pointer;
   transition: transform var(--duration-fast) var(--ease-luxury), border-color var(--duration-fast) var(--ease-luxury), box-shadow var(--duration-fast) var(--ease-luxury);
 }
