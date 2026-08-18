@@ -280,7 +280,7 @@
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
-  z-index: 50;
+  z-index: 40;
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.08);
 }
 
@@ -325,10 +325,11 @@
   margin: 10px 0 18px;
 }
 
-.amount-symbol {
-  font-size: 2.2rem;
-  font-weight: 700;
+.currency-badge {
+  font-size: 1.5rem;
+  font-weight: 800;
   color: var(--text-secondary);
+  font-family: var(--font-mono);
 }
 
 .amount-field {
@@ -369,9 +370,10 @@
 .sheet-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(8px);
-  z-index: 50;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  z-index: 100;
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -383,11 +385,15 @@
   max-width: 520px;
   border-top-left-radius: var(--radius-xl);
   border-top-right-radius: var(--radius-xl);
-  padding: 22px 24px calc(30px + env(safe-area-inset-bottom, 0px));
-  max-height: 88vh;
+  padding: 22px 20px calc(28px + env(safe-area-inset-bottom, 0px));
+  max-height: 90vh;
+  max-height: 90dvh;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   box-shadow: var(--shadow-dock);
   border-top: 1px solid var(--border-strong);
+  z-index: 101;
+  position: relative;
 }
 
 .sheet-handle {
