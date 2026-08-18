@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../store/AppContext';
 import { BottomSheet } from './BottomSheet';
 import { CATEGORIES, suggestCategory } from '../lib/category';
-import { getCurrencySymbol, roundMoney, add, sub } from '../lib/decimal';
+import { getCurrencySymbol, roundMoney, add, sub, mul } from '../lib/decimal';
 import { CurrencyCode, ExpenseCategory, ExpensePayer, ExpenseParticipant } from '../types';
 import { ChevronDown, ChevronUp, Camera, AlertCircle, Plus, Trash2, Check, User, Users } from 'lucide-react';
 import { checkForDuplicateExpense } from '../lib/duplicate';
@@ -188,6 +188,17 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   const multiPayerTotal = useMemo(() => {
     return payers.reduce((sum, p) => add(sum, p.amount), 0);
   }, [payers]);
+
+  const handleSplitPaidEqually = () => {
+    if (!parsedAmount || parsedAmount <= 0) return;
+    const count = activeMembers.length;
+    if (count === 0) return;
+    const share = roundMoney(parsedAmount / count, 2);
+    setPayers(activeMembers.map((m, idx) => ({
+      userId: m.userId,
+      amount: idx === 0 ? roundMoney(sub(parsedAmount, mul(share, count - 1)), 2) : share
+    })));
+  };
 
   // Custom Split handlers
   const handleCustomShareChange = (userId: string, val: string) => {
@@ -526,7 +537,12 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
               onChange={(e) => {
                 if (e.target.value === 'multi') {
                   setIsMultiPayer(true);
-                  setShowMoreOptions(true);
+                  if (payers.length <= 1) {
+                    setPayers(activeMembers.map(m => ({
+                      userId: m.userId,
+                      amount: m.userId === currentUser.id ? (parsedAmount || 0) : 0
+                    })));
+                  }
                 } else {
                   setIsMultiPayer(false);
                   setPaidByUserId(e.target.value);
@@ -583,6 +599,93 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Multi-Payer Amount Breakdown Card */}
+        {isMultiPayer && (
+          <div style={{
+            background: 'var(--bg-subtle)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-md)',
+            padding: 12,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 10
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' }}>
+                  Who Paid What?
+                </span>
+                <div style={{
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  color: Math.abs(multiPayerTotal - parsedAmount) < 0.01 && parsedAmount > 0 ? 'var(--positive-text)' : 'var(--warning-text)',
+                  marginTop: 2
+                }}>
+                  {currency} {multiPayerTotal.toFixed(2)} / {currency} {parsedAmount.toFixed(2)}
+                  {parsedAmount > 0 && (
+                    Math.abs(multiPayerTotal - parsedAmount) < 0.01 
+                      ? ' ✓ Exact match' 
+                      : (multiPayerTotal < parsedAmount 
+                          ? ` (Remaining: ${currency} ${(parsedAmount - multiPayerTotal).toFixed(2)})`
+                          : ` (Over by ${currency} ${(multiPayerTotal - parsedAmount).toFixed(2)})`)
+                  )}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSplitPaidEqually}
+                style={{
+                  padding: '5px 10px',
+                  borderRadius: 'var(--radius-sm)',
+                  background: 'var(--bg-surface)',
+                  border: '1px solid var(--border-subtle)',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  color: 'var(--text-primary)',
+                  cursor: 'pointer'
+                }}
+              >
+                Split Equally
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {activeMembers.map(m => {
+                const payerObj = payers.find(p => p.userId === m.userId);
+                const currentVal = payerObj ? (payerObj.amount > 0 ? payerObj.amount.toString() : '') : '';
+                return (
+                  <div key={m.userId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {m.name} {m.userId === currentUser.id && '(You)'}
+                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>{currency}</span>
+                      <input
+                        type="number"
+                        step="any"
+                        placeholder="0.00"
+                        value={currentVal}
+                        onChange={(e) => handlePayerAmountChange(m.userId, e.target.value)}
+                        style={{
+                          width: 85,
+                          padding: '6px 8px',
+                          borderRadius: 'var(--radius-sm)',
+                          border: '1px solid var(--border-subtle)',
+                          background: 'var(--bg-surface)',
+                          fontSize: '0.88rem',
+                          fontFamily: 'var(--font-mono)',
+                          color: 'var(--text-primary)'
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* 5. More Options Toggle */}
         <button
