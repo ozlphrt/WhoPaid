@@ -30,8 +30,9 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
   const memberMap = new Map(members.map(m => [m.userId, m.name]));
   const activeExpenses = expenses.filter(e => !e.isDeleted);
 
-  const isOwed = userNetBalance > 0.009;
-  const owes = userNetBalance < -0.009;
+  const hasExpenses = activeExpenses.length > 0;
+  const isOwed = hasExpenses && userNetBalance > 0.009;
+  const owes = hasExpenses && userNetBalance < -0.009;
 
   const userBalanceObj = balances.individualBalances.find(b => b.userId === currentUser.id);
 
@@ -85,9 +86,17 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
               width: 6,
               height: 6,
               borderRadius: '50%',
-              background: isOwed ? 'var(--positive-text)' : owes ? 'var(--negative-text)' : 'var(--text-tertiary)'
+              background: isOwed ? 'var(--positive-text)' : owes ? 'var(--negative-text)' : hasExpenses ? 'var(--positive-text)' : 'var(--text-tertiary)'
             }} />
-            <span>{isOwed ? "You are owed" : owes ? "You owe" : "All Settled"}</span>
+            <span>
+              {!hasExpenses 
+                ? "No Expenses Yet" 
+                : isOwed 
+                ? "You are owed" 
+                : owes 
+                ? "You owe" 
+                : "All Settled"}
+            </span>
           </div>
 
           {userBalanceObj && (
@@ -259,7 +268,7 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
                   ) : owesMoney ? (
                     <span style={{ color: 'var(--negative-text)' }}>−{formatMoney(Math.abs(b.net), activeTrip.mainCurrency)}</span>
                   ) : (
-                    <span style={{ color: 'var(--text-tertiary)' }}>Settled</span>
+                    <span style={{ color: 'var(--text-tertiary)' }}>{hasExpenses ? 'Settled' : formatMoney(0, activeTrip.mainCurrency)}</span>
                   )}
                 </div>
               </div>
