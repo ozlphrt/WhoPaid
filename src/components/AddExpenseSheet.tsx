@@ -4,7 +4,7 @@ import { BottomSheet } from './BottomSheet';
 import { CATEGORIES, suggestCategory } from '../lib/category';
 import { getCurrencySymbol, roundMoney, add, sub, mul } from '../lib/decimal';
 import { CurrencyCode, ExpenseCategory, ExpensePayer, ExpenseParticipant } from '../types';
-import { ChevronDown, ChevronUp, Camera, AlertCircle, Plus, Trash2, Check, User, Users } from 'lucide-react';
+import { ChevronDown, ChevronUp, AlertCircle, Check, Users, User, Calendar, FileText } from 'lucide-react';
 import { checkForDuplicateExpense } from '../lib/duplicate';
 
 interface AddExpenseSheetProps {
@@ -54,10 +54,9 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   const [isManualFx, setIsManualFx] = useState<boolean>(false);
   const [manualFxRate, setManualFxRate] = useState<string>('1.00');
 
-  // Autocomplete Suggestions
+  // Autocomplete Suggestions & Dropdowns
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
   const [showCurrencyDropdown, setShowCurrencyDropdown] = useState<boolean>(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Initialize or Reset form
   useEffect(() => {
@@ -101,7 +100,10 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     setReceiptUrl(undefined);
     setPaidByUserId(currentUser.id);
     setIsMultiPayer(false);
-    setPayers([{ userId: currentUser.id, amount: 0 }]);
+    setPayers(activeMembers.map(m => ({
+      userId: m.userId,
+      amount: m.userId === currentUser.id ? 0 : 0
+    })));
     setIncludedUserIds(activeMembers.map(m => m.userId));
     setSplitMode('equal');
     setCustomShares({});
@@ -134,8 +136,9 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     setCategory(suggested);
   };
 
-  // Duplicate Check Banner
   const parsedAmount = parseFloat(amountStr) || 0;
+
+  // Duplicate Check Banner
   const duplicateCheck = useMemo(() => {
     if (!parsedAmount || !description.trim()) return { isDuplicate: false };
     return checkForDuplicateExpense(
@@ -151,25 +154,10 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     );
   }, [parsedAmount, description, currency, paidByUserId, isMultiPayer, payers, currentUser.id, date, expenses, editExpenseId]);
 
-  // Amount input filter (clean numbers without stepper arrows)
+  // Amount input filter
   const handleAmountChange = (val: string) => {
-    // Allow digits and at most one decimal point
     if (/^\d*\.?\d*$/.test(val)) {
       setAmountStr(val);
-    }
-  };
-
-  // Receipt File upload handler
-  const handleReceiptUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          setReceiptUrl(reader.result);
-        }
-      };
-      reader.readAsDataURL(file);
     }
   };
 
@@ -220,7 +208,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
       return;
     }
     if (!description.trim()) {
-      alert('Please enter a description (e.g. Dinner, Taxi)');
+      alert('Please enter an expense name (e.g. Asador Portuetxe, Uber)');
       return;
     }
     if (includedUserIds.length === 0) {
@@ -287,15 +275,13 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     onClose();
   };
 
-  const payerName = members.find(m => m.userId === paidByUserId)?.name || 'You';
-
   return (
     <BottomSheet 
       isOpen={isOpen} 
       onClose={onClose} 
       title={editExpenseId ? 'Edit Expense' : 'Add Expense'}
     >
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         
         {/* Possible Duplicate Warning */}
         {duplicateCheck.isDuplicate && (
@@ -322,7 +308,6 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'center',
           gap: 12,
           padding: '14px 16px',
           borderRadius: 'var(--radius-lg)',
@@ -330,7 +315,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
           border: '1px solid var(--border-subtle)',
           position: 'relative'
         }}>
-          {/* Currency Pill Dropdown */}
+          {/* Currency Pill */}
           <button 
             type="button"
             onClick={() => setShowCurrencyDropdown(prev => !prev)}
@@ -340,7 +325,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
               gap: 6, 
               background: 'var(--bg-surface)', 
               border: '1px solid var(--border-subtle)',
-              padding: '6px 12px', 
+              padding: '8px 12px', 
               borderRadius: 'var(--radius-full)',
               fontSize: '0.95rem',
               fontWeight: 800,
@@ -350,11 +335,11 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             }}
           >
             <span>{getCurrencySymbol(currency)}</span>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{currency}</span>
+            <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{currency}</span>
             <ChevronDown size={14} color="var(--text-tertiary)" />
           </button>
 
-          {/* Amount Number Input (Clean, No Stepper Arrows) */}
+          {/* Amount Number Input */}
           <input
             type="text"
             inputMode="decimal"
@@ -419,11 +404,11 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
           )}
         </div>
 
-        {/* 2. Description Input with Autocomplete */}
+        {/* 2. Expense Name Input */}
         <div style={{ position: 'relative' }}>
           <input
             type="text"
-            placeholder="Expense name (e.g. Pizza Hut, Uber, Whole Foods)"
+            placeholder="Expense name (e.g. Asador Portuetxe, Uber, Txakoli)"
             className="input-pill"
             value={description}
             onChange={(e) => handleDescriptionChange(e.target.value)}
@@ -473,17 +458,15 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
           )}
         </div>
 
-        {/* 3. Category Quick Pill Selectors (Inline Bulletproof Styling) */}
+        {/* 3. Category Grid (All 6 Visible At a Glance, No Scrollbar) */}
         <div>
           <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
             Category
           </label>
           <div style={{
-            display: 'flex',
-            gap: 8,
-            overflowX: 'auto',
-            paddingBottom: 4,
-            WebkitOverflowScrolling: 'touch'
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 6
           }}>
             {CATEGORIES.map(cat => {
               const isSelected = category === cat.id;
@@ -493,20 +476,18 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                   type="button"
                   onClick={() => setCategory(cat.id)}
                   style={{
-                    display: 'inline-flex',
+                    display: 'flex',
                     alignItems: 'center',
+                    justifyContent: 'center',
                     gap: 6,
-                    padding: '8px 14px',
-                    borderRadius: 'var(--radius-full)',
+                    padding: '9px 10px',
+                    borderRadius: 'var(--radius-md)',
                     background: isSelected ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
                     color: isSelected ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
                     border: `1px solid ${isSelected ? 'var(--btn-primary-border)' : 'var(--border-subtle)'}`,
                     fontSize: '0.82rem',
                     fontWeight: 700,
-                    whiteSpace: 'nowrap',
                     cursor: 'pointer',
-                    flexShrink: 0,
-                    boxShadow: isSelected ? 'var(--shadow-sm)' : 'none',
                     transition: 'all 0.15s ease'
                   }}
                 >
@@ -518,89 +499,74 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
           </div>
         </div>
 
-        {/* 4. Quick Payer & Split Summary Row */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 10,
-          padding: '12px 14px',
-          background: 'var(--bg-subtle)',
-          borderRadius: 'var(--radius-md)',
-          border: '1px solid var(--border-subtle)'
-        }}>
-          <div>
-            <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>
-              Paid by
-            </span>
-            <select
-              value={isMultiPayer ? 'multi' : paidByUserId}
-              onChange={(e) => {
-                if (e.target.value === 'multi') {
-                  setIsMultiPayer(true);
-                  if (payers.length <= 1) {
-                    setPayers(activeMembers.map(m => ({
-                      userId: m.userId,
-                      amount: m.userId === currentUser.id ? (parsedAmount || 0) : 0
-                    })));
-                  }
-                } else {
-                  setIsMultiPayer(false);
-                  setPaidByUserId(e.target.value);
+        {/* 4. One-Tap Payer Selection Chips */}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Paid By
+            </label>
+            {isMultiPayer && (
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
+                Multiple Payers Active
+              </span>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {activeMembers.map(m => {
+              const isSelected = !isMultiPayer && paidByUserId === m.userId;
+              return (
+                <button
+                  key={m.userId}
+                  type="button"
+                  onClick={() => {
+                    setIsMultiPayer(false);
+                    setPaidByUserId(m.userId);
+                  }}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 'var(--radius-full)',
+                    background: isSelected ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
+                    color: isSelected ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
+                    border: `1px solid ${isSelected ? 'var(--btn-primary-border)' : 'var(--border-subtle)'}`,
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {m.name} {m.userId === currentUser.id && '(You)'}
+                </button>
+              );
+            })}
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsMultiPayer(true);
+                if (payers.length <= 1) {
+                  setPayers(activeMembers.map(m => ({
+                    userId: m.userId,
+                    amount: m.userId === paidByUserId ? (parsedAmount || 0) : 0
+                  })));
                 }
               }}
               style={{
-                width: '100%',
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '6px 8px',
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-full)',
+                background: isMultiPayer ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
+                color: isMultiPayer ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
+                border: `1px solid ${isMultiPayer ? 'var(--btn-primary-border)' : 'var(--border-subtle)'}`,
                 fontSize: '0.82rem',
                 fontWeight: 700,
-                color: 'var(--text-primary)'
-              }}
-            >
-              {activeMembers.map(m => (
-                <option key={m.userId} value={m.userId}>
-                  {m.userId === currentUser.id ? 'You' : m.name}
-                </option>
-              ))}
-              <option value="multi">Multiple people...</option>
-            </select>
-          </div>
-
-          <div>
-            <span style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>
-              Split with
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowMoreOptions(true)}
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '6px 8px',
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                color: 'var(--text-primary)',
                 cursor: 'pointer'
               }}
             >
-              <span>
-                {includedUserIds.length === activeMembers.length 
-                  ? `All (${activeMembers.length})` 
-                  : `${includedUserIds.length} people`}
-              </span>
-              <ChevronDown size={14} color="var(--text-tertiary)" />
+              + Multiple People...
             </button>
           </div>
         </div>
 
-        {/* Multi-Payer Amount Breakdown Card */}
+        {/* Multi-Payer Breakdown if isMultiPayer */}
         {isMultiPayer && (
           <div style={{
             background: 'var(--bg-subtle)',
@@ -611,13 +577,13 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             flexDirection: 'column',
             gap: 10
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
                   Who Paid What?
                 </span>
                 <div style={{
-                  fontSize: '0.8rem',
+                  fontSize: '0.82rem',
                   fontWeight: 700,
                   color: Math.abs(multiPayerTotal - parsedAmount) < 0.01 && parsedAmount > 0 ? 'var(--positive-text)' : 'var(--warning-text)',
                   marginTop: 2
@@ -687,7 +653,75 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
           </div>
         )}
 
-        {/* 5. More Options Toggle */}
+        {/* 5. Split With Selector */}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Split With
+            </label>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              {includedUserIds.length === activeMembers.length 
+                ? `Everyone (${activeMembers.length})` 
+                : `${includedUserIds.length} of ${activeMembers.length}`}
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => {
+                setIncludedUserIds(activeMembers.map(m => m.userId));
+                setSplitMode('equal');
+              }}
+              style={{
+                padding: '7px 12px',
+                borderRadius: 'var(--radius-full)',
+                background: includedUserIds.length === activeMembers.length && splitMode === 'equal' ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
+                color: includedUserIds.length === activeMembers.length && splitMode === 'equal' ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
+                border: `1px solid ${includedUserIds.length === activeMembers.length && splitMode === 'equal' ? 'var(--btn-primary-border)' : 'var(--border-subtle)'}`,
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              ✓ Everyone ({activeMembers.length})
+            </button>
+
+            {activeMembers.map(m => {
+              const isIncluded = includedUserIds.includes(m.userId);
+              return (
+                <button
+                  key={m.userId}
+                  type="button"
+                  onClick={() => {
+                    if (isIncluded) {
+                      if (includedUserIds.length > 1) {
+                        setIncludedUserIds(prev => prev.filter(id => id !== m.userId));
+                      }
+                    } else {
+                      setIncludedUserIds(prev => [...prev, m.userId]);
+                    }
+                  }}
+                  style={{
+                    padding: '7px 11px',
+                    borderRadius: 'var(--radius-full)',
+                    background: isIncluded ? 'var(--bg-surface)' : 'transparent',
+                    color: isIncluded ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                    border: `1px solid ${isIncluded ? 'var(--border-strong)' : 'var(--border-subtle)'}`,
+                    fontSize: '0.8rem',
+                    fontWeight: isIncluded ? 700 : 500,
+                    cursor: 'pointer',
+                    opacity: isIncluded ? 1 : 0.6
+                  }}
+                >
+                  {isIncluded ? '✓ ' : ''}{m.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 6. More Options Toggle */}
         <button
           type="button"
           onClick={() => setShowMoreOptions(prev => !prev)}
@@ -700,10 +734,11 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             fontWeight: 700,
             fontSize: '0.82rem',
             padding: '4px 0',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            marginTop: 2
           }}
         >
-          <span>{showMoreOptions ? 'Fewer options' : 'More options (date, notes, splits)'}</span>
+          <span>{showMoreOptions ? 'Fewer options' : 'More options (date, notes, custom shares)'}</span>
           {showMoreOptions ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
         </button>
 
@@ -725,11 +760,11 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
               />
             </div>
 
-            {/* Split Mode & Participants Selector */}
+            {/* Custom Split Mode */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <label style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Split Mode
+                  Custom Exact Split Amounts
                 </label>
                 <div style={{ display: 'flex', gap: 4 }}>
                   <button
@@ -763,36 +798,21 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                 </div>
               </div>
 
-              {/* Member Checkboxes & Custom Inputs */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-subtle)', padding: 10, borderRadius: 'var(--radius-md)' }}>
-                {activeMembers.map(m => {
-                  const isChecked = includedUserIds.includes(m.userId);
-                  return (
-                    <div key={m.userId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}>
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setIncludedUserIds(prev => [...prev, m.userId]);
-                            } else {
-                              setIncludedUserIds(prev => prev.filter(id => id !== m.userId));
-                            }
-                          }}
-                        />
-                        <span>{m.name} {m.userId === currentUser.id && '(You)'}</span>
-                      </label>
-
-                      {splitMode === 'custom' && isChecked && (
+              {splitMode === 'custom' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-subtle)', padding: 10, borderRadius: 'var(--radius-md)' }}>
+                  {includedUserIds.map(uId => {
+                    const memberName = members.find(m => m.userId === uId)?.name || 'Member';
+                    return (
+                      <div key={uId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{memberName}</span>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                           <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>{currency}</span>
                           <input
                             type="number"
                             step="any"
                             placeholder="0.00"
-                            value={customShares[m.userId] || ''}
-                            onChange={(e) => handleCustomShareChange(m.userId, e.target.value)}
+                            value={customShares[uId] || ''}
+                            onChange={(e) => handleCustomShareChange(uId, e.target.value)}
                             style={{
                               width: 80,
                               padding: '4px 6px',
@@ -804,21 +824,21 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                             }}
                           />
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
-            {/* Note & Receipt */}
+            {/* Note */}
             <div>
               <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
                 Note (Optional)
               </label>
               <input
                 type="text"
-                placeholder="Additional notes..."
+                placeholder="Additional details, table number, etc."
                 className="input-pill"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
@@ -834,7 +854,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
           type="submit"
           className="btn-primary"
           style={{
-            marginTop: 4,
+            marginTop: 6,
             padding: '14px',
             fontSize: '1rem',
             fontWeight: 800,
