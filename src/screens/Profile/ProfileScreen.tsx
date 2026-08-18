@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../store/AppContext';
 import { CurrencyCode } from '../../types';
-import { User, Mail, DollarSign, Database, LogOut, Check, Sparkles, Cloud, CloudOff, RefreshCw, LogIn, Bell, BellRing } from 'lucide-react';
-import { getStoredFirebaseConfig, setStoredFirebaseConfig, FirebaseConfig, isFirebaseConfigured } from '../../lib/firebase';
+import { LogOut, Check, Cloud, CloudOff, Bell } from 'lucide-react';
 
 const COMMON_CURRENCIES: CurrencyCode[] = ['EUR', 'USD', 'TRY', 'GBP', 'CHF', 'CAD', 'AUD', 'JPY'];
 
@@ -11,221 +10,128 @@ export const ProfileScreen: React.FC = () => {
     currentUser, 
     setCurrentUser, 
     isFirebaseActive, 
-    cloudSyncStatus, 
-    firebaseUser, 
-    loginWithGoogleAuth, 
-    loginAsGuest, 
     logoutUser,
     enableNotifications,
     isNotificationsEnabled
   } = useApp();
 
   const [notifGranted, setNotifGranted] = useState(isNotificationsEnabled);
-
   const [name, setName] = useState(currentUser.name);
   const [email, setEmail] = useState(currentUser.email);
-  const [defaultCurrency, setDefaultCurrency] = useState<CurrencyCode>(currentUser.defaultCurrency);
+  const [defaultCurrency, setDefaultCurrency] = useState<CurrencyCode>(currentUser.defaultCurrency || 'EUR');
   const [savedSuccess, setSavedSuccess] = useState(false);
-  const [authLoading, setAuthLoading] = useState(false);
 
-  // Firebase Config state
-  const [showFirebaseModal, setShowFirebaseModal] = useState(false);
-  const [fbConfig, setFbConfig] = useState<FirebaseConfig>(() => {
-    return getStoredFirebaseConfig() || {
-      apiKey: '',
-      authDomain: '',
-      projectId: '',
-      storageBucket: '',
-      messagingSenderId: '',
-      appId: ''
-    };
-  });
+  useEffect(() => {
+    setName(currentUser.name);
+    setEmail(currentUser.email);
+    setDefaultCurrency(currentUser.defaultCurrency || 'EUR');
+  }, [currentUser]);
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
     setCurrentUser({
       ...currentUser,
-      name: name.trim(),
-      email: email.trim(),
+      name: name.trim() || currentUser.name,
+      email: email.trim() || currentUser.email,
       defaultCurrency
     });
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2500);
   };
 
-  const handleSaveFirebaseConfig = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!fbConfig.apiKey.trim() || !fbConfig.projectId.trim()) {
-      setStoredFirebaseConfig(null);
-      alert('Firebase credentials cleared. Switched to Local-First Dexie.js mode.');
-    } else {
-      setStoredFirebaseConfig(fbConfig);
-      alert('Firebase configuration saved! Real-time synchronization active.');
-    }
-    setShowFirebaseModal(false);
-  };
-
-  const handleGoogleSignIn = async () => {
-    setAuthLoading(true);
-    try {
-      await loginWithGoogleAuth();
-    } catch (err: any) {
-      alert(`Google Sign-In Error: ${err.message || err}`);
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
-  const handleGuestSignIn = async () => {
-    setAuthLoading(true);
-    try {
-      await loginAsGuest();
-    } catch (err: any) {
-      alert(`Guest Sign-In Error: ${err.message || err}`);
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, padding: '16px 20px 80px' }}>
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 16,
+      padding: '16px 20px 80px',
+      maxWidth: 480,
+      margin: '0 auto'
+    }}>
       
-      {/* Header */}
+      {/* Title */}
       <div>
-        <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Account & Profile</h1>
-        <span style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)' }}>
-          Manage your personal settings & preferences
+        <h1 style={{ fontSize: '1.35rem', fontWeight: 800, letterSpacing: '-0.02em', margin: '0 0 4px 0' }}>
+          Profile & Settings
+        </h1>
+        <span style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)' }}>
+          Manage your account preferences & currencies
         </span>
       </div>
 
-      {/* Clean User Account Card */}
-      <div 
-        className="card" 
-        style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'space-between',
-          padding: '16px 20px',
-          borderRadius: 'var(--radius-xl)'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          {currentUser.avatarUrl ? (
-            <img 
-              src={currentUser.avatarUrl} 
-              alt={currentUser.name} 
-              style={{ width: 44, height: 44, borderRadius: 'var(--radius-full)', objectFit: 'cover' }} 
-            />
-          ) : (
-            <div style={{
-              width: 44,
-              height: 44,
-              borderRadius: 'var(--radius-full)',
-              background: 'var(--brand-600)',
-              color: '#ffffff',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 800,
-              fontSize: '1.1rem'
-            }}>
-              {currentUser.name.charAt(0).toUpperCase()}
-            </div>
-          )}
+      {/* Unified Single Profile Card */}
+      <form onSubmit={handleSaveProfile} className="card" style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 18,
+        padding: '20px',
+        borderRadius: 'var(--radius-xl)',
+        border: '1px solid var(--border-subtle)',
+        background: 'var(--bg-surface)'
+      }}>
 
-          <div>
-            <div style={{ fontSize: '1rem', fontWeight: 800 }}>
-              {currentUser.name}
-            </div>
-            <div style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
-              {currentUser.email || 'Guest User'}
+        {/* User Identity Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 14, borderBottom: '1px solid var(--border-subtle)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {currentUser.avatarUrl ? (
+              <img 
+                src={currentUser.avatarUrl} 
+                alt={currentUser.name} 
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 'var(--radius-full)',
+                  objectFit: 'cover',
+                  border: '2px solid var(--border-strong)'
+                }} 
+              />
+            ) : (
+              <div style={{
+                width: 48,
+                height: 48,
+                borderRadius: 'var(--radius-full)',
+                background: '#10b981',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 800,
+                fontSize: '1.2rem'
+              }}>
+                {currentUser.name.charAt(0).toUpperCase()}
+              </div>
+            )}
+
+            <div>
+              <strong style={{ fontSize: '1.05rem', fontWeight: 800, display: 'block', letterSpacing: '-0.01em' }}>
+                {currentUser.name}
+              </strong>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>
+                {currentUser.email || 'Guest Account'}
+              </span>
             </div>
           </div>
-        </div>
 
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          padding: '4px 10px',
-          borderRadius: 'var(--radius-full)',
-          background: isFirebaseActive ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-subtle)',
-          color: isFirebaseActive ? 'var(--brand-500, #10b981)' : 'var(--text-tertiary)',
-          fontSize: '0.72rem',
-          fontWeight: 700
-        }}>
-          {isFirebaseActive ? <Cloud size={14} /> : <CloudOff size={14} />}
-          <span>{isFirebaseActive ? 'Synced' : 'Local'}</span>
-        </div>
-      </div>
-
-      {/* Push Notifications Card */}
-      <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {/* Sync Status Badge */}
           <div style={{
-            width: 36,
-            height: 36,
-            borderRadius: 'var(--radius-full)',
-            background: 'rgba(59, 130, 246, 0.15)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            <Bell size={20} color="var(--brand-600)" />
-          </div>
-          <div>
-            <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>Settlement & Activity Alerts</div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-              {notifGranted ? 'Browser alerts are active for debt settlements' : 'Enable browser alerts for settlements'}
-            </div>
-          </div>
-        </div>
-        {!notifGranted ? (
-          <button
-            type="button"
-            onClick={async () => {
-              const res = await enableNotifications();
-              setNotifGranted(res);
-            }}
-            className="btn-secondary"
-            style={{ fontSize: '0.8rem', padding: '6px 12px' }}
-          >
-            Enable
-          </button>
-        ) : (
-          <span className="badge" style={{ color: 'var(--positive-text)' }}>
-            ✓ Enabled
-          </span>
-        )}
-      </div>
-
-      {/* Profile Form */}
-      <form onSubmit={handleSaveProfile} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {/* Avatar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{
-            width: 60,
-            height: 60,
+            gap: 5,
+            padding: '5px 10px',
             borderRadius: 'var(--radius-full)',
-            background: 'var(--brand-600)',
-            color: '#ffffff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '1.5rem',
+            background: isFirebaseActive ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-subtle)',
+            color: isFirebaseActive ? '#10b981' : 'var(--text-tertiary)',
+            fontSize: '0.72rem',
             fontWeight: 800
           }}>
-            {name.charAt(0) || 'U'}
-          </div>
-          <div>
-            <strong style={{ fontSize: '1.1rem', display: 'block' }}>{name}</strong>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>{email}</span>
+            {isFirebaseActive ? <Cloud size={13} /> : <CloudOff size={13} />}
+            <span>{isFirebaseActive ? 'Synced' : 'Local'}</span>
           </div>
         </div>
 
-        {/* Name */}
+        {/* Display Name Input */}
         <div>
-          <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-tertiary)', marginBottom: 4 }}>
+          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
             DISPLAY NAME
           </label>
           <input
@@ -237,9 +143,9 @@ export const ProfileScreen: React.FC = () => {
           />
         </div>
 
-        {/* Email */}
+        {/* Email Address Input */}
         <div>
-          <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-tertiary)', marginBottom: 4 }}>
+          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
             EMAIL ADDRESS
           </label>
           <input
@@ -251,164 +157,151 @@ export const ProfileScreen: React.FC = () => {
           />
         </div>
 
-        {/* Default Currency */}
+        {/* Default Currency Selector */}
         <div>
-          <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-tertiary)', marginBottom: 4 }}>
-            DEFAULT CURRENCY
-          </label>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {COMMON_CURRENCIES.map(curr => (
-              <button
-                key={curr}
-                type="button"
-                onClick={() => setDefaultCurrency(curr)}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 'var(--radius-md)',
-                  background: defaultCurrency === curr ? 'var(--brand-600)' : 'var(--bg-subtle)',
-                  color: defaultCurrency === curr ? '#fff' : 'var(--text-primary)',
-                  fontWeight: 700,
-                  fontSize: '0.8rem'
-                }}
-              >
-                {curr}
-              </button>
-            ))}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              DEFAULT CURRENCY
+            </label>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#10b981' }}>
+              Selected: {defaultCurrency}
+            </span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+            {COMMON_CURRENCIES.map(curr => {
+              const isSelected = defaultCurrency === curr;
+              return (
+                <button
+                  key={curr}
+                  type="button"
+                  onClick={() => setDefaultCurrency(curr)}
+                  style={{
+                    padding: '9px 0',
+                    borderRadius: 'var(--radius-md)',
+                    background: isSelected ? '#10b981' : 'var(--bg-subtle)',
+                    color: isSelected ? '#ffffff' : 'var(--text-primary)',
+                    border: isSelected ? '2px solid #10b981' : '1px solid var(--border-subtle)',
+                    fontWeight: 800,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 4,
+                    boxShadow: isSelected ? '0 3px 10px rgba(16, 185, 129, 0.35)' : 'none',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {isSelected && <Check size={13} strokeWidth={3} />}
+                  <span>{curr}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        <button type="submit" className="btn-primary" style={{ marginTop: 4 }}>
+        {/* Notification Alerts Row */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '12px 14px',
+          borderRadius: 'var(--radius-lg)',
+          background: 'var(--bg-subtle)',
+          border: '1px solid var(--border-subtle)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 32,
+              height: 32,
+              borderRadius: 'var(--radius-md)',
+              background: 'rgba(59, 130, 246, 0.12)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}>
+              <Bell size={16} color="#3b82f6" />
+            </div>
+            <div>
+              <strong style={{ fontSize: '0.82rem', display: 'block' }}>Settlement & Activity Alerts</strong>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>Push notifications for debt payments</span>
+            </div>
+          </div>
+
+          {!notifGranted ? (
+            <button
+              type="button"
+              onClick={async () => {
+                const res = await enableNotifications();
+                setNotifGranted(res);
+              }}
+              style={{
+                padding: '6px 12px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--btn-primary-bg)',
+                color: 'var(--btn-primary-text)',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                border: 'none'
+              }}
+            >
+              Enable
+            </button>
+          ) : (
+            <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#10b981', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Check size={14} /> Active
+            </span>
+          )}
+        </div>
+
+        {/* Save Button */}
+        <button
+          type="submit"
+          className="btn-primary"
+          style={{
+            marginTop: 4,
+            padding: '13px',
+            borderRadius: 'var(--radius-lg)',
+            fontSize: '0.92rem',
+            fontWeight: 800,
+            justifyContent: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            background: savedSuccess ? '#10b981' : undefined
+          }}
+        >
           {savedSuccess ? <Check size={18} /> : null}
-          <span>{savedSuccess ? 'Profile Saved!' : 'Save Preferences'}</span>
+          <span>{savedSuccess ? 'Preferences Saved!' : 'Save Preferences'}</span>
         </button>
       </form>
 
-      {/* Account Logout Action */}
-      <div className="card" style={{
-        marginTop: 12,
-        padding: '16px 20px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        borderRadius: 'var(--radius-xl)',
-        border: '1px solid var(--border-subtle)'
-      }}>
-        <div>
-          <span style={{ fontSize: '0.88rem', fontWeight: 700, display: 'block' }}>
-            Active Session: {currentUser.name}
-          </span>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-            {currentUser.email || 'Guest User'}
-          </span>
-        </div>
-        <button
-          type="button"
-          onClick={logoutUser}
-          style={{
-            padding: '8px 16px',
-            borderRadius: 'var(--radius-lg)',
-            background: 'rgba(239, 68, 68, 0.12)',
-            color: '#ef4444',
-            border: '1px solid rgba(239, 68, 68, 0.25)',
-            fontWeight: 700,
-            fontSize: '0.85rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            cursor: 'pointer'
-          }}
-        >
-          <LogOut size={16} />
-          <span>Log Out</span>
-        </button>
-      </div>
-
-      {/* Firebase Modal */}
-      {showFirebaseModal && (
-        <div className="sheet-backdrop" onClick={() => setShowFirebaseModal(false)}>
-          <div className="sheet-content animate-slide-up" onClick={e => e.stopPropagation()}>
-            <div className="sheet-handle" />
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: 8 }}>Firebase Cloud Configuration</h2>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: 14 }}>
-              Paste your Firebase Web App credentials or provide them via <code>.env</code> file (<code>VITE_FIREBASE_API_KEY</code>, etc.).
-            </p>
-
-            <form onSubmit={handleSaveFirebaseConfig} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 }}>API KEY</label>
-                <input
-                  type="text"
-                  placeholder="AIzaSy..."
-                  value={fbConfig.apiKey}
-                  onChange={e => setFbConfig({ ...fbConfig, apiKey: e.target.value })}
-                  className="input-pill"
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 }}>PROJECT ID</label>
-                <input
-                  type="text"
-                  placeholder="whopaid-app-12345"
-                  value={fbConfig.projectId}
-                  onChange={e => setFbConfig({ ...fbConfig, projectId: e.target.value })}
-                  className="input-pill"
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 }}>AUTH DOMAIN</label>
-                <input
-                  type="text"
-                  placeholder="whopaid-app-12345.firebaseapp.com"
-                  value={fbConfig.authDomain}
-                  onChange={e => setFbConfig({ ...fbConfig, authDomain: e.target.value })}
-                  className="input-pill"
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 }}>STORAGE BUCKET</label>
-                <input
-                  type="text"
-                  placeholder="whopaid-app-12345.appspot.com"
-                  value={fbConfig.storageBucket}
-                  onChange={e => setFbConfig({ ...fbConfig, storageBucket: e.target.value })}
-                  className="input-pill"
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-tertiary)', display: 'block', marginBottom: 2 }}>APP ID</label>
-                <input
-                  type="text"
-                  placeholder="1:123456789:web:abcdef"
-                  value={fbConfig.appId}
-                  onChange={e => setFbConfig({ ...fbConfig, appId: e.target.value })}
-                  className="input-pill"
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: 10, marginTop: 8 }}>
-                <button type="submit" className="btn-primary" style={{ flex: 1 }}>
-                  Save & Connect
-                </button>
-                <button 
-                  type="button" 
-                  onClick={() => {
-                    setStoredFirebaseConfig(null);
-                    setFbConfig({ apiKey: '', authDomain: '', projectId: '', storageBucket: '', messagingSenderId: '', appId: '' });
-                    setShowFirebaseModal(false);
-                  }}
-                  className="btn-secondary"
-                >
-                  Clear (Offline Mode)
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+      {/* Clean Sign Out Action */}
+      <button
+        type="button"
+        onClick={logoutUser}
+        style={{
+          width: '100%',
+          padding: '13px 18px',
+          borderRadius: 'var(--radius-xl)',
+          background: 'rgba(239, 68, 68, 0.08)',
+          color: '#ef4444',
+          border: '1px solid rgba(239, 68, 68, 0.2)',
+          fontWeight: 700,
+          fontSize: '0.88rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          cursor: 'pointer',
+          transition: 'background 0.15s ease'
+        }}
+      >
+        <LogOut size={16} />
+        <span>Sign Out ({currentUser.email || currentUser.name})</span>
+      </button>
 
     </div>
   );
