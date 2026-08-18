@@ -652,124 +652,712 @@ export const TEST_20_EXPENSES: Expense[] = [
   }
 ];
 
-// Seed initial mock trip and data
+export const CAMINO_20_EXPENSES: Expense[] = [
+  {
+    id: 'exp_c1',
+    tripId: 'trip_camino_2026',
+    description: 'Txuleta Dinner at Asador Portuetxe',
+    category: 'Food',
+    originalAmount: 280,
+    originalCurrency: 'EUR',
+    convertedAmount: 280,
+    mainCurrency: 'EUR',
+    exchangeRate: 1,
+    isManualExchangeRate: false,
+    exchangeRateDate: '2026-09-04',
+    exchangeRateSource: 'Direct (1:1)',
+    paidByUserId: 'user_ozalp',
+    addedByUserId: 'user_ozalp',
+    payers: [{ userId: 'user_ozalp', amount: 280 }],
+    participants: [
+      { userId: 'user_ozalp', amount: 70 },
+      { userId: 'user_sami', amount: 70 },
+      { userId: 'user_ali', amount: 70 },
+      { userId: 'user_serdar', amount: 70 }
+    ],
+    splitMode: 'equal',
+    date: '2026-09-04T21:00:00.000Z',
+    isDeleted: false,
+    isFlaggedWrong: false,
+    clientSyncStatus: 'synced',
+    createdAt: '2026-09-04T21:10:00.000Z',
+    updatedAt: '2026-09-04T21:10:00.000Z'
+  },
+  {
+    id: 'exp_c2',
+    tripId: 'trip_camino_2026',
+    description: 'Txakoli Tasting & Pintxos at Txomin Etxaniz',
+    category: 'Drinks',
+    originalAmount: 140,
+    originalCurrency: 'EUR',
+    convertedAmount: 140,
+    mainCurrency: 'EUR',
+    exchangeRate: 1,
+    isManualExchangeRate: false,
+    exchangeRateDate: '2026-09-05',
+    exchangeRateSource: 'Direct (1:1)',
+    paidByUserId: 'user_sami',
+    addedByUserId: 'user_sami',
+    payers: [{ userId: 'user_sami', amount: 140 }],
+    participants: [
+      { userId: 'user_ozalp', amount: 35 },
+      { userId: 'user_sami', amount: 35 },
+      { userId: 'user_ali', amount: 35 },
+      { userId: 'user_serdar', amount: 35 }
+    ],
+    splitMode: 'equal',
+    date: '2026-09-05T13:30:00.000Z',
+    isDeleted: false,
+    isFlaggedWrong: false,
+    clientSyncStatus: 'synced',
+    createdAt: '2026-09-05T13:35:00.000Z',
+    updatedAt: '2026-09-05T13:35:00.000Z'
+  },
+  {
+    id: 'exp_c3',
+    tripId: 'trip_camino_2026',
+    description: 'Parte Vieja Pintxos Crawl (Gandarias & San Telmo)',
+    category: 'Food',
+    originalAmount: 196,
+    originalCurrency: 'EUR',
+    convertedAmount: 196,
+    mainCurrency: 'EUR',
+    exchangeRate: 1,
+    isManualExchangeRate: false,
+    exchangeRateDate: '2026-09-05',
+    exchangeRateSource: 'Direct (1:1)',
+    paidByUserId: 'user_ali',
+    addedByUserId: 'user_ali',
+    payers: [{ userId: 'user_ali', amount: 196 }],
+    participants: [
+      { userId: 'user_ozalp', amount: 49 },
+      { userId: 'user_sami', amount: 49 },
+      { userId: 'user_ali', amount: 49 },
+      { userId: 'user_serdar', amount: 49 }
+    ],
+    splitMode: 'equal',
+    date: '2026-09-05T20:45:00.000Z',
+    isDeleted: false,
+    isFlaggedWrong: false,
+    clientSyncStatus: 'synced',
+    createdAt: '2026-09-05T20:50:00.000Z',
+    updatedAt: '2026-09-05T20:50:00.000Z'
+  },
+  {
+    id: 'exp_c4',
+    tripId: 'trip_camino_2026',
+    description: 'Surfboard Rentals & Lockers at Zarautz Beach',
+    category: 'Other',
+    originalAmount: 120,
+    originalCurrency: 'EUR',
+    convertedAmount: 120,
+    mainCurrency: 'EUR',
+    exchangeRate: 1,
+    isManualExchangeRate: false,
+    exchangeRateDate: '2026-09-06',
+    exchangeRateSource: 'Direct (1:1)',
+    paidByUserId: 'user_serdar',
+    addedByUserId: 'user_serdar',
+    payers: [{ userId: 'user_serdar', amount: 120 }],
+    participants: [
+      { userId: 'user_ozalp', amount: 30 },
+      { userId: 'user_sami', amount: 30 },
+      { userId: 'user_ali', amount: 30 },
+      { userId: 'user_serdar', amount: 30 }
+    ],
+    splitMode: 'equal',
+    date: '2026-09-06T10:30:00.000Z',
+    isDeleted: false,
+    isFlaggedWrong: false,
+    clientSyncStatus: 'synced',
+    createdAt: '2026-09-06T10:35:00.000Z',
+    updatedAt: '2026-09-06T10:35:00.000Z'
+  },
+  {
+    id: 'exp_c5',
+    tripId: 'trip_camino_2026',
+    description: 'Grilled Whole Turbot Feast at Elkano',
+    category: 'Food',
+    originalAmount: 360,
+    originalCurrency: 'EUR',
+    convertedAmount: 360,
+    mainCurrency: 'EUR',
+    exchangeRate: 1,
+    isManualExchangeRate: false,
+    exchangeRateDate: '2026-09-06',
+    exchangeRateSource: 'Direct (1:1)',
+    paidByUserId: 'user_ozalp',
+    addedByUserId: 'user_ozalp',
+    payers: [{ userId: 'user_ozalp', amount: 360 }],
+    participants: [
+      { userId: 'user_ozalp', amount: 90 },
+      { userId: 'user_sami', amount: 90 },
+      { userId: 'user_ali', amount: 90 },
+      { userId: 'user_serdar', amount: 90 }
+    ],
+    splitMode: 'equal',
+    date: '2026-09-06T14:15:00.000Z',
+    isDeleted: false,
+    isFlaggedWrong: false,
+    clientSyncStatus: 'synced',
+    createdAt: '2026-09-06T14:20:00.000Z',
+    updatedAt: '2026-09-06T14:20:00.000Z'
+  },
+  {
+    id: 'exp_c6',
+    tripId: 'trip_camino_2026',
+    description: 'Coastal Train Zumaia to Deba (Euskotren)',
+    category: 'Transport',
+    originalAmount: 18.4,
+    originalCurrency: 'EUR',
+    convertedAmount: 18.4,
+    mainCurrency: 'EUR',
+    exchangeRate: 1,
+    isManualExchangeRate: false,
+    exchangeRateDate: '2026-09-07',
+    exchangeRateSource: 'Direct (1:1)',
+    paidByUserId: 'user_ali',
+    addedByUserId: 'user_ali',
+    payers: [{ userId: 'user_ali', amount: 18.4 }],
+    participants: [
+      { userId: 'user_ozalp', amount: 4.6 },
+      { userId: 'user_sami', amount: 4.6 },
+      { userId: 'user_ali', amount: 4.6 },
+      { userId: 'user_serdar', amount: 4.6 }
+    ],
+    splitMode: 'equal',
+    date: '2026-09-07T09:15:00.000Z',
+    isDeleted: false,
+    isFlaggedWrong: false,
+    clientSyncStatus: 'synced',
+    createdAt: '2026-09-07T09:20:00.000Z',
+    updatedAt: '2026-09-07T09:20:00.000Z'
+  },
+  {
+    id: 'exp_c7',
+    tripId: 'trip_camino_2026',
+    description: 'Flysch Geopark Coastal Boat Tour (Zumaia)',
+    category: 'Tickets',
+    originalAmount: 112,
+    originalCurrency: 'EUR',
+    convertedAmount: 112,
+    mainCurrency: 'EUR',
+    exchangeRate: 1,
+    isManualExchangeRate: false,
+    exchangeRateDate: '2026-09-07',
+    exchangeRateSource: 'Direct (1:1)',
+    paidByUserId: 'user_sami',
+    addedByUserId: 'user_sami',
+    payers: [{ userId: 'user_sami', amount: 112 }],
+    participants: [
+      { userId: 'user_ozalp', amount: 28 },
+      { userId: 'user_sami', amount: 28 },
+      { userId: 'user_ali', amount: 28 },
+      { userId: 'user_serdar', amount: 28 }
+    ],
+    splitMode: 'equal',
+    date: '2026-09-07T11:45:00.000Z',
+    isDeleted: false,
+    isFlaggedWrong: false,
+    clientSyncStatus: 'synced',
+    createdAt: '2026-09-07T11:50:00.000Z',
+    updatedAt: '2026-09-07T11:50:00.000Z'
+  },
+  {
+    id: 'exp_c8',
+    tripId: 'trip_camino_2026',
+    description: 'Jacotrans Pilgrim Luggage Transfer',
+    category: 'Transport',
+    originalAmount: 80,
+    originalCurrency: 'EUR',
+    convertedAmount: 80,
+    mainCurrency: 'EUR',
+    exchangeRate: 1,
+    isManualExchangeRate: false,
+    exchangeRateDate: '2026-09-07',
+    exchangeRateSource: 'Direct (1:1)',
+    paidByUserId: 'user_serdar',
+    addedByUserId: 'user_serdar',
+    payers: [{ userId: 'user_serdar', amount: 80 }],
+    participants: [
+      { userId: 'user_ozalp', amount: 20 },
+      { userId: 'user_sami', amount: 20 },
+      { userId: 'user_ali', amount: 20 },
+      { userId: 'user_serdar', amount: 20 }
+    ],
+    splitMode: 'equal',
+    date: '2026-09-07T08:00:00.000Z',
+    isDeleted: false,
+    isFlaggedWrong: false,
+    clientSyncStatus: 'synced',
+    createdAt: '2026-09-07T08:05:00.000Z',
+    updatedAt: '2026-09-07T08:05:00.000Z'
+  },
+  {
+    id: 'exp_c9',
+    tripId: 'trip_camino_2026',
+    description: 'Txuleta & Basque Cider at Asador San Martin',
+    category: 'Food',
+    originalAmount: 264,
+    originalCurrency: 'EUR',
+    convertedAmount: 264,
+    mainCurrency: 'EUR',
+    exchangeRate: 1,
+    isManualExchangeRate: false,
+    exchangeRateDate: '2026-09-07',
+    exchangeRateSource: 'Direct (1:1)',
+    paidByUserId: 'user_ali',
+    addedByUserId: 'user_ali',
+    payers: [{ userId: 'user_ali', amount: 264 }],
+    participants: [
+      { userId: 'user_ozalp', amount: 66 },
+      { userId: 'user_sami', amount: 66 },
+      { userId: 'user_ali', amount: 66 },
+      { userId: 'user_serdar', amount: 66 }
+    ],
+    splitMode: 'equal',
+    date: '2026-09-07T21:00:00.000Z',
+    isDeleted: false,
+    isFlaggedWrong: false,
+    clientSyncStatus: 'synced',
+    createdAt: '2026-09-07T21:05:00.000Z',
+    updatedAt: '2026-09-07T21:05:00.000Z'
+  },
+  {
+    id: 'exp_c10',
+    tripId: 'trip_camino_2026',
+    description: 'Idiazabal Cheese, Jamon & Txakoli Trail Picnic',
+    category: 'Food',
+    originalAmount: 68,
+    originalCurrency: 'EUR',
+    convertedAmount: 68,
+    mainCurrency: 'EUR',
+    exchangeRate: 1,
+    isManualExchangeRate: false,
+    exchangeRateDate: '2026-09-08',
+    exchangeRateSource: 'Direct (1:1)',
+    paidByUserId: 'user_ozalp',
+    addedByUserId: 'user_ozalp',
+    payers: [{ userId: 'user_ozalp', amount: 68 }],
+    participants: [
+      { userId: 'user_ozalp', amount: 17 },
+      { userId: 'user_sami', amount: 17 },
+      { userId: 'user_ali', amount: 17 },
+      { userId: 'user_serdar', amount: 17 }
+    ],
+    splitMode: 'equal',
+    date: '2026-09-08T12:30:00.000Z',
+    isDeleted: false,
+    isFlaggedWrong: false,
+    clientSyncStatus: 'synced',
+    createdAt: '2026-09-08T12:35:00.000Z',
+    updatedAt: '2026-09-08T12:35:00.000Z'
+  },
+  {
+    id: 'exp_c11',
+    tripId: 'trip_camino_2026',
+    description: 'Morning Espresso & Pastel Vasco (Getaria Bakery)',
+    category: 'Food',
+    originalAmount: 28,
+    originalCurrency: 'EUR',
+    convertedAmount: 28,
+    mainCurrency: 'EUR',
+    exchangeRate: 1,
+    isManualExchangeRate: false,
+    exchangeRateDate: '2026-09-08',
+    exchangeRateSource: 'Direct (1:1)',
+    paidByUserId: 'user_sami',
+    addedByUserId: 'user_sami',
+    payers: [{ userId: 'user_sami', amount: 28 }],
+    participants: [
+      { userId: 'user_ozalp', amount: 7 },
+      { userId: 'user_sami', amount: 7 },
+      { userId: 'user_ali', amount: 7 },
+      { userId: 'user_serdar', amount: 7 }
+    ],
+    splitMode: 'equal',
+    date: '2026-09-08T08:30:00.000Z',
+    isDeleted: false,
+    isFlaggedWrong: false,
+    clientSyncStatus: 'synced',
+    createdAt: '2026-09-08T08:35:00.000Z',
+    updatedAt: '2026-09-08T08:35:00.000Z'
+  },
+  {
+    id: 'exp_c12',
+    tripId: 'trip_camino_2026',
+    description: 'Guggenheim Museum Bilbao Tickets',
+    category: 'Tickets',
+    originalAmount: 72,
+    originalCurrency: 'EUR',
+    convertedAmount: 72,
+    mainCurrency: 'EUR',
+    exchangeRate: 1,
+    isManualExchangeRate: false,
+    exchangeRateDate: '2026-09-08',
+    exchangeRateSource: 'Direct (1:1)',
+    paidByUserId: 'user_serdar',
+    addedByUserId: 'user_serdar',
+    payers: [{ userId: 'user_serdar', amount: 72 }],
+    participants: [
+      { userId: 'user_ozalp', amount: 18 },
+      { userId: 'user_sami', amount: 18 },
+      { userId: 'user_ali', amount: 18 },
+      { userId: 'user_serdar', amount: 18 }
+    ],
+    splitMode: 'equal',
+    date: '2026-09-08T16:00:00.000Z',
+    isDeleted: false,
+    isFlaggedWrong: false,
+    clientSyncStatus: 'synced',
+    createdAt: '2026-09-08T16:05:00.000Z',
+    updatedAt: '2026-09-08T16:05:00.000Z'
+  },
+  {
+    id: 'exp_c13',
+    tripId: 'trip_camino_2026',
+    description: 'Txakoli & Late Night Gin Tonics at Plaza Nueva',
+    category: 'Drinks',
+    originalAmount: 92,
+    originalCurrency: 'EUR',
+    convertedAmount: 92,
+    mainCurrency: 'EUR',
+    exchangeRate: 1,
+    isManualExchangeRate: false,
+    exchangeRateDate: '2026-09-08',
+    exchangeRateSource: 'Direct (1:1)',
+    paidByUserId: 'user_ali',
+    addedByUserId: 'user_ali',
+    payers: [{ userId: 'user_ali', amount: 92 }],
+    participants: [
+      { userId: 'user_ozalp', amount: 23 },
+      { userId: 'user_sami', amount: 23 },
+      { userId: 'user_ali', amount: 23 },
+      { userId: 'user_serdar', amount: 23 }
+    ],
+    splitMode: 'equal',
+    date: '2026-09-08T23:30:00.000Z',
+    isDeleted: false,
+    isFlaggedWrong: false,
+    clientSyncStatus: 'synced',
+    createdAt: '2026-09-08T23:35:00.000Z',
+    updatedAt: '2026-09-08T23:35:00.000Z'
+  },
+  {
+    id: 'exp_c14',
+    tripId: 'trip_camino_2026',
+    description: 'Boutique Hotel Iturregi Vineyard Suite (Getaria)',
+    category: 'Hotel',
+    originalAmount: 480,
+    originalCurrency: 'EUR',
+    convertedAmount: 480,
+    mainCurrency: 'EUR',
+    exchangeRate: 1,
+    isManualExchangeRate: false,
+    exchangeRateDate: '2026-09-06',
+    exchangeRateSource: 'Direct (1:1)',
+    paidByUserId: 'user_ozalp',
+    addedByUserId: 'user_ozalp',
+    payers: [{ userId: 'user_ozalp', amount: 480 }],
+    participants: [
+      { userId: 'user_ozalp', amount: 120 },
+      { userId: 'user_sami', amount: 120 },
+      { userId: 'user_ali', amount: 120 },
+      { userId: 'user_serdar', amount: 120 }
+    ],
+    splitMode: 'equal',
+    date: '2026-09-06T18:00:00.000Z',
+    isDeleted: false,
+    isFlaggedWrong: false,
+    clientSyncStatus: 'synced',
+    createdAt: '2026-09-06T18:05:00.000Z',
+    updatedAt: '2026-09-06T18:05:00.000Z'
+  },
+  {
+    id: 'exp_c15',
+    tripId: 'trip_camino_2026',
+    description: 'Pilgrim Trail Fruits, Nuts & Electrolytes (Eroski)',
+    category: 'Food',
+    originalAmount: 36,
+    originalCurrency: 'EUR',
+    convertedAmount: 36,
+    mainCurrency: 'EUR',
+    exchangeRate: 1,
+    isManualExchangeRate: false,
+    exchangeRateDate: '2026-09-07',
+    exchangeRateSource: 'Direct (1:1)',
+    paidByUserId: 'user_sami',
+    addedByUserId: 'user_sami',
+    payers: [{ userId: 'user_sami', amount: 36 }],
+    participants: [
+      { userId: 'user_ozalp', amount: 9 },
+      { userId: 'user_sami', amount: 9 },
+      { userId: 'user_ali', amount: 9 },
+      { userId: 'user_serdar', amount: 9 }
+    ],
+    splitMode: 'equal',
+    date: '2026-09-07T07:45:00.000Z',
+    isDeleted: false,
+    isFlaggedWrong: false,
+    clientSyncStatus: 'synced',
+    createdAt: '2026-09-07T07:50:00.000Z',
+    updatedAt: '2026-09-07T07:50:00.000Z'
+  },
+  {
+    id: 'exp_c16',
+    tripId: 'trip_camino_2026',
+    description: 'Thermal Salt Bath & Recovery at Zarautz Thalasso',
+    category: 'Other',
+    originalAmount: 160,
+    originalCurrency: 'EUR',
+    convertedAmount: 160,
+    mainCurrency: 'EUR',
+    exchangeRate: 1,
+    isManualExchangeRate: false,
+    exchangeRateDate: '2026-09-06',
+    exchangeRateSource: 'Direct (1:1)',
+    paidByUserId: 'user_serdar',
+    addedByUserId: 'user_serdar',
+    payers: [{ userId: 'user_serdar', amount: 160 }],
+    participants: [
+      { userId: 'user_ozalp', amount: 40 },
+      { userId: 'user_sami', amount: 40 },
+      { userId: 'user_ali', amount: 40 },
+      { userId: 'user_serdar', amount: 40 }
+    ],
+    splitMode: 'equal',
+    date: '2026-09-06T16:30:00.000Z',
+    isDeleted: false,
+    isFlaggedWrong: false,
+    clientSyncStatus: 'synced',
+    createdAt: '2026-09-06T16:35:00.000Z',
+    updatedAt: '2026-09-06T16:35:00.000Z'
+  },
+  {
+    id: 'exp_c17',
+    tripId: 'trip_camino_2026',
+    description: 'Txepetxa Anchovy & Foie Tapas (San Sebastian)',
+    category: 'Food',
+    originalAmount: 76,
+    originalCurrency: 'EUR',
+    convertedAmount: 76,
+    mainCurrency: 'EUR',
+    exchangeRate: 1,
+    isManualExchangeRate: false,
+    exchangeRateDate: '2026-09-05',
+    exchangeRateSource: 'Direct (1:1)',
+    paidByUserId: 'user_ali',
+    addedByUserId: 'user_ali',
+    payers: [{ userId: 'user_ali', amount: 76 }],
+    participants: [
+      { userId: 'user_ozalp', amount: 19 },
+      { userId: 'user_sami', amount: 19 },
+      { userId: 'user_ali', amount: 19 },
+      { userId: 'user_serdar', amount: 19 }
+    ],
+    splitMode: 'equal',
+    date: '2026-09-05T14:30:00.000Z',
+    isDeleted: false,
+    isFlaggedWrong: false,
+    clientSyncStatus: 'synced',
+    createdAt: '2026-09-05T14:35:00.000Z',
+    updatedAt: '2026-09-05T14:35:00.000Z'
+  },
+  {
+    id: 'exp_c18',
+    tripId: 'trip_camino_2026',
+    description: 'Zarautz to Zumaia Trailhead Taxi Transfer',
+    category: 'Transport',
+    originalAmount: 36,
+    originalCurrency: 'EUR',
+    convertedAmount: 36,
+    mainCurrency: 'EUR',
+    exchangeRate: 1,
+    isManualExchangeRate: false,
+    exchangeRateDate: '2026-09-07',
+    exchangeRateSource: 'Direct (1:1)',
+    paidByUserId: 'user_ozalp',
+    addedByUserId: 'user_ozalp',
+    payers: [{ userId: 'user_ozalp', amount: 36 }],
+    participants: [
+      { userId: 'user_ozalp', amount: 9 },
+      { userId: 'user_sami', amount: 9 },
+      { userId: 'user_ali', amount: 9 },
+      { userId: 'user_serdar', amount: 9 }
+    ],
+    splitMode: 'equal',
+    date: '2026-09-07T08:45:00.000Z',
+    isDeleted: false,
+    isFlaggedWrong: false,
+    clientSyncStatus: 'synced',
+    createdAt: '2026-09-07T08:50:00.000Z',
+    updatedAt: '2026-09-07T08:50:00.000Z'
+  },
+  {
+    id: 'exp_c19',
+    tripId: 'trip_camino_2026',
+    description: 'Farewell Michelin Tasting at Mina (Bilbao River)',
+    category: 'Food',
+    originalAmount: 440,
+    originalCurrency: 'EUR',
+    convertedAmount: 440,
+    mainCurrency: 'EUR',
+    exchangeRate: 1,
+    isManualExchangeRate: false,
+    exchangeRateDate: '2026-09-09',
+    exchangeRateSource: 'Direct (1:1)',
+    paidByUserId: 'user_ozalp',
+    addedByUserId: 'user_ozalp',
+    payers: [
+      { userId: 'user_ozalp', amount: 220 },
+      { userId: 'user_sami', amount: 220 }
+    ],
+    participants: [
+      { userId: 'user_ozalp', amount: 110 },
+      { userId: 'user_sami', amount: 110 },
+      { userId: 'user_ali', amount: 110 },
+      { userId: 'user_serdar', amount: 110 }
+    ],
+    splitMode: 'equal',
+    date: '2026-09-09T21:30:00.000Z',
+    isDeleted: false,
+    isFlaggedWrong: false,
+    clientSyncStatus: 'synced',
+    createdAt: '2026-09-09T21:35:00.000Z',
+    updatedAt: '2026-09-09T21:35:00.000Z'
+  },
+  {
+    id: 'exp_c20',
+    tripId: 'trip_camino_2026',
+    description: 'Artisan Txakoli & Bonito del Norte Souvenirs',
+    category: 'Other',
+    originalAmount: 96,
+    originalCurrency: 'EUR',
+    convertedAmount: 96,
+    mainCurrency: 'EUR',
+    exchangeRate: 1,
+    isManualExchangeRate: false,
+    exchangeRateDate: '2026-09-10',
+    exchangeRateSource: 'Direct (1:1)',
+    paidByUserId: 'user_serdar',
+    addedByUserId: 'user_serdar',
+    payers: [{ userId: 'user_serdar', amount: 96 }],
+    participants: [
+      { userId: 'user_ozalp', amount: 24 },
+      { userId: 'user_sami', amount: 24 },
+      { userId: 'user_ali', amount: 24 },
+      { userId: 'user_serdar', amount: 24 }
+    ],
+    splitMode: 'equal',
+    date: '2026-09-10T11:00:00.000Z',
+    isDeleted: false,
+    isFlaggedWrong: false,
+    clientSyncStatus: 'synced',
+    createdAt: '2026-09-10T11:05:00.000Z',
+    updatedAt: '2026-09-10T11:05:00.000Z'
+  }
+];
+
+// Seed initial mock trips and data
 export async function seedInitialDataIfNeeded(force = false) {
-  const existingTrip = await db.trips.get('trip_leros_2026');
-  if (existingTrip && !force) {
-    return;
+  const existingLeros = await db.trips.get('trip_leros_2026');
+  const existingCamino = await db.trips.get('trip_camino_2026');
+
+  // Seed Users
+  const allInitialUsers: User[] = [
+    { id: 'user_ozalp', name: 'Ozalp', email: 'ozalp@example.com', defaultCurrency: 'EUR' },
+    { id: 'user_betul', name: 'Betül', email: 'betul@example.com', defaultCurrency: 'EUR' },
+    { id: 'user_sevket', name: 'Sevket', email: 'sevket@example.com', defaultCurrency: 'EUR' },
+    { id: 'user_erhan', name: 'Erhan', email: 'erhan@example.com', defaultCurrency: 'EUR' },
+    { id: 'user_janna', name: 'Janna', email: 'janna@example.com', defaultCurrency: 'EUR' },
+    { id: 'user_sami', name: 'Sami', email: 'sami@example.com', defaultCurrency: 'EUR' },
+    { id: 'user_ali', name: 'Ali', email: 'ali@example.com', defaultCurrency: 'EUR' },
+    { id: 'user_serdar', name: 'Serdar', email: 'serdar@example.com', defaultCurrency: 'EUR' }
+  ];
+  await db.users.bulkPut(allInitialUsers);
+
+  // 1. Seed Leros 2026 if needed
+  if (!existingLeros || force) {
+    const lerosTrip: Trip = {
+      id: 'trip_leros_2026',
+      name: 'Leros 2026',
+      emoji: '',
+      startDate: '2026-08-12',
+      endDate: '2026-08-16',
+      mainCurrency: 'EUR',
+      ownerId: 'user_ozalp',
+      isClosed: false,
+      isDeleted: false,
+      createdAt: '2026-08-12T10:00:00.000Z',
+      updatedAt: '2026-08-17T12:00:00.000Z',
+      clientSyncStatus: 'synced'
+    };
+    await db.trips.put(lerosTrip);
+
+    const lerosMembers: TripMember[] = [
+      { id: 'm_1', tripId: 'trip_leros_2026', userId: 'user_ozalp', name: 'Ozalp', email: 'ozalp@example.com', role: 'owner', isActive: true, joinedAt: '2026-08-12T10:00:00.000Z' },
+      { id: 'm_2', tripId: 'trip_leros_2026', userId: 'user_betul', name: 'Betül', email: 'betul@example.com', role: 'member', isActive: true, joinedAt: '2026-08-12T10:05:00.000Z' },
+      { id: 'm_3', tripId: 'trip_leros_2026', userId: 'user_sevket', name: 'Sevket', email: 'sevket@example.com', role: 'member', isActive: true, joinedAt: '2026-08-12T10:10:00.000Z' },
+      { id: 'm_4', tripId: 'trip_leros_2026', userId: 'user_erhan', name: 'Erhan', email: 'erhan@example.com', role: 'member', isActive: true, joinedAt: '2026-08-12T10:15:00.000Z' },
+      { id: 'm_5', tripId: 'trip_leros_2026', userId: 'user_janna', name: 'Janna', email: 'janna@example.com', role: 'member', isActive: true, joinedAt: '2026-08-12T10:20:00.000Z' },
+    ];
+    await db.tripMembers.bulkPut(lerosMembers);
+
+    const lerosHouseholds: Household[] = [
+      { id: 'hh_ozalp_betul', tripId: 'trip_leros_2026', name: 'Ozalp + Betül', memberUserIds: ['user_ozalp', 'user_betul'], createdAt: '2026-08-12T10:20:00.000Z' },
+      { id: 'hh_erhan_janna', tripId: 'trip_leros_2026', name: 'Erhan + Janna', memberUserIds: ['user_erhan', 'user_janna'], createdAt: '2026-08-12T10:25:00.000Z' }
+    ];
+    await db.households.bulkPut(lerosHouseholds);
+    await db.expenses.bulkPut(TEST_20_EXPENSES);
   }
 
-  const ozalpUser: User = {
-    id: 'user_ozalp',
-    name: 'Ozalp',
-    email: 'ozalp@example.com',
-    defaultCurrency: 'EUR'
-  };
+  // 2. Seed Camino 2026 if needed
+  if (!existingCamino || force) {
+    const caminoTrip: Trip = {
+      id: 'trip_camino_2026',
+      name: 'Camino 2026',
+      emoji: '',
+      startDate: '2026-09-04',
+      endDate: '2026-09-10',
+      mainCurrency: 'EUR',
+      ownerId: 'user_ozalp',
+      isClosed: false,
+      isDeleted: false,
+      createdAt: '2026-09-04T10:00:00.000Z',
+      updatedAt: '2026-09-10T12:00:00.000Z',
+      clientSyncStatus: 'synced'
+    };
+    await db.trips.put(caminoTrip);
 
-  const betulUser: User = {
-    id: 'user_betul',
-    name: 'Betül',
-    email: 'betul@example.com',
-    defaultCurrency: 'EUR'
-  };
+    const caminoMembers: TripMember[] = [
+      { id: 'm_c1', tripId: 'trip_camino_2026', userId: 'user_ozalp', name: 'Ozalp', email: 'ozalp@example.com', role: 'owner', isActive: true, joinedAt: '2026-09-04T10:00:00.000Z' },
+      { id: 'm_c2', tripId: 'trip_camino_2026', userId: 'user_sami', name: 'Sami', email: 'sami@example.com', role: 'member', isActive: true, joinedAt: '2026-09-04T10:05:00.000Z' },
+      { id: 'm_c3', tripId: 'trip_camino_2026', userId: 'user_ali', name: 'Ali', email: 'ali@example.com', role: 'member', isActive: true, joinedAt: '2026-09-04T10:10:00.000Z' },
+      { id: 'm_c4', tripId: 'trip_camino_2026', userId: 'user_serdar', name: 'Serdar', email: 'serdar@example.com', role: 'member', isActive: true, joinedAt: '2026-09-04T10:15:00.000Z' }
+    ];
+    await db.tripMembers.bulkPut(caminoMembers);
+    await db.expenses.bulkPut(CAMINO_20_EXPENSES);
 
-  const sevketUser: User = {
-    id: 'user_sevket',
-    name: 'Sevket',
-    email: 'sevket@example.com',
-    defaultCurrency: 'EUR'
-  };
-
-  const erhanUser: User = {
-    id: 'user_erhan',
-    name: 'Erhan',
-    email: 'erhan@example.com',
-    defaultCurrency: 'EUR'
-  };
-
-  const jannaUser: User = {
-    id: 'user_janna',
-    name: 'Janna',
-    email: 'janna@example.com',
-    defaultCurrency: 'EUR'
-  };
-
-  // Keep users updated with Ozalp, Betül, Sevket, Erhan, and Janna
-  await db.users.clear();
-  await db.users.bulkPut([ozalpUser, betulUser, sevketUser, erhanUser, jannaUser]);
-
-  const tripId = 'trip_leros_2026';
-  const lerosTrip: Trip = {
-    id: tripId,
-    name: 'Leros 2026',
-    emoji: '',
-    startDate: '2026-08-12',
-    endDate: '2026-08-16',
-    mainCurrency: 'EUR',
-    ownerId: 'user_ozalp',
-    isClosed: false,
-    isDeleted: false,
-    createdAt: '2026-08-12T10:00:00.000Z',
-    updatedAt: '2026-08-17T12:00:00.000Z',
-    clientSyncStatus: 'synced'
-  };
-  await db.trips.put(lerosTrip);
-
-  const members: TripMember[] = [
-    { id: 'm_1', tripId, userId: 'user_ozalp', name: 'Ozalp', email: 'ozalp@example.com', role: 'owner', isActive: true, joinedAt: '2026-08-12T10:00:00.000Z' },
-    { id: 'm_2', tripId, userId: 'user_betul', name: 'Betül', email: 'betul@example.com', role: 'member', isActive: true, joinedAt: '2026-08-12T10:05:00.000Z' },
-    { id: 'm_3', tripId, userId: 'user_sevket', name: 'Sevket', email: 'sevket@example.com', role: 'member', isActive: true, joinedAt: '2026-08-12T10:10:00.000Z' },
-    { id: 'm_4', tripId, userId: 'user_erhan', name: 'Erhan', email: 'erhan@example.com', role: 'member', isActive: true, joinedAt: '2026-08-12T10:15:00.000Z' },
-    { id: 'm_5', tripId, userId: 'user_janna', name: 'Janna', email: 'janna@example.com', role: 'member', isActive: true, joinedAt: '2026-08-12T10:20:00.000Z' },
-  ];
-  await db.tripMembers.where('tripId').equals(tripId).delete();
-  await db.tripMembers.bulkPut(members);
-
-  const households: Household[] = [
-    {
-      id: 'hh_ozalp_betul',
-      tripId,
-      name: 'Ozalp + Betül',
-      memberUserIds: ['user_ozalp', 'user_betul'],
-      createdAt: '2026-08-12T10:20:00.000Z'
-    },
-    {
-      id: 'hh_erhan_janna',
-      tripId,
-      name: 'Erhan + Janna',
-      memberUserIds: ['user_erhan', 'user_janna'],
-      createdAt: '2026-08-12T10:25:00.000Z'
-    }
-  ];
-  await db.households.where('tripId').equals(tripId).delete();
-  await db.households.bulkPut(households);
-
-  // Bulk put the 20 test expenses
-  await db.expenses.where('tripId').equals(tripId).delete();
-  await db.expenses.bulkPut(TEST_20_EXPENSES);
-
-  // Seed rich audit log
-  const activities: Activity[] = [
-    {
-      id: 'act_1',
-      tripId,
-      userId: 'user_ozalp',
-      userName: 'Ozalp',
-      type: 'trip_created',
-      description: 'created trip Leros 2026',
-      createdAt: '2026-08-12T10:00:00.000Z'
-    },
-    ...TEST_20_EXPENSES.map((e, idx) => ({
-      id: `act_exp_${idx + 1}`,
-      tripId,
-      userId: e.addedByUserId,
-      userName: e.addedByUserId === 'user_ozalp' ? 'Ozalp' : e.addedByUserId === 'user_betul' ? 'Betül' : e.addedByUserId === 'user_sevket' ? 'Sevket' : e.addedByUserId === 'user_erhan' ? 'Erhan' : 'Janna',
-      type: 'expense_added' as const,
-      description: `added ${e.originalCurrency === 'EUR' ? '€' : e.originalCurrency === 'TRY' ? '₺' : '$'}${e.originalAmount} ${e.description}`,
-      createdAt: e.createdAt
-    }))
-  ];
-
-  await db.activities.where('tripId').equals(tripId).delete();
-  await db.activities.bulkPut(activities);
+    const caminoActivities: Activity[] = [
+      {
+        id: 'act_c_1',
+        tripId: 'trip_camino_2026',
+        userId: 'user_ozalp',
+        userName: 'Ozalp',
+        type: 'trip_created',
+        description: 'created trip Camino 2026 (San Sebastian to Bilbao)',
+        createdAt: '2026-09-04T10:00:00.000Z'
+      },
+      ...CAMINO_20_EXPENSES.map((e, idx) => ({
+        id: `act_c_exp_${idx + 1}`,
+        tripId: 'trip_camino_2026',
+        userId: e.addedByUserId,
+        userName: e.addedByUserId === 'user_ozalp' ? 'Ozalp' : e.addedByUserId === 'user_sami' ? 'Sami' : e.addedByUserId === 'user_ali' ? 'Ali' : 'Serdar',
+        type: 'expense_added' as const,
+        description: `added €${e.originalAmount} ${e.description}`,
+        createdAt: e.createdAt
+      }))
+    ];
+    await db.activities.bulkPut(caminoActivities);
+  }
 }
