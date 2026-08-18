@@ -172,7 +172,7 @@ const AppContent: React.FC<AppContentProps> = () => {
         onNavigate={(view) => setCurrentView(view)}
       />
 
-      <main style={{ flex: 1, paddingBottom: showTripDock ? 70 : 20 }}>
+      <main style={{ flex: 1, paddingBottom: showTripDock ? 'calc(80px + env(safe-area-inset-bottom, 0px))' : 'calc(24px + env(safe-area-inset-bottom, 0px))' }}>
         {currentView === 'trips' && (
           <TripsHome
             onSelectTrip={handleSelectTrip}

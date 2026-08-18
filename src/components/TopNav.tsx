@@ -96,7 +96,16 @@ export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
 
   return (
     <>
-      <header className="top-nav" style={{ padding: '12px 18px', gap: 10 }}>
+      <header
+        className="top-nav"
+        style={{
+          paddingTop: 'calc(14px + env(safe-area-inset-top, 0px))',
+          paddingBottom: '12px',
+          paddingLeft: 'calc(16px + env(safe-area-inset-left, 0px))',
+          paddingRight: 'calc(16px + env(safe-area-inset-right, 0px))',
+          gap: 10
+        }}
+      >
         {/* Left Side: Back Arrow + Trip Info / Title */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0 }}>
           {currentView !== 'trips' ? (
