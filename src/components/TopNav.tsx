@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../store/AppContext';
-import { ChevronLeft, MoreVertical, Activity, User, Archive, Users, UserPlus, Sun, Moon, LogOut } from 'lucide-react';
-import { UserSwitcherModal } from './UserSwitcherModal';
+import { ChevronLeft, UserPlus, Sun, Moon } from 'lucide-react';
 import { QRCodeModal } from './QRCodeModal';
 
 type ThemeMode = 'light' | 'dark';
@@ -12,9 +11,7 @@ interface TopNavProps {
 }
 
 export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
-  const { activeTrip, currentUser, isOnline, expenses, logoutUser } = useApp();
-  const [showMenu, setShowMenu] = useState(false);
-  const [showUserSwitcher, setShowUserSwitcher] = useState(false);
+  const { activeTrip, currentUser, isOnline, expenses } = useApp();
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   
   // Theme state: defaults to light, with one-tap toggle to dark
@@ -229,120 +226,6 @@ export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
               currentUser.name.charAt(0).toUpperCase()
             )}
           </button>
-
-          {/* Menu Dropdown */}
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setShowMenu(prev => !prev)}
-              className="nav-icon-btn"
-              style={{ width: 30, height: 30 }}
-              aria-label="Menu"
-            >
-              <MoreVertical size={15} />
-            </button>
-
-            {showMenu && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
-                  marginTop: 6,
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: 'var(--radius-lg)',
-                  boxShadow: 'var(--shadow-lg)',
-                  width: 190,
-                  zIndex: 100,
-                  overflow: 'hidden',
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}
-                onClick={() => setShowMenu(false)}
-              >
-                <button
-                  onClick={toggleTheme}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '10px 14px',
-                    fontSize: '0.85rem',
-                    color: 'var(--text-primary)',
-                    textAlign: 'left'
-                  }}
-                >
-                  {currentTheme === 'light' ? <Moon size={15} /> : <Sun size={15} />}
-                  <span>{currentTheme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
-                </button>
-
-                <button
-                  onClick={() => onNavigate('activity')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '10px 14px',
-                    fontSize: '0.85rem',
-                    color: 'var(--text-primary)',
-                    textAlign: 'left'
-                  }}
-                >
-                  <Activity size={15} color="var(--text-secondary)" />
-                  <span>Activity History</span>
-                </button>
-
-                <button
-                  onClick={() => onNavigate('archive')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '10px 14px',
-                    fontSize: '0.85rem',
-                    color: 'var(--text-primary)',
-                    textAlign: 'left'
-                  }}
-                >
-                  <Archive size={15} color="var(--text-secondary)" />
-                  <span>Archive & Deleted</span>
-                </button>
-
-                <button
-                  onClick={() => onNavigate('profile')}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '10px 14px',
-                    fontSize: '0.85rem',
-                    color: 'var(--text-primary)',
-                    textAlign: 'left'
-                  }}
-                >
-                  <User size={15} color="var(--text-secondary)" />
-                  <span>Profile Settings</span>
-                </button>
-
-                <button
-                  onClick={logoutUser}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '10px 14px',
-                    fontSize: '0.82rem',
-                    color: '#ef4444',
-                    fontWeight: 700,
-                    textAlign: 'left'
-                  }}
-                >
-                  <LogOut size={15} color="#ef4444" />
-                  <span>Log Out</span>
-                </button>
-              </div>
-            )}
-          </div>
         </div>
       </header>
 
