@@ -198,20 +198,62 @@ export async function compressAndUploadReceipt(
   fileName?: string
 ): Promise<string> {
   const { storage } = getFirebaseInstances();
+
+  // Compress image to lightweight WebP Data URL (< 35 KB)
+  const compressedDataUrl = await compressImageToWebpDataUrl(file, 1200, 0.75);
+
   if (!storage) {
-    throw new Error('Firebase Storage is not configured.');
+    // Return compressed DataURL directly (works 100% free with Firestore Spark Plan)
+    return compressedDataUrl;
   }
 
-  // Convert File to compressed WebP Blob using HTML5 Canvas
-  const compressedBlob = await compressImageToWebp(file, 1600, 0.82);
-  const name = fileName || `receipt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.webp`;
-  const storageRef = ref(storage, `trips/${tripId}/receipts/${name}`);
+  try {
+    const compressedBlob = await compressImageToWebp(file, 1400, 0.80);
+    const name = fileName || `receipt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.webp`;
+    const storageRef = ref(storage, `trips/${tripId}/receipts/${name}`);
 
-  const snapshot = await uploadBytes(storageRef, compressedBlob, {
-    contentType: 'image/webp'
+    const snapshot = await uploadBytes(storageRef, compressedBlob, {
+      contentType: 'image/webp'
+    });
+
+    return await getDownloadURL(snapshot.ref);
+  } catch (storageErr) {
+    console.warn('[Storage] Upload failed, falling back to compressed inline WebP:', storageErr);
+    return compressedDataUrl;
+  }
+}
+
+function compressImageToWebpDataUrl(source: File | Blob, maxDim = 1200, quality = 0.75): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onerror = () => resolve('');
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => resolve(reader.result as string);
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve(reader.result as string);
+
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/webp', quality));
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(source);
   });
-
-  return await getDownloadURL(snapshot.ref);
 }
 
 function compressImageToWebp(source: File | Blob, maxDim = 1600, quality = 0.82): Promise<Blob> {
