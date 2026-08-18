@@ -92,119 +92,72 @@ export const ProfileScreen: React.FC = () => {
       
       {/* Header */}
       <div>
-        <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Profile & Cloud Sync</h1>
+        <h1 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Account & Profile</h1>
         <span style={{ fontSize: '0.85rem', color: 'var(--text-tertiary)' }}>
-          User settings, preferences & backend connectivity
+          Manage your personal settings & preferences
         </span>
       </div>
 
-      {/* Cloud Status Banner */}
+      {/* Clean User Account Card */}
       <div 
         className="card" 
         style={{ 
           display: 'flex', 
           alignItems: 'center', 
           justifyContent: 'space-between',
-          borderLeft: `4px solid ${isFirebaseActive ? 'var(--brand-500, #10b981)' : 'var(--warning-500, #f59e0b)'}`
+          padding: '16px 20px',
+          borderRadius: 'var(--radius-xl)'
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          {isFirebaseActive ? (
-            <div style={{
-              width: 36,
-              height: 36,
-              borderRadius: 'var(--radius-full)',
-              background: 'rgba(16, 185, 129, 0.15)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Cloud size={20} color="#10b981" />
-            </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          {currentUser.avatarUrl ? (
+            <img 
+              src={currentUser.avatarUrl} 
+              alt={currentUser.name} 
+              style={{ width: 44, height: 44, borderRadius: 'var(--radius-full)', objectFit: 'cover' }} 
+            />
           ) : (
             <div style={{
-              width: 36,
-              height: 36,
+              width: 44,
+              height: 44,
               borderRadius: 'var(--radius-full)',
-              background: 'rgba(245, 158, 11, 0.15)',
+              background: 'var(--brand-600)',
+              color: '#ffffff',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              fontWeight: 800,
+              fontSize: '1.1rem'
             }}>
-              <CloudOff size={20} color="#f59e0b" />
+              {currentUser.name.charAt(0).toUpperCase()}
             </div>
           )}
+
           <div>
-            <div style={{ fontSize: '0.9rem', fontWeight: 700 }}>
-              {isFirebaseActive ? 'Firebase Realtime Cloud Active' : 'Offline-First Local Mode'}
+            <div style={{ fontSize: '1rem', fontWeight: 800 }}>
+              {currentUser.name}
             </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-              {isFirebaseActive 
-                ? (firebaseUser ? `Authenticated as ${firebaseUser.isAnonymous ? 'Guest' : (firebaseUser.email || 'Google User')}` : 'Cloud ready (Not signed in)')
-                : 'Data saved locally in browser IndexedDB (Dexie.js)'}
+            <div style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
+              {currentUser.email || 'Guest User'}
             </div>
           </div>
         </div>
 
-        <button 
-          onClick={() => setShowFirebaseModal(true)}
-          className="badge"
-          style={{ cursor: 'pointer', background: 'var(--bg-subtle)', border: '1px solid var(--border-subtle)' }}
-        >
-          ⚙️ Setup
-        </button>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '4px 10px',
+          borderRadius: 'var(--radius-full)',
+          background: isFirebaseActive ? 'rgba(16, 185, 129, 0.12)' : 'var(--bg-subtle)',
+          color: isFirebaseActive ? 'var(--brand-500, #10b981)' : 'var(--text-tertiary)',
+          fontSize: '0.72rem',
+          fontWeight: 700
+        }}>
+          {isFirebaseActive ? <Cloud size={14} /> : <CloudOff size={14} />}
+          <span>{isFirebaseActive ? 'Synced' : 'Local'}</span>
+        </div>
       </div>
-
-      {/* Cloud Auth Card (if Firebase is active) */}
-      {isFirebaseActive && (
-        <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Sparkles size={18} color="var(--brand-600)" />
-            <h2 style={{ fontSize: '1rem', fontWeight: 700 }}>Firebase Account</h2>
-          </div>
-          
-          {firebaseUser ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
-              <div>
-                <span style={{ fontSize: '0.85rem', fontWeight: 600, display: 'block' }}>
-                  {firebaseUser.displayName || currentUser.name}
-                </span>
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-                  UID: {firebaseUser.uid.substring(0, 10)}... | {firebaseUser.isAnonymous ? 'Guest Session' : firebaseUser.email}
-                </span>
-              </div>
-              <button 
-                onClick={logoutUser} 
-                className="btn-secondary"
-                style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                <LogOut size={14} />
-                <span>Log Out</span>
-              </button>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <button 
-                onClick={handleGoogleSignIn} 
-                disabled={authLoading}
-                className="btn-primary"
-                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
-              >
-                <LogIn size={16} />
-                <span>{authLoading ? 'Signing in...' : 'Sign in with Google'}</span>
-              </button>
-              <button 
-                onClick={handleGuestSignIn} 
-                disabled={authLoading}
-                className="btn-secondary"
-                style={{ flex: 1 }}
-              >
-                <span>Continue as Guest</span>
-              </button>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* Push Notifications Card */}
       <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
