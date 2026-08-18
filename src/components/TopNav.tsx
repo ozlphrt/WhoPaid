@@ -197,25 +197,37 @@ export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
             </button>
           )}
 
-          {/* Active User Avatar */}
+          {/* User Profile Avatar */}
           <button
-            onClick={() => setShowUserSwitcher(true)}
+            onClick={() => onNavigate('profile')}
             style={{
-              width: 30,
-              height: 30,
+              width: 32,
+              height: 32,
               borderRadius: 'var(--radius-full)',
-              background: 'var(--bg-subtle)',
-              border: '1px solid var(--border-strong)',
-              color: 'var(--text-primary)',
+              background: 'var(--brand-600, #10b981)',
+              border: '2px solid var(--border-subtle)',
+              color: '#ffffff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              fontWeight: 700,
-              fontSize: '0.75rem'
+              fontWeight: 800,
+              fontSize: '0.8rem',
+              overflow: 'hidden',
+              cursor: 'pointer',
+              padding: 0
             }}
-            title="Switch user"
+            title="Profile & Account"
+            aria-label="Profile"
           >
-            {currentUser.name.charAt(0)}
+            {currentUser.avatarUrl ? (
+              <img 
+                src={currentUser.avatarUrl} 
+                alt={currentUser.name} 
+                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+              />
+            ) : (
+              currentUser.name.charAt(0).toUpperCase()
+            )}
           </button>
 
           {/* Menu Dropdown */}
@@ -312,25 +324,6 @@ export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
                   <span>Profile Settings</span>
                 </button>
 
-                <div style={{ height: 1, background: 'var(--border-subtle)' }} />
-
-                <button
-                  onClick={() => setShowUserSwitcher(true)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '10px 14px',
-                    fontSize: '0.82rem',
-                    color: 'var(--text-primary)',
-                    fontWeight: 600,
-                    textAlign: 'left'
-                  }}
-                >
-                  <Users size={15} color="var(--text-secondary)" />
-                  <span>Switch User ({currentUser.name})</span>
-                </button>
-
                 <button
                   onClick={logoutUser}
                   style={{
@@ -352,11 +345,6 @@ export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
           </div>
         </div>
       </header>
-
-      <UserSwitcherModal
-        isOpen={showUserSwitcher}
-        onClose={() => setShowUserSwitcher(false)}
-      />
 
       <QRCodeModal
         trip={activeTrip}

@@ -52,16 +52,6 @@ export const FloatingBottomDock: React.FC<FloatingBottomDockProps> = ({
         <Settings size={18} />
         <span>Settings</span>
       </button>
-
-      <button
-        type="button"
-        onClick={() => onNavigate('profile')}
-        className={`dock-tab-btn ${currentView === 'profile' ? 'active' : ''}`}
-        aria-label="Profile & Account"
-      >
-        <User size={18} />
-        <span>Profile</span>
-      </button>
     </nav>
   );
 };
