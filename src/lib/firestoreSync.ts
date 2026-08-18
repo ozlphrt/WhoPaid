@@ -1,0 +1,261 @@
+import { 
+  collection, 
+  doc, 
+  setDoc, 
+  deleteDoc, 
+  onSnapshot, 
+  serverTimestamp, 
+  query, 
+  orderBy, 
+  Unsubscribe 
+} from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { getFirebaseInstances } from './firebase';
+import { Trip, TripMember, Household, Expense, Settlement, Activity } from '../types';
+
+/* =========================================================================
+   Firestore Sync Operations
+========================================================================= */
+
+export interface ActiveTripListeners {
+  unsubscribeTrip: Unsubscribe;
+  unsubscribeMembers: Unsubscribe;
+  unsubscribeHouseholds: Unsubscribe;
+  unsubscribeExpenses: Unsubscribe;
+  unsubscribeSettlements: Unsubscribe;
+  unsubscribeActivities: Unsubscribe;
+}
+
+/**
+ * Subscribe in real-time to an active trip and its subcollections.
+ */
+export function subscribeToTrip(
+  tripId: string,
+  callbacks: {
+    onTripUpdate: (trip: Trip | null) => void;
+    onMembersUpdate: (members: TripMember[]) => void;
+    onHouseholdsUpdate: (households: Household[]) => void;
+    onExpensesUpdate: (expenses: Expense[]) => void;
+    onSettlementsUpdate: (settlements: Settlement[]) => void;
+    onActivitiesUpdate: (activities: Activity[]) => void;
+    onError?: (err: any) => void;
+  }
+): ActiveTripListeners | null {
+  const { db } = getFirebaseInstances();
+  if (!db || !tripId) return null;
+
+  try {
+    // 1. Trip doc listener
+    const tripDocRef = doc(db, 'trips', tripId);
+    const unsubscribeTrip = onSnapshot(tripDocRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        callbacks.onTripUpdate({ id: snap.id, ...data } as Trip);
+      } else {
+        callbacks.onTripUpdate(null);
+      }
+    }, callbacks.onError);
+
+    // 2. Members subcollection
+    const membersRef = collection(db, 'trips', tripId, 'members');
+    const unsubscribeMembers = onSnapshot(membersRef, (snap) => {
+      const list: TripMember[] = [];
+      snap.forEach((d) => list.push({ id: d.id, ...d.data() } as TripMember));
+      callbacks.onMembersUpdate(list);
+    }, callbacks.onError);
+
+    // 3. Households subcollection
+    const householdsRef = collection(db, 'trips', tripId, 'households');
+    const unsubscribeHouseholds = onSnapshot(householdsRef, (snap) => {
+      const list: Household[] = [];
+      snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Household));
+      callbacks.onHouseholdsUpdate(list);
+    }, callbacks.onError);
+
+    // 4. Expenses subcollection
+    const expensesRef = collection(db, 'trips', tripId, 'expenses');
+    const expensesQuery = query(expensesRef, orderBy('date', 'desc'));
+    const unsubscribeExpenses = onSnapshot(expensesQuery, (snap) => {
+      const list: Expense[] = [];
+      snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Expense));
+      callbacks.onExpensesUpdate(list);
+    }, callbacks.onError);
+
+    // 5. Settlements subcollection
+    const settlementsRef = collection(db, 'trips', tripId, 'settlements');
+    const unsubscribeSettlements = onSnapshot(settlementsRef, (snap) => {
+      const list: Settlement[] = [];
+      snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Settlement));
+      callbacks.onSettlementsUpdate(list);
+    }, callbacks.onError);
+
+    // 6. Activities subcollection
+    const activitiesRef = collection(db, 'trips', tripId, 'activities');
+    const activitiesQuery = query(activitiesRef, orderBy('createdAt', 'desc'));
+    const unsubscribeActivities = onSnapshot(activitiesQuery, (snap) => {
+      const list: Activity[] = [];
+      snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Activity));
+      callbacks.onActivitiesUpdate(list);
+    }, callbacks.onError);
+
+    return {
+      unsubscribeTrip,
+      unsubscribeMembers,
+      unsubscribeHouseholds,
+      unsubscribeExpenses,
+      unsubscribeSettlements,
+      unsubscribeActivities
+    };
+  } catch (err) {
+    console.error('[FirestoreSync] Failed to setup listeners for trip:', tripId, err);
+    if (callbacks.onError) callbacks.onError(err);
+    return null;
+  }
+}
+
+/* =========================================================================
+   Write Helpers (Upserts & Deletes)
+========================================================================= */
+
+export async function syncTripToCloud(trip: Trip): Promise<void> {
+  const { db } = getFirebaseInstances();
+  if (!db) return;
+  const tripRef = doc(db, 'trips', trip.id);
+  await setDoc(tripRef, {
+    ...trip,
+    clientSyncStatus: 'synced',
+    updatedAt: new Date().toISOString()
+  }, { merge: true });
+}
+
+export async function syncMemberToCloud(tripId: string, member: TripMember): Promise<void> {
+  const { db } = getFirebaseInstances();
+  if (!db) return;
+  const memberRef = doc(db, 'trips', tripId, 'members', member.id);
+  await setDoc(memberRef, member, { merge: true });
+}
+
+export async function syncHouseholdToCloud(tripId: string, household: Household): Promise<void> {
+  const { db } = getFirebaseInstances();
+  if (!db) return;
+  const hRef = doc(db, 'trips', tripId, 'households', household.id);
+  await setDoc(hRef, household, { merge: true });
+}
+
+export async function deleteHouseholdFromCloud(tripId: string, householdId: string): Promise<void> {
+  const { db } = getFirebaseInstances();
+  if (!db) return;
+  const hRef = doc(db, 'trips', tripId, 'households', householdId);
+  await deleteDoc(hRef);
+}
+
+export async function syncExpenseToCloud(tripId: string, expense: Expense): Promise<void> {
+  const { db } = getFirebaseInstances();
+  if (!db) return;
+  const expRef = doc(db, 'trips', tripId, 'expenses', expense.id);
+  await setDoc(expRef, {
+    ...expense,
+    clientSyncStatus: 'synced',
+    updatedAt: new Date().toISOString()
+  }, { merge: true });
+}
+
+export async function deleteExpenseFromCloud(tripId: string, expenseId: string): Promise<void> {
+  const { db } = getFirebaseInstances();
+  if (!db) return;
+  const expRef = doc(db, 'trips', tripId, 'expenses', expenseId);
+  await deleteDoc(expRef);
+}
+
+export async function syncSettlementToCloud(tripId: string, settlement: Settlement): Promise<void> {
+  const { db } = getFirebaseInstances();
+  if (!db) return;
+  const setRef = doc(db, 'trips', tripId, 'settlements', settlement.id);
+  await setDoc(setRef, settlement, { merge: true });
+}
+
+export async function deleteSettlementFromCloud(tripId: string, settlementId: string): Promise<void> {
+  const { db } = getFirebaseInstances();
+  if (!db) return;
+  const setRef = doc(db, 'trips', tripId, 'settlements', settlementId);
+  await deleteDoc(setRef);
+}
+
+export async function syncActivityToCloud(tripId: string, activity: Activity): Promise<void> {
+  const { db } = getFirebaseInstances();
+  if (!db) return;
+  const actRef = doc(db, 'trips', tripId, 'activities', activity.id);
+  await setDoc(actRef, activity, { merge: true });
+}
+
+/* =========================================================================
+   Storage Helper for Receipts with WebP Compression
+========================================================================= */
+
+export async function compressAndUploadReceipt(
+  tripId: string,
+  file: File | Blob,
+  fileName?: string
+): Promise<string> {
+  const { storage } = getFirebaseInstances();
+  if (!storage) {
+    throw new Error('Firebase Storage is not configured.');
+  }
+
+  // Convert File to compressed WebP Blob using HTML5 Canvas
+  const compressedBlob = await compressImageToWebp(file, 1600, 0.82);
+  const name = fileName || `receipt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.webp`;
+  const storageRef = ref(storage, `trips/${tripId}/receipts/${name}`);
+
+  const snapshot = await uploadBytes(storageRef, compressedBlob, {
+    contentType: 'image/webp'
+  });
+
+  return await getDownloadURL(snapshot.ref);
+}
+
+function compressImageToWebp(source: File | Blob, maxDim = 1600, quality = 0.82): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          return resolve(source); // fallback
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              resolve(source);
+            }
+          },
+          'image/webp',
+          quality
+        );
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(source);
+  });
+}

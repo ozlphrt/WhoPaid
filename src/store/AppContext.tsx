@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { db, seedInitialDataIfNeeded } from '../lib/db';
 import { User, Trip, TripMember, Household, Expense, Settlement, Activity, PushNotification, CurrencyCode } from '../types';
 import { calculateParticipantBalances } from '../lib/balances';
@@ -6,6 +6,27 @@ import { calculateOptimizedSettlements } from '../lib/settlement';
 import { fetchHistoricalExchangeRate, convertAmount } from '../lib/fx';
 import { add, sub, roundMoney } from '../lib/decimal';
 import { checkForDuplicateExpense } from '../lib/duplicate';
+import { 
+  isFirebaseConfigured, 
+  subscribeToAuthChanges, 
+  loginAnonymously, 
+  loginWithGoogle as fbLoginGoogle, 
+  logoutFirebase as fbLogout,
+  initFirebase
+} from '../lib/firebase';
+import { 
+  subscribeToTrip, 
+  syncTripToCloud, 
+  syncMemberToCloud, 
+  syncHouseholdToCloud, 
+  deleteHouseholdFromCloud, 
+  syncExpenseToCloud, 
+  deleteExpenseFromCloud, 
+  syncSettlementToCloud, 
+  syncActivityToCloud,
+  ActiveTripListeners
+} from '../lib/firestoreSync';
+import { sendLocalNotification, requestNotificationPermission, isNotificationGranted } from '../lib/notifications';
 
 interface UndoState {
   expense: Expense;
@@ -78,9 +99,17 @@ interface AppContextType {
   addActivity: (type: Activity['type'], description: string, metadata?: any) => Promise<void>;
   markNotificationRead: (id: string) => Promise<void>;
   
-  // Sync state
+  // Cloud & Sync state
   isOnline: boolean;
   isSyncing: boolean;
+  isFirebaseActive: boolean;
+  cloudSyncStatus: 'offline' | 'connected' | 'syncing' | 'error';
+  firebaseUser: any | null;
+  loginAsGuest: () => Promise<void>;
+  loginWithGoogleAuth: () => Promise<void>;
+  logoutUser: () => Promise<void>;
+  enableNotifications: () => Promise<boolean>;
+  isNotificationsEnabled: boolean;
   isInitialized: boolean;
   refreshData: () => Promise<void>;
 }
@@ -107,11 +136,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [undoState, setUndoState] = useState<UndoState | null>(null);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [firebaseUser, setFirebaseUser] = useState<any | null>(null);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState<'offline' | 'connected' | 'syncing' | 'error'>('offline');
+
+  const tripListenersRef = useRef<ActiveTripListeners | null>(null);
 
   // Online / Offline listeners
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    const handleOnline = () => {
+      setIsOnline(true);
+      if (isFirebaseConfigured()) setCloudSyncStatus('connected');
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+      setCloudSyncStatus('offline');
+    };
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     return () => {
@@ -120,9 +159,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
+  // Firebase Auth listener
+  useEffect(() => {
+    if (!isFirebaseConfigured()) {
+      setCloudSyncStatus('offline');
+      return;
+    }
+
+    setCloudSyncStatus('connected');
+    const unsubscribeAuth = subscribeToAuthChanges((fbUser) => {
+      setFirebaseUser(fbUser);
+      if (fbUser) {
+        // Update user information from Firebase if available
+        if (fbUser.displayName || fbUser.email) {
+          const updatedUser: User = {
+            id: fbUser.uid,
+            name: fbUser.displayName || currentUser.name || 'User',
+            email: fbUser.email || currentUser.email || 'guest@whopaid.app',
+            defaultCurrency: currentUser.defaultCurrency || 'EUR',
+            avatarUrl: fbUser.photoURL || undefined
+          };
+          setCurrentUser(updatedUser);
+          db.users.put(updatedUser);
+        }
+      }
+    });
+
+    return () => {
+      unsubscribeAuth();
+    };
+  }, []);
+
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
 
-  // Initial load
+  // Local IndexedDB refresh
   const refreshData = useCallback(async () => {
     try {
       await seedInitialDataIfNeeded();
@@ -169,6 +239,94 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     refreshData();
   }, [refreshData]);
 
+  // Realtime Firestore Subscriptions for Active Trip
+  useEffect(() => {
+    if (tripListenersRef.current) {
+      tripListenersRef.current.unsubscribeTrip();
+      tripListenersRef.current.unsubscribeMembers();
+      tripListenersRef.current.unsubscribeHouseholds();
+      tripListenersRef.current.unsubscribeExpenses();
+      tripListenersRef.current.unsubscribeSettlements();
+      tripListenersRef.current.unsubscribeActivities();
+      tripListenersRef.current = null;
+    }
+
+    if (!activeTripId || !isFirebaseConfigured() || !isOnline) {
+      return;
+    }
+
+    setCloudSyncStatus('syncing');
+
+    const listeners = subscribeToTrip(activeTripId, {
+      onTripUpdate: async (remoteTrip) => {
+        if (remoteTrip) {
+          await db.trips.put(remoteTrip);
+          setTrips(prev => {
+            const idx = prev.findIndex(t => t.id === remoteTrip.id);
+            if (idx >= 0) {
+              const updated = [...prev];
+              updated[idx] = remoteTrip;
+              return updated;
+            }
+            return [...prev, remoteTrip];
+          });
+        }
+      },
+      onMembersUpdate: async (remoteMembers) => {
+        if (remoteMembers.length > 0) {
+          await db.tripMembers.bulkPut(remoteMembers);
+          setMembers(remoteMembers);
+        }
+      },
+      onHouseholdsUpdate: async (remoteHouseholds) => {
+        await db.households.where('tripId').equals(activeTripId).delete();
+        if (remoteHouseholds.length > 0) {
+          await db.households.bulkPut(remoteHouseholds);
+        }
+        setHouseholds(remoteHouseholds);
+      },
+      onExpensesUpdate: async (remoteExpenses) => {
+        if (remoteExpenses.length > 0) {
+          await db.expenses.bulkPut(remoteExpenses);
+          setExpenses(remoteExpenses);
+        }
+        setCloudSyncStatus('connected');
+      },
+      onSettlementsUpdate: async (remoteSettlements) => {
+        if (remoteSettlements.length > 0) {
+          await db.settlements.bulkPut(remoteSettlements);
+          setSettlements(remoteSettlements);
+        }
+      },
+      onActivitiesUpdate: async (remoteActs) => {
+        if (remoteActs.length > 0) {
+          await db.activities.bulkPut(remoteActs);
+          setActivities(remoteActs);
+        }
+      },
+      onError: (err) => {
+        console.warn('[Firestore Sync] Listener warning:', err);
+        setCloudSyncStatus('error');
+      }
+    });
+
+    if (listeners) {
+      tripListenersRef.current = listeners;
+    }
+
+    return () => {
+      if (tripListenersRef.current) {
+        tripListenersRef.current.unsubscribeTrip();
+        tripListenersRef.current.unsubscribeMembers();
+        tripListenersRef.current.unsubscribeHouseholds();
+        tripListenersRef.current.unsubscribeExpenses();
+        tripListenersRef.current.unsubscribeSettlements();
+        tripListenersRef.current.unsubscribeActivities();
+        tripListenersRef.current = null;
+      }
+    };
+  }, [activeTripId, isOnline]);
+
   const activeTrip = trips.find(t => t.id === activeTripId && !t.isDeleted) || (trips.length > 0 ? trips[0] : null);
   const archivedTrips = trips.filter(t => t.isClosed && !t.isDeleted);
   const deletedTrips = trips.filter(t => t.isDeleted);
@@ -192,7 +350,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const userBalanceObj = balances.individualBalances.find(b => b.userId === currentUser.id);
   const userNetBalance = userBalanceObj ? userBalanceObj.net : 0;
 
-  // Last-used currency for Quick Add (Section 10 & 32)
+  // Last-used currency for Quick Add
   const lastUsedCurrency = (expenses.length > 0 && expenses[0].originalCurrency)
     ? expenses[0].originalCurrency
     : (activeTrip?.mainCurrency || currentUser.defaultCurrency || 'EUR');
@@ -211,6 +369,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString()
     };
     await db.activities.put(act);
+    if (isFirebaseConfigured() && isOnline) {
+      syncActivityToCloud(activeTripId, act).catch(console.warn);
+    }
     await refreshData();
   };
 
@@ -288,16 +449,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     await db.expenses.put(newExpense);
 
+    if (isFirebaseConfigured() && isOnline) {
+      syncExpenseToCloud(activeTrip.id, newExpense).catch(console.warn);
+    }
+
     await addActivity(
       'expense_added',
       `added ${originalCurrency} ${originalAmount.toFixed(2)} ${newExpense.description}${originalCurrency !== activeTrip.mainCurrency ? ` (≈ ${activeTrip.mainCurrency} ${convertedAmount.toFixed(2)})` : ''}`
     );
 
-    // Setup Undo Toast (Section 26)
+    // Setup Undo Toast
     if (undoState?.timeoutId) clearTimeout(undoState.timeoutId);
     const timeoutId = setTimeout(() => {
       setUndoState(null);
-    }, 7000); // 7 seconds undo window
+    }, 7000);
 
     setUndoState({
       expense: newExpense,
@@ -315,6 +480,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUndoState(null);
 
     await db.expenses.delete(exp.id);
+    if (isFirebaseConfigured() && isOnline && activeTrip) {
+      deleteExpenseFromCloud(activeTrip.id, exp.id).catch(console.warn);
+    }
     await addActivity('expense_deleted', `undid added expense: ${exp.description}`);
     await refreshData();
   };
@@ -325,7 +493,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateExpense = async (updated: Expense) => {
-    // Preserve original rate unless explicitly changed (Section 36)
     const now = new Date().toISOString();
     const savePayload: Expense = {
       ...updated,
@@ -333,6 +500,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       clientSyncStatus: isOnline ? 'synced' : 'pending'
     };
     await db.expenses.put(savePayload);
+    if (isFirebaseConfigured() && isOnline && activeTrip) {
+      syncExpenseToCloud(activeTrip.id, savePayload).catch(console.warn);
+    }
     await addActivity('expense_edited', `edited expense ${updated.description}`);
     await refreshData();
   };
@@ -341,12 +511,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const exp = await db.expenses.get(expenseId);
     if (!exp) return;
     const now = new Date().toISOString();
-    // Soft delete according to Section 25
-    await db.expenses.update(expenseId, {
+    const updatedExp: Expense = {
+      ...exp,
       isDeleted: true,
       deletedAt: now,
       updatedAt: now
-    });
+    };
+    await db.expenses.put(updatedExp);
+    if (isFirebaseConfigured() && isOnline && activeTrip) {
+      syncExpenseToCloud(activeTrip.id, updatedExp).catch(console.warn);
+    }
     await addActivity('expense_deleted', `deleted expense ${exp.description}`);
     await refreshData();
   };
@@ -355,13 +529,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const exp = await db.expenses.get(expenseId);
     if (!exp) return;
     const now = new Date().toISOString();
-    await db.expenses.update(expenseId, {
+    const updatedExp: Expense = {
+      ...exp,
       isFlaggedWrong: true,
       flaggedReason: reason,
       flaggedByUserId: currentUser.id,
       flaggedAt: now,
       updatedAt: now
-    });
+    };
+    await db.expenses.put(updatedExp);
+    if (isFirebaseConfigured() && isOnline && activeTrip) {
+      syncExpenseToCloud(activeTrip.id, updatedExp).catch(console.warn);
+    }
     await addActivity('expense_flagged', `flagged ${exp.description} as "${reason}"`);
     await refreshData();
   };
@@ -401,6 +580,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     await db.settlements.put(settlement);
+    if (isFirebaseConfigured() && isOnline) {
+      syncSettlementToCloud(activeTrip.id, settlement).catch(console.warn);
+    }
 
     const debtor = members.find(m => m.userId === data.debtorId)?.name || 'Debtor';
     const creditor = members.find(m => m.userId === data.creditorId)?.name || 'Creditor';
@@ -410,6 +592,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       `${debtor} marked payment of ${data.currency} ${data.amount.toFixed(2)} to ${creditor} as Paid (Pending confirmation)`
     );
 
+    sendLocalNotification(`💳 Settlement Paid: ${data.currency} ${data.amount.toFixed(2)}`, {
+      body: `${debtor} sent ${data.currency} ${data.amount.toFixed(2)} to ${creditor}. Tap to review and confirm.`
+    });
+
     await refreshData();
   };
 
@@ -417,18 +603,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const stl = await db.settlements.get(settlementId);
     if (!stl) return;
     const now = new Date().toISOString();
-    await db.settlements.update(settlementId, {
+    const updated: Settlement = {
+      ...stl,
       status: 'completed',
       confirmedAt: now
-    });
+    };
+    await db.settlements.put(updated);
+    if (isFirebaseConfigured() && isOnline && activeTrip) {
+      syncSettlementToCloud(activeTrip.id, updated).catch(console.warn);
+    }
 
     const creditor = members.find(m => m.userId === stl.creditorId)?.name || 'Creditor';
     await addActivity('settlement_confirmed', `${creditor} confirmed receipt of ${stl.currency} ${stl.amount.toFixed(2)} payment`);
+
+    sendLocalNotification(`✅ Settlement Confirmed!`, {
+      body: `${creditor} confirmed receipt of ${stl.currency} ${stl.amount.toFixed(2)}. Balance updated!`
+    });
+
     await refreshData();
   };
 
   const cancelSettlement = async (settlementId: string) => {
-    await db.settlements.update(settlementId, { status: 'cancelled' });
+    const stl = await db.settlements.get(settlementId);
+    if (!stl) return;
+    const updated: Settlement = { ...stl, status: 'cancelled' };
+    await db.settlements.put(updated);
+    if (isFirebaseConfigured() && isOnline && activeTrip) {
+      syncSettlementToCloud(activeTrip.id, updated).catch(console.warn);
+    }
     await refreshData();
   };
 
@@ -468,7 +670,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const memberId = `m_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
       const memberUserId = `user_${name.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
 
-      // ensure user exists
       await db.users.put({
         id: memberUserId,
         name: name.charAt(0).toUpperCase() + name.slice(1),
@@ -476,7 +677,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         defaultCurrency: newTrip.mainCurrency
       });
 
-      await db.tripMembers.put({
+      const member: TripMember = {
         id: memberId,
         tripId,
         userId: memberUserId,
@@ -485,7 +686,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         role: 'member',
         isActive: true,
         joinedAt: now
-      });
+      };
+      await db.tripMembers.put(member);
+
+      if (isFirebaseConfigured() && isOnline) {
+        syncMemberToCloud(tripId, member).catch(console.warn);
+      }
+    }
+
+    if (isFirebaseConfigured() && isOnline) {
+      syncTripToCloud(newTrip).catch(console.warn);
+      syncMemberToCloud(tripId, ownerMember).catch(console.warn);
     }
 
     setActiveTripId(tripId);
@@ -495,7 +706,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateTrip = async (trip: Trip) => {
     const now = new Date().toISOString();
-    // If mainCurrency changed, recalculate converted amounts for all active expenses (Section 31)
     const existing = await db.trips.get(trip.id);
     if (existing && existing.mainCurrency !== trip.mainCurrency) {
       const tripExps = await db.expenses.where('tripId').equals(trip.id).toArray();
@@ -503,38 +713,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const dateStr = exp.date.split('T')[0];
         const fx = await fetchHistoricalExchangeRate(exp.originalCurrency, trip.mainCurrency, dateStr);
         const newConverted = convertAmount(exp.originalAmount, fx.rate);
-        await db.expenses.update(exp.id, {
+        const updatedExp: Expense = {
+          ...exp,
           mainCurrency: trip.mainCurrency,
           exchangeRate: fx.rate,
           convertedAmount: newConverted,
           exchangeRateSource: fx.source
-        });
+        };
+        await db.expenses.put(updatedExp);
+        if (isFirebaseConfigured() && isOnline) {
+          syncExpenseToCloud(trip.id, updatedExp).catch(console.warn);
+        }
       }
     }
 
-    await db.trips.put({ ...trip, updatedAt: now });
+    const updatedTrip = { ...trip, updatedAt: now };
+    await db.trips.put(updatedTrip);
+    if (isFirebaseConfigured() && isOnline) {
+      syncTripToCloud(updatedTrip).catch(console.warn);
+    }
     await refreshData();
   };
 
   const closeTrip = async (tripId: string) => {
     const now = new Date().toISOString();
-    await db.trips.update(tripId, { isClosed: true, closedAt: now, updatedAt: now });
+    const t = await db.trips.get(tripId);
+    if (t) {
+      const updated = { ...t, isClosed: true, closedAt: now, updatedAt: now };
+      await db.trips.put(updated);
+      if (isFirebaseConfigured() && isOnline) syncTripToCloud(updated).catch(console.warn);
+    }
     await addActivity('trip_closed', 'closed this trip (archived)');
     await refreshData();
   };
 
   const reopenTrip = async (tripId: string) => {
     const now = new Date().toISOString();
-    await db.trips.update(tripId, { isClosed: false, updatedAt: now });
+    const t = await db.trips.get(tripId);
+    if (t) {
+      const updated = { ...t, isClosed: false, updatedAt: now };
+      await db.trips.put(updated);
+      if (isFirebaseConfigured() && isOnline) syncTripToCloud(updated).catch(console.warn);
+    }
     await addActivity('trip_reopened', 'reopened this trip');
     await refreshData();
   };
 
   const deleteTrip = async (tripId: string) => {
     const now = new Date().toISOString();
-    await db.trips.update(tripId, { isDeleted: true, deletedAt: now, updatedAt: now });
+    const t = await db.trips.get(tripId);
+    if (t) {
+      const updated = { ...t, isDeleted: true, deletedAt: now, updatedAt: now };
+      await db.trips.put(updated);
+      if (isFirebaseConfigured() && isOnline) syncTripToCloud(updated).catch(console.warn);
+    }
     if (activeTripId === tripId) {
-      const remaining = trips.find(t => t.id !== tripId && !t.isDeleted);
+      const remaining = trips.find(trip => trip.id !== tripId && !trip.isDeleted);
       setActiveTripId(remaining ? remaining.id : null);
     }
     await refreshData();
@@ -542,7 +776,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const restoreTrip = async (tripId: string) => {
     const now = new Date().toISOString();
-    await db.trips.update(tripId, { isDeleted: false, deletedAt: undefined, updatedAt: now });
+    const t = await db.trips.get(tripId);
+    if (t) {
+      const updated = { ...t, isDeleted: false, deletedAt: undefined, updatedAt: now };
+      await db.trips.put(updated);
+      if (isFirebaseConfigured() && isOnline) syncTripToCloud(updated).catch(console.warn);
+    }
     setActiveTripId(tripId);
     await refreshData();
   };
@@ -582,52 +821,112 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       joinedAt: now
     };
     await db.tripMembers.put(member);
+    if (isFirebaseConfigured() && isOnline) {
+      syncMemberToCloud(tripId, member).catch(console.warn);
+    }
     await addActivity('member_joined', `${name} joined the trip`);
     await refreshData();
   };
 
   const setMemberActive = async (memberId: string, isActive: boolean) => {
-    await db.tripMembers.update(memberId, { isActive });
+    const m = await db.tripMembers.get(memberId);
+    if (m) {
+      const updated = { ...m, isActive };
+      await db.tripMembers.put(updated);
+      if (isFirebaseConfigured() && isOnline && activeTrip) {
+        syncMemberToCloud(activeTrip.id, updated).catch(console.warn);
+      }
+    }
     await refreshData();
   };
 
   const saveHousehold = async (hh: Omit<Household, 'id' | 'createdAt'>, existingId?: string) => {
     const now = new Date().toISOString();
-    if (existingId) {
-      await db.households.update(existingId, { name: hh.name, memberUserIds: hh.memberUserIds });
-    } else {
-      await db.households.put({
-        id: `hh_${Date.now()}`,
-        tripId: hh.tripId,
-        name: hh.name,
-        memberUserIds: hh.memberUserIds,
-        createdAt: now
-      });
+    const id = existingId || `hh_${Date.now()}`;
+    const household: Household = {
+      id,
+      tripId: hh.tripId,
+      name: hh.name,
+      memberUserIds: hh.memberUserIds,
+      createdAt: now
+    };
+    await db.households.put(household);
+    if (isFirebaseConfigured() && isOnline) {
+      syncHouseholdToCloud(hh.tripId, household).catch(console.warn);
     }
     await refreshData();
   };
 
   const deleteHousehold = async (householdId: string) => {
+    const hh = await db.households.get(householdId);
     await db.households.delete(householdId);
+    if (hh && isFirebaseConfigured() && isOnline) {
+      deleteHouseholdFromCloud(hh.tripId, householdId).catch(console.warn);
+    }
     await refreshData();
   };
 
   const transferOwnership = async (tripId: string, newOwnerUserId: string) => {
     const allTripMembers = await db.tripMembers.where('tripId').equals(tripId).toArray();
     for (const m of allTripMembers) {
+      let newRole = m.role;
       if (m.userId === newOwnerUserId) {
-        await db.tripMembers.update(m.id, { role: 'owner' });
+        newRole = 'owner';
       } else if (m.role === 'owner') {
-        await db.tripMembers.update(m.id, { role: 'member' });
+        newRole = 'member';
+      }
+      if (newRole !== m.role) {
+        const updated = { ...m, role: newRole };
+        await db.tripMembers.put(updated);
+        if (isFirebaseConfigured() && isOnline) {
+          syncMemberToCloud(tripId, updated).catch(console.warn);
+        }
       }
     }
-    await db.trips.update(tripId, { ownerId: newOwnerUserId });
+    const t = await db.trips.get(tripId);
+    if (t) {
+      const updatedTrip = { ...t, ownerId: newOwnerUserId };
+      await db.trips.put(updatedTrip);
+      if (isFirebaseConfigured() && isOnline) {
+        syncTripToCloud(updatedTrip).catch(console.warn);
+      }
+    }
     await refreshData();
   };
 
   const markNotificationRead = async (id: string) => {
     await db.notifications.update(id, { isRead: true });
     await refreshData();
+  };
+
+  // Auth Operations
+  const loginAsGuest = async () => {
+    try {
+      await loginAnonymously();
+    } catch (err) {
+      console.error('Guest login failed:', err);
+    }
+  };
+
+  const loginWithGoogleAuth = async () => {
+    try {
+      await fbLoginGoogle();
+    } catch (err) {
+      console.error('Google login failed:', err);
+    }
+  };
+
+  const logoutUser = async () => {
+    try {
+      await fbLogout();
+    } catch (err) {
+      console.error('Logout failed:', err);
+    }
+  };
+
+  const enableNotifications = async () => {
+    const perm = await requestNotificationPermission();
+    return perm === 'granted';
   };
 
   return (
@@ -677,6 +976,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         markNotificationRead,
         isOnline,
         isSyncing,
+        isFirebaseActive: isFirebaseConfigured(),
+        cloudSyncStatus,
+        firebaseUser,
+        loginAsGuest,
+        loginWithGoogleAuth,
+        logoutUser,
+        enableNotifications,
+        isNotificationsEnabled: isNotificationGranted(),
         isInitialized,
         refreshData
       }}

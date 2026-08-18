@@ -361,6 +361,58 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
         </div>
 
       </div>
+
+      {/* Full-screen Receipt Lightbox */}
+      {showReceiptFull && exp.receiptUrl && (
+        <div 
+          onClick={() => setShowReceiptFull(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            backgroundColor: 'rgba(0, 0, 0, 0.92)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+            backdropFilter: 'blur(8px)'
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setShowReceiptFull(false)}
+            style={{
+              position: 'absolute',
+              top: 'calc(16px + env(safe-area-inset-top, 0px))',
+              right: 16,
+              background: 'rgba(255,255,255,0.2)',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: 'var(--radius-full)',
+              width: 40,
+              height: 40,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer'
+            }}
+          >
+            <X size={22} />
+          </button>
+          <img
+            src={exp.receiptUrl}
+            alt="Full Receipt"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '100%',
+              maxHeight: '90vh',
+              objectFit: 'contain',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
+            }}
+          />
+        </div>
+      )}
     </BottomSheet>
   );
 };

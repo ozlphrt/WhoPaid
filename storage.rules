@@ -1,0 +1,16 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Receipts folder per trip
+    match /trips/{tripId}/receipts/{fileName} {
+      // Allow read for authenticated users
+      allow read: if request.auth != null;
+      // Allow upload if authenticated, image type, and under 5MB
+      allow write: if request.auth != null
+                   && request.resource.size < 5 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+      // Allow delete if authenticated
+      allow delete: if request.auth != null;
+    }
+  }
+}

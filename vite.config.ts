@@ -56,5 +56,18 @@ export default defineConfig({
         ]
       }
     })
-  ]
+  ],
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-firebase': ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/storage'],
+          'vendor-pdf': ['jspdf', 'jspdf-autotable'],
+          'vendor-icons': ['lucide-react']
+        }
+      }
+    }
+  }
 });

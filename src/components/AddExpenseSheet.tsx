@@ -4,8 +4,10 @@ import { BottomSheet } from './BottomSheet';
 import { CATEGORIES, suggestCategory } from '../lib/category';
 import { getCurrencySymbol, roundMoney, add, sub, mul } from '../lib/decimal';
 import { CurrencyCode, ExpenseCategory, ExpensePayer, ExpenseParticipant } from '../types';
-import { ChevronDown, ChevronUp, AlertCircle, Check, Users, User, Calendar, FileText } from 'lucide-react';
+import { ChevronDown, ChevronUp, AlertCircle, Check, Users, User, Calendar, FileText, Camera, Image as ImageIcon, X, Loader2, Sparkles } from 'lucide-react';
 import { checkForDuplicateExpense } from '../lib/duplicate';
+import { compressAndUploadReceipt } from '../lib/firestoreSync';
+import { parseReceiptText } from '../lib/receiptOcr';
 
 interface AddExpenseSheetProps {
   isOpen: boolean;
@@ -27,10 +29,14 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     expenses,
     lastUsedCurrency,
     addExpense,
-    updateExpense
+    updateExpense,
+    isFirebaseActive,
+    isOnline
   } = useApp();
 
   const activeMembers = useMemo(() => members.filter(m => m.isActive), [members]);
+  const [isUploadingReceipt, setIsUploadingReceipt] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form State
   const [amountStr, setAmountStr] = useState<string>('');
@@ -57,6 +63,50 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   // Autocomplete Suggestions & Dropdowns
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
   const [showCurrencyDropdown, setShowCurrencyDropdown] = useState<boolean>(false);
+  const [ocrAutoFilled, setOcrAutoFilled] = useState<boolean>(false);
+
+  const handleReceiptFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeTrip) return;
+
+    setIsUploadingReceipt(true);
+    try {
+      if (isFirebaseActive && isOnline) {
+        const url = await compressAndUploadReceipt(activeTrip.id, file);
+        setReceiptUrl(url);
+      } else {
+        const reader = new FileReader();
+        reader.onload = () => {
+          setReceiptUrl(reader.result as string);
+        };
+        reader.readAsDataURL(file);
+      }
+
+      // Check if filename contains hints (e.g. "Dinner_Mylos_45EUR.jpg")
+      const parsed = parseReceiptText(file.name.replace(/[._-]/g, ' '));
+      if (parsed.amount && !amountStr) {
+        setAmountStr(parsed.amount.toString());
+        setOcrAutoFilled(true);
+      }
+      if (parsed.currency && (!currency || currency === lastUsedCurrency)) {
+        setCurrency(parsed.currency);
+      }
+      if (parsed.vendor && !description) {
+        setDescription(parsed.vendor);
+        if (parsed.category) setCategory(parsed.category);
+        setOcrAutoFilled(true);
+      }
+    } catch (err: any) {
+      console.warn('Firebase upload fallback to local dataURL:', err);
+      const reader = new FileReader();
+      reader.onload = () => {
+        setReceiptUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setIsUploadingReceipt(false);
+    }
+  };
 
   // Initialize or Reset form
   useEffect(() => {
@@ -844,6 +894,86 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                 onChange={(e) => setNote(e.target.value)}
                 style={{ padding: '8px 12px', fontSize: '0.85rem' }}
               />
+            </div>
+
+            {/* Receipt Photo Attachment */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+                Receipt Photo
+              </label>
+              <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                capture="environment"
+                onChange={handleReceiptFile}
+                style={{ display: 'none' }}
+              />
+
+              {receiptUrl ? (
+                <div style={{ position: 'relative', display: 'inline-block', width: '100%' }}>
+                  <img
+                    src={receiptUrl}
+                    alt="Receipt preview"
+                    style={{
+                      width: '100%',
+                      maxHeight: 180,
+                      objectFit: 'cover',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1px solid var(--border-subtle)'
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setReceiptUrl(undefined)}
+                    style={{
+                      position: 'absolute',
+                      top: 8,
+                      right: 8,
+                      background: 'rgba(0,0,0,0.65)',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 'var(--radius-full)',
+                      width: 28,
+                      height: 28,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer'
+                    }}
+                    title="Remove receipt"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingReceipt}
+                  className="btn-secondary"
+                  style={{
+                    width: '100%',
+                    padding: '10px 14px',
+                    fontSize: '0.85rem',
+                    justifyContent: 'center',
+                    gap: 8,
+                    borderStyle: 'dashed'
+                  }}
+                >
+                  {isUploadingReceipt ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>Optimizing & Uploading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Camera size={16} />
+                      <span>Take Photo or Upload Receipt</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
 
           </div>

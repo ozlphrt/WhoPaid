@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Component, ErrorInfo, ReactNode } from 'react';
+import React, { useState, useEffect, Component, ErrorInfo, ReactNode, Suspense, lazy } from 'react';
 import { AppProvider, useApp } from './store/AppContext';
 import { TopNav } from './components/TopNav';
 import { TripsHome } from './screens/Home/TripsHome';
@@ -6,14 +6,15 @@ import { TripHome } from './screens/Trip/TripHome';
 import { ExpenseList } from './screens/Trip/ExpenseList';
 import { Balances } from './screens/Trip/Balances';
 import { Settle } from './screens/Trip/Settle';
-import { Report } from './screens/Trip/Report';
-import { TripSettings } from './screens/Trip/TripSettings';
-import { ActivityScreen } from './screens/Activity/ActivityScreen';
-import { ArchiveScreen } from './screens/Archive/ArchiveScreen';
 import { ProfileScreen } from './screens/Profile/ProfileScreen';
 import { UndoToast } from './components/UndoToast';
 import './styles/global.css';
 import './styles/components.css';
+
+const Report = lazy(() => import('./screens/Trip/Report').then(m => ({ default: m.Report })));
+const TripSettings = lazy(() => import('./screens/Trip/TripSettings').then(m => ({ default: m.TripSettings })));
+const ActivityScreen = lazy(() => import('./screens/Activity/ActivityScreen').then(m => ({ default: m.ActivityScreen })));
+const ArchiveScreen = lazy(() => import('./screens/Archive/ArchiveScreen').then(m => ({ default: m.ArchiveScreen })));
 
 type AppView = 'trips' | 'trip-home' | 'expenses' | 'balances' | 'settle' | 'report' | 'settings' | 'activity' | 'archive' | 'profile';
 
@@ -109,10 +110,10 @@ const AppContent: React.FC<AppContentProps> = () => {
   const { activeTrip, setActiveTripId, isInitialized } = useApp();
   const [currentView, setCurrentView] = useState<AppView>('trip-home');
 
-  // Handle invitation URL if query params exist (?tripId=...&code=...)
+  // Handle invitation URL if query params exist (?join=... or ?tripId=...)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const joinTripId = params.get('tripId');
+    const joinTripId = params.get('join') || params.get('tripId');
     if (joinTripId) {
       setActiveTripId(joinTripId);
       setCurrentView('trip-home');
@@ -173,27 +174,33 @@ const AppContent: React.FC<AppContentProps> = () => {
       />
 
       <main style={{ flex: 1, paddingBottom: showTripDock ? 'calc(80px + env(safe-area-inset-bottom, 0px))' : 'calc(24px + env(safe-area-inset-bottom, 0px))' }}>
-        {currentView === 'trips' && (
-          <TripsHome
-            onSelectTrip={handleSelectTrip}
-            onOpenArchive={() => setCurrentView('archive')}
-          />
-        )}
+        <Suspense fallback={
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40vh', color: 'var(--text-tertiary)' }}>
+            <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Loading...</span>
+          </div>
+        }>
+          {currentView === 'trips' && (
+            <TripsHome
+              onSelectTrip={handleSelectTrip}
+              onOpenArchive={() => setCurrentView('archive')}
+            />
+          )}
 
-        {currentView === 'trip-home' && (
-          <TripHome
-            onNavigateTab={(tab) => setCurrentView(tab)}
-          />
-        )}
+          {currentView === 'trip-home' && (
+            <TripHome
+              onNavigateTab={(tab) => setCurrentView(tab)}
+            />
+          )}
 
-        {currentView === 'expenses' && <ExpenseList />}
-        {currentView === 'balances' && <Balances />}
-        {currentView === 'settle' && <Settle />}
-        {currentView === 'report' && <Report />}
-        {currentView === 'settings' && <TripSettings />}
-        {currentView === 'activity' && <ActivityScreen />}
-        {currentView === 'archive' && <ArchiveScreen onSelectTrip={handleSelectTrip} />}
-        {currentView === 'profile' && <ProfileScreen />}
+          {currentView === 'expenses' && <ExpenseList />}
+          {currentView === 'balances' && <Balances />}
+          {currentView === 'settle' && <Settle />}
+          {currentView === 'report' && <Report />}
+          {currentView === 'settings' && <TripSettings />}
+          {currentView === 'activity' && <ActivityScreen />}
+          {currentView === 'archive' && <ArchiveScreen onSelectTrip={handleSelectTrip} />}
+          {currentView === 'profile' && <ProfileScreen />}
+        </Suspense>
       </main>
 
       {showTripDock && (
