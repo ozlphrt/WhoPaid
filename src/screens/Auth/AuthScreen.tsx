@@ -227,12 +227,13 @@ export const AuthScreen: React.FC = () => {
                   style={{
                     padding: '6px 12px',
                     borderRadius: 'var(--radius-md)',
-                    background: guestCurrency === curr ? 'var(--brand-600)' : 'var(--bg-subtle)',
-                    color: guestCurrency === curr ? '#ffffff' : 'var(--text-primary)',
+                    background: guestCurrency === curr ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
+                    color: guestCurrency === curr ? 'var(--btn-primary-text)' : 'var(--text-primary)',
                     fontWeight: 700,
                     fontSize: '0.82rem',
-                    border: '1px solid var(--border-subtle)',
-                    cursor: 'pointer'
+                    border: guestCurrency === curr ? '1px solid var(--btn-primary-border)' : '1px solid var(--border-subtle)',
+                    cursor: 'pointer',
+                    boxShadow: guestCurrency === curr ? 'var(--shadow-sm)' : 'none'
                   }}
                 >
                   {curr}

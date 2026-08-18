@@ -163,7 +163,7 @@ export const ProfileScreen: React.FC = () => {
             <label style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
               DEFAULT CURRENCY
             </label>
-            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#10b981' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
               Selected: {defaultCurrency}
             </span>
           </div>
@@ -179,22 +179,20 @@ export const ProfileScreen: React.FC = () => {
                   style={{
                     padding: '9px 0',
                     borderRadius: 'var(--radius-md)',
-                    background: isSelected ? '#10b981' : 'var(--bg-subtle)',
-                    color: isSelected ? '#ffffff' : 'var(--text-primary)',
-                    border: isSelected ? '2px solid #10b981' : '1px solid var(--border-subtle)',
+                    background: isSelected ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
+                    color: isSelected ? 'var(--btn-primary-text)' : 'var(--text-primary)',
+                    border: isSelected ? '1px solid var(--btn-primary-border)' : '1px solid var(--border-subtle)',
                     fontWeight: 800,
                     fontSize: '0.85rem',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: 4,
-                    boxShadow: isSelected ? '0 3px 10px rgba(16, 185, 129, 0.35)' : 'none',
+                    boxShadow: isSelected ? 'var(--shadow-sm)' : 'none',
                     transition: 'all 0.15s ease'
                   }}
                 >
-                  {isSelected && <Check size={13} strokeWidth={3} />}
-                  <span>{curr}</span>
+                  {curr}
                 </button>
               );
             })}
