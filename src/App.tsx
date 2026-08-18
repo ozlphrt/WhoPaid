@@ -108,19 +108,19 @@ import { FloatingBottomDock } from './components/FloatingBottomDock';
 interface AppContentProps {}
 
 const AppContent: React.FC<AppContentProps> = () => {
-  const { activeTrip, setActiveTripId, isInitialized, isAuthenticated, currentUser } = useApp();
+  const { activeTrip, setActiveTripId, isInitialized, isAuthenticated, currentUser, joinTrip } = useApp();
   const [currentView, setCurrentView] = useState<AppView>('trip-home');
 
   // Handle invitation URL if query params exist (?join=... or ?tripId=...)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const joinTripId = params.get('join') || params.get('tripId');
-    if (joinTripId) {
-      setActiveTripId(joinTripId);
+    if (joinTripId && isAuthenticated) {
+      joinTrip(joinTripId);
       setCurrentView('trip-home');
       window.history.replaceState({}, '', window.location.pathname);
     }
-  }, [setActiveTripId]);
+  }, [isAuthenticated, joinTrip]);
 
   const handleSelectTrip = (tripId: string) => {
     setActiveTripId(tripId);

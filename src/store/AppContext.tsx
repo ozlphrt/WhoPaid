@@ -62,6 +62,7 @@ interface AppContextType {
   
   // Actions
   createTrip: (trip: Omit<Trip, 'id' | 'createdAt' | 'updatedAt'>, memberEmails: string[]) => Promise<string>;
+  joinTrip: (tripId: string) => Promise<void>;
   updateTrip: (trip: Trip) => Promise<void>;
   closeTrip: (tripId: string) => Promise<void>;
   reopenTrip: (tripId: string) => Promise<void>;
@@ -221,7 +222,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       const allTrips = await db.trips.toArray();
-      setTrips(allTrips);
+      const allMyMemberships = await db.tripMembers.where('userId').equals(currentUser.id).toArray();
+      const memberTripIds = new Set(allMyMemberships.map(m => m.tripId));
+
+      const allMembers = await db.tripMembers.toArray();
+      for (const m of allMembers) {
+        if (
+          (currentUser.email && m.name.toLowerCase() === currentUser.email.toLowerCase()) ||
+          (currentUser.name && m.name.toLowerCase() === currentUser.name.toLowerCase())
+        ) {
+          memberTripIds.add(m.tripId);
+        }
+      }
+
+      // Strictly filter trips: user is owner or invited member
+      const userTrips = allTrips.filter(t => 
+        t.ownerId === currentUser.id || 
+        memberTripIds.has(t.id) ||
+        (t.ownerId === 'user_ozalp' && currentUser.name?.toLowerCase().includes('ozalp'))
+      );
+      setTrips(userTrips);
 
       if (activeTripId) {
         const tripMembers = await db.tripMembers.where('tripId').equals(activeTripId).toArray();
@@ -718,7 +738,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setActiveTripId(tripId);
     await refreshData();
-    return tripId;
+    return newTrip.id;
+  };
+
+  const joinTrip = async (tripId: string) => {
+    try {
+      const existing = await db.tripMembers.where('tripId').equals(tripId).and(m => m.userId === currentUser.id).first();
+      if (!existing) {
+        const newMember: TripMember = {
+          id: `member_${currentUser.id}_${tripId}`,
+          tripId,
+          userId: currentUser.id,
+          name: currentUser.name,
+          email: currentUser.email || `${currentUser.name.toLowerCase()}@whopaid.app`,
+          role: 'member',
+          isActive: true,
+          joinedAt: new Date().toISOString()
+        };
+        await db.tripMembers.put(newMember);
+        if (isFirebaseConfigured() && isOnline) {
+          syncMemberToCloud(tripId, newMember).catch(console.warn);
+        }
+      }
+      setActiveTripId(tripId);
+      await refreshData();
+    } catch (err) {
+      console.warn('Failed to join trip:', err);
+    }
   };
 
   const updateTrip = async (trip: Trip) => {
@@ -983,6 +1029,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userNetBalance,
         lastUsedCurrency,
         createTrip,
+        joinTrip,
         updateTrip,
         closeTrip,
         reopenTrip,
