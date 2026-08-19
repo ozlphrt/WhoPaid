@@ -198,6 +198,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'offline' | 'connected' | 'syncing' | 'error'>('offline');
 
   const tripListenersRef = useRef<ActiveTripListeners | null>(null);
+  const isSyncingTripsRef = useRef<boolean>(false);
 
   // Online / Offline listeners
   useEffect(() => {
@@ -338,8 +339,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setNotifications(tripNotifs);
       }
 
-      // Sync trips and expenses from cloud across all devices
-      if (isFirebaseConfigured() && navigator.onLine && currentUser.id) {
+      // Sync trips and expenses from cloud across all devices once
+      if (isFirebaseConfigured() && navigator.onLine && currentUser.id && !isSyncingTripsRef.current) {
+        isSyncingTripsRef.current = true;
         fetchUserTripsFromCloud(currentUser.id, currentUser.email).then(async (remoteTrips) => {
           if (remoteTrips && remoteTrips.length > 0) {
             for (const rTrip of remoteTrips) {
@@ -370,24 +372,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               t.ownerId === currentUser.id || freshMemberTripIds.has(t.id)
             );
             setTrips(updatedTrips);
-
-            if (activeTripId) {
-              const freshExps = await db.expenses.where('tripId').equals(activeTripId).toArray();
-              freshExps.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-              setExpenses(freshExps);
-
-              const freshMems = await db.tripMembers.where('tripId').equals(activeTripId).toArray();
-              setMembers(freshMems);
-            }
           }
-        }).catch(console.warn);
+        }).catch(console.warn).finally(() => {
+          isSyncingTripsRef.current = false;
+        });
       }
     } catch (err) {
       console.warn('IndexedDB initial load error, continuing with fallback:', err);
     } finally {
       setIsInitialized(true);
     }
-  }, [activeTripId, currentUser.id, currentUser.email, currentUser.name]);
+  }, [activeTripId, currentUser.id]);
 
   useEffect(() => {
     refreshData();
