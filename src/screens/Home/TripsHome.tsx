@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '../../store/AppContext';
 import { formatMoney } from '../../lib/decimal';
+import { db } from '../../lib/db';
+import { calculateParticipantBalances } from '../../lib/balances';
 import { Plus, Calendar, ChevronRight, Archive } from 'lucide-react';
 import { CreateTripModal } from '../../components/CreateTripModal';
 
@@ -12,8 +14,40 @@ interface TripsHomeProps {
 export const TripsHome: React.FC<TripsHomeProps> = ({ onSelectTrip, onOpenArchive }) => {
   const { trips, currentUser } = useApp();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [tripBalances, setTripBalances] = useState<Record<string, { net: number; hasExpenses: boolean }>>({});
 
   const activeTrips = trips.filter(t => !t.isClosed && !t.isDeleted);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadAllTripBalances = async () => {
+      const results: Record<string, { net: number; hasExpenses: boolean }> = {};
+      for (const trip of activeTrips) {
+        const tripMems = await db.tripMembers.where('tripId').equals(trip.id).toArray();
+        const tripExps = await db.expenses.where('tripId').equals(trip.id).toArray();
+        const tripSettlements = await db.settlements.where('tripId').equals(trip.id).toArray();
+        const tripHouseholds = await db.households.where('tripId').equals(trip.id).toArray();
+
+        const activeExps = tripExps.filter(e => !e.isDeleted);
+        const b = calculateParticipantBalances(tripMems, tripExps, tripSettlements, tripHouseholds);
+        const myBal = b.individualBalances.find(ib => ib.userId === currentUser.id);
+        results[trip.id] = {
+          net: myBal ? myBal.net : 0,
+          hasExpenses: activeExps.length > 0
+        };
+      }
+      if (isMounted) {
+        setTripBalances(results);
+      }
+    };
+
+    loadAllTripBalances();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTrips, currentUser.id]);
 
   const formatDateRange = (startStr: string, endStr: string, currency: string) => {
     try {
@@ -86,32 +120,85 @@ export const TripsHome: React.FC<TripsHomeProps> = ({ onSelectTrip, onOpenArchiv
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {activeTrips.map(trip => (
-              <div
-                key={trip.id}
-                onClick={() => onSelectTrip(trip.id)}
-                className="card"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  cursor: 'pointer',
-                  padding: '16px 18px'
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {trip.name}
-                  </h3>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>
-                    <Calendar size={13} />
-                    <span>{formatDateRange(trip.startDate, trip.endDate, trip.mainCurrency)}</span>
+            {activeTrips.map(trip => {
+              const tripBal = tripBalances[trip.id];
+              const isOwed = tripBal?.hasExpenses && tripBal.net > 0.009;
+              const owes = tripBal?.hasExpenses && tripBal.net < -0.009;
+
+              return (
+                <div
+                  key={trip.id}
+                  onClick={() => onSelectTrip(trip.id)}
+                  className="card"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    padding: '16px 18px',
+                    gap: 12
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {trip.name}
+                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>
+                      <Calendar size={13} />
+                      <span>{formatDateRange(trip.startDate, trip.endDate, trip.mainCurrency)}</span>
+                    </div>
+                  </div>
+
+                  {/* Net Balance Amount Display */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                    {tripBal && (
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{
+                          fontSize: '0.98rem',
+                          fontWeight: 800,
+                          fontFamily: 'var(--font-main)',
+                          letterSpacing: '-0.02em',
+                          color: isOwed 
+                            ? 'var(--positive-text)' 
+                            : owes 
+                            ? 'var(--negative-text)' 
+                            : 'var(--text-tertiary)'
+                        }}>
+                          {isOwed ? (
+                            <span>+{formatMoney(tripBal.net, trip.mainCurrency)}</span>
+                          ) : owes ? (
+                            <span>−{formatMoney(Math.abs(tripBal.net), trip.mainCurrency)}</span>
+                          ) : (
+                            <span>{formatMoney(0, trip.mainCurrency)}</span>
+                          )}
+                        </div>
+                        <div style={{
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                          color: isOwed 
+                            ? 'var(--positive-text)' 
+                            : owes 
+                            ? 'var(--negative-text)' 
+                            : 'var(--text-tertiary)'
+                        }}>
+                          {!tripBal.hasExpenses 
+                            ? 'No expenses'
+                            : isOwed 
+                            ? 'You are owed' 
+                            : owes 
+                            ? 'You owe' 
+                            : 'All settled'}
+                        </div>
+                      </div>
+                    )}
+
+                    <ChevronRight size={18} color="var(--text-tertiary)" />
                   </div>
                 </div>
-
-                <ChevronRight size={18} color="var(--text-tertiary)" />
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
