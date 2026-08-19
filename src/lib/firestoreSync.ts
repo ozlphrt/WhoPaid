@@ -150,6 +150,13 @@ export async function syncMemberToCloud(tripId: string, member: TripMember): Pro
   await setDoc(memberRef, cleanForFirestore(member), { merge: true });
 }
 
+export async function deleteMemberFromCloud(tripId: string, memberId: string): Promise<void> {
+  const { db } = getFirebaseInstances();
+  if (!db || !tripId || !memberId) return;
+  const memberRef = doc(db, 'trips', tripId, 'members', memberId);
+  await deleteDoc(memberRef);
+}
+
 export async function syncHouseholdToCloud(tripId: string, household: Household): Promise<void> {
   const { db } = getFirebaseInstances();
   if (!db || !tripId || !household?.id) return;

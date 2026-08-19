@@ -18,6 +18,7 @@ export const TripSettings: React.FC = () => {
     reopenTrip,
     deleteTrip,
     setMemberActive,
+    deleteMember,
     addMember,
     saveHousehold,
     deleteHousehold,
@@ -70,6 +71,20 @@ export const TripSettings: React.FC = () => {
     setNewMemberName('');
     setNewMemberEmail('');
     setShowAddMember(false);
+  };
+
+  const handleRemoveMember = (memberId: string, memberName: string) => {
+    showConfirm(
+      `Are you sure you want to remove ${memberName} from this trip? They will no longer have access to this trip.`,
+      async () => {
+        await deleteMember(memberId);
+      },
+      {
+        title: 'Remove Member?',
+        confirmText: 'Remove',
+        isDestructive: true
+      }
+    );
   };
 
   const handleOpenHouseholdModal = (hh?: Household) => {
@@ -299,20 +314,43 @@ export const TripSettings: React.FC = () => {
                 <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>{m.email}</span>
               </div>
 
-              {isOwner && m.userId !== currentUser.id && (
-                <button
-                  onClick={() => setMemberActive(m.id, !m.isActive)}
-                  style={{
-                    fontSize: '0.72rem',
-                    fontWeight: 600,
-                    color: m.isActive ? 'var(--negative-text)' : 'var(--positive-text)',
-                    padding: '3px 6px',
-                    borderRadius: 4,
-                    background: 'var(--bg-surface)'
-                  }}
-                >
-                  {m.isActive ? 'Mark Inactive' : 'Reactivate'}
-                </button>
+              {isOwner && m.userId !== currentUser.id && m.role !== 'owner' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => setMemberActive(m.id, !m.isActive)}
+                    style={{
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                      color: m.isActive ? 'var(--text-secondary)' : 'var(--positive-text)',
+                      padding: '4px 8px',
+                      borderRadius: 'var(--radius-sm)',
+                      background: 'var(--bg-surface)',
+                      border: '1px solid var(--border-subtle)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {m.isActive ? 'Deactivate' : 'Reactivate'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveMember(m.id, m.name)}
+                    title={`Remove ${m.name} from trip`}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '5px 7px',
+                      borderRadius: 'var(--radius-sm)',
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      color: 'var(--negative-text)',
+                      border: '1px solid rgba(239, 68, 68, 0.25)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               )}
             </div>
           ))}

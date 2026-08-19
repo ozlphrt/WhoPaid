@@ -23,6 +23,8 @@ export const ActivityScreen: React.FC = () => {
         return <Archive size={16} color="var(--text-tertiary)" />;
       case 'member_joined':
         return <UserCheck size={16} color="var(--brand-600)" />;
+      case 'member_left':
+        return <Trash2 size={16} color="var(--negative-text)" />;
       default:
         return <ActivityIcon size={16} color="var(--brand-600)" />;
     }

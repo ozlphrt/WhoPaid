@@ -125,7 +125,8 @@ export interface Activity {
     | 'trip_closed'
     | 'trip_reopened'
     | 'trip_created'
-    | 'member_joined';
+    | 'member_joined'
+    | 'member_left';
   description: string;
   metadata?: Record<string, any>;
   createdAt: string;

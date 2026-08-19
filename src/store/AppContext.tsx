@@ -19,6 +19,7 @@ import {
   subscribeToTrip, 
   syncTripToCloud, 
   syncMemberToCloud, 
+  deleteMemberFromCloud,
   syncHouseholdToCloud, 
   deleteHouseholdFromCloud, 
   syncExpenseToCloud, 
@@ -81,6 +82,7 @@ interface AppContextType {
   // Member & Household Actions
   addMember: (tripId: string, email: string, name: string) => Promise<void>;
   setMemberActive: (memberId: string, isActive: boolean) => Promise<void>;
+  deleteMember: (memberId: string) => Promise<void>;
   saveHousehold: (household: Omit<Household, 'id' | 'createdAt'>, existingId?: string) => Promise<void>;
   deleteHousehold: (householdId: string) => Promise<void>;
   transferOwnership: (tripId: string, newOwnerUserId: string) => Promise<void>;
@@ -1102,6 +1104,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await refreshData();
   };
 
+  const deleteMember = async (memberId: string) => {
+    const m = await db.tripMembers.get(memberId);
+    if (!m || !activeTrip) return;
+    
+    // Owner cannot be deleted
+    if (m.role === 'owner' || m.userId === activeTrip.ownerId) {
+      showAlert('The trip owner cannot be removed. Transfer ownership first if needed.', 'Action Not Allowed', 'warning');
+      return;
+    }
+
+    // Remove member from households in this trip
+    const tripHouseholds = await db.households.where('tripId').equals(activeTrip.id).toArray();
+    for (const hh of tripHouseholds) {
+      if (hh.memberUserIds.includes(m.userId)) {
+        const updatedIds = hh.memberUserIds.filter(id => id !== m.userId);
+        if (updatedIds.length < 2) {
+          await db.households.delete(hh.id);
+          if (isFirebaseConfigured() && isOnline) {
+            deleteHouseholdFromCloud(activeTrip.id, hh.id).catch(console.warn);
+          }
+        } else {
+          const updatedHh = { ...hh, memberUserIds: updatedIds };
+          await db.households.put(updatedHh);
+          if (isFirebaseConfigured() && isOnline) {
+            syncHouseholdToCloud(activeTrip.id, updatedHh).catch(console.warn);
+          }
+        }
+      }
+    }
+
+    // Delete from Dexie
+    await db.tripMembers.delete(memberId);
+
+    // Delete from Cloud
+    if (isFirebaseConfigured() && isOnline) {
+      deleteMemberFromCloud(activeTrip.id, memberId).catch(console.warn);
+    }
+
+    await addActivity('member_left', `${m.name} was removed from the trip by the owner.`);
+    await refreshData();
+  };
+
   const saveHousehold = async (hh: Omit<Household, 'id' | 'createdAt'>, existingId?: string) => {
     const now = new Date().toISOString();
     const id = existingId || `hh_${Date.now()}`;
@@ -1276,6 +1320,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         permanentlyDeleteTrip,
         addMember,
         setMemberActive,
+        deleteMember,
         saveHousehold,
         deleteHousehold,
         transferOwnership,
