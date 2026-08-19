@@ -177,6 +177,13 @@ export async function loginWithGoogle(): Promise<FirebaseUser | null> {
   const { auth } = getFirebaseInstances();
   if (!auth) throw new Error('Firebase Auth is not configured.');
 
+  // Force sign out existing auth session first so Google OAuth does not auto-login with cached credentials
+  try {
+    await signOut(auth);
+  } catch (err) {
+    // Ignore if already signed out
+  }
+
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({
     prompt: 'select_account'
