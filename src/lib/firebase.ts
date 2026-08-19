@@ -13,6 +13,9 @@ import {
   signInWithPopup, 
   signInWithRedirect,
   getRedirectResult,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile,
   GoogleAuthProvider, 
   OAuthProvider,
   FacebookAuthProvider,
@@ -249,6 +252,23 @@ export async function loginFacebook(): Promise<FirebaseUser | null> {
     console.error('[Firebase Auth] Facebook Sign-In Error:', err);
     throw err;
   }
+}
+
+export async function loginEmail(email: string, pass: string): Promise<FirebaseUser> {
+  const { auth } = getFirebaseInstances();
+  if (!auth) throw new Error('Firebase Auth is not initialized');
+  const res = await signInWithEmailAndPassword(auth, email.trim(), pass);
+  return res.user;
+}
+
+export async function signupEmail(email: string, pass: string, displayName?: string): Promise<FirebaseUser> {
+  const { auth } = getFirebaseInstances();
+  if (!auth) throw new Error('Firebase Auth is not initialized');
+  const res = await createUserWithEmailAndPassword(auth, email.trim(), pass);
+  if (displayName && displayName.trim()) {
+    await updateProfile(res.user, { displayName: displayName.trim() }).catch(console.warn);
+  }
+  return res.user;
 }
 
 export async function logoutFirebase(): Promise<void> {

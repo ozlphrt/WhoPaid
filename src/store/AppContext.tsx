@@ -15,6 +15,8 @@ import {
   loginApple as fbLoginApple,
   loginMicrosoft as fbLoginMicrosoft,
   loginFacebook as fbLoginFacebook,
+  loginEmail as fbLoginEmail,
+  signupEmail as fbSignupEmail,
   logoutFirebase as fbLogout,
   initFirebase
 } from '../lib/firebase';
@@ -125,6 +127,8 @@ interface AppContextType {
   loginWithAppleAuth: () => Promise<void>;
   loginWithMicrosoftAuth: () => Promise<void>;
   loginWithFacebookAuth: () => Promise<void>;
+  loginWithEmailAuth: (email: string, pass: string) => Promise<void>;
+  signUpWithEmailAuth: (email: string, pass: string, name: string) => Promise<void>;
   logoutUser: () => Promise<void>;
   enableNotifications: () => Promise<boolean>;
   isNotificationsEnabled: boolean;
@@ -1350,6 +1354,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const loginWithEmailAuth = async (email: string, pass: string) => {
+    try {
+      const fbUser = await fbLoginEmail(email, pass);
+      await handlePostLogin(fbUser);
+    } catch (err: any) {
+      console.error('Email login failed:', err);
+      throw err;
+    }
+  };
+
+  const signUpWithEmailAuth = async (email: string, pass: string, name: string) => {
+    try {
+      const fbUser = await fbSignupEmail(email, pass, name);
+      await handlePostLogin(fbUser);
+    } catch (err: any) {
+      console.error('Email signup failed:', err);
+      throw err;
+    }
+  };
+
   const clearAllData = async () => {
     const allTrips = await db.trips.toArray();
     const now = new Date().toISOString();
@@ -1456,6 +1480,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         loginWithAppleAuth,
         loginWithMicrosoftAuth,
         loginWithFacebookAuth,
+        loginWithEmailAuth,
+        signUpWithEmailAuth,
         logoutUser,
         enableNotifications,
         isNotificationsEnabled: isNotificationGranted(),
