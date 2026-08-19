@@ -244,20 +244,20 @@ export const TripsHome: React.FC<TripsHomeProps> = ({ onSelectTrip, onOpenArchiv
       </div>
 
       {/* Archive & Data Management */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>
         <button
           onClick={onOpenArchive}
+          className="card"
           style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '12px 16px',
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border-subtle)',
+            padding: '13px 16px',
             borderRadius: 'var(--radius-lg)',
             color: 'var(--text-secondary)',
             fontWeight: 600,
-            fontSize: '0.85rem'
+            fontSize: '0.86rem',
+            cursor: 'pointer'
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -287,16 +287,17 @@ export const TripsHome: React.FC<TripsHomeProps> = ({ onSelectTrip, onOpenArchiv
               alignItems: 'center',
               justifyContent: 'center',
               gap: 8,
-              padding: '12px 16px',
+              padding: '13px 16px',
               background: 'var(--bg-surface)',
               border: '1px solid rgba(239, 68, 68, 0.35)',
               borderRadius: 'var(--radius-lg)',
               color: 'var(--negative-text)',
               fontWeight: 700,
-              fontSize: '0.82rem',
+              fontSize: '0.84rem',
               cursor: 'pointer',
-              marginTop: 4,
-              boxShadow: 'var(--shadow-sm)'
+              marginTop: 2,
+              boxShadow: 'var(--shadow-card)',
+              transition: 'all 0.15s ease'
             }}
           >
             <Trash2 size={15} />

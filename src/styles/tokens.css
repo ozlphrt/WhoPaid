@@ -60,10 +60,11 @@
   --border-glass: rgba(255, 255, 255, 0.12);
 
   /* Deep Dark Shadows */
-  --shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.25);
-  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.35);
-  --shadow-lg: 0 14px 34px rgba(0, 0, 0, 0.45);
-  --shadow-dock: 0 20px 52px rgba(0, 0, 0, 0.55);
+  --shadow-sm: 0 2px 5px rgba(0, 0, 0, 0.28), 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-card: 0 4px 14px -2px rgba(0, 0, 0, 0.42), 0 2px 6px rgba(0, 0, 0, 0.28);
+  --shadow-md: 0 8px 22px -3px rgba(0, 0, 0, 0.48), 0 3px 8px rgba(0, 0, 0, 0.32);
+  --shadow-lg: 0 16px 38px -4px rgba(0, 0, 0, 0.58), 0 6px 14px rgba(0, 0, 0, 0.38);
+  --shadow-dock: 0 24px 56px -6px rgba(0, 0, 0, 0.65), 0 10px 22px rgba(0, 0, 0, 0.45);
 
   /* Hero Balance Card */
   --hero-card-bg: linear-gradient(145deg, #2d3341 0%, #222732 100%);
@@ -139,11 +140,12 @@
   --border-strong: #bcb4a3;
   --border-glass: rgba(255, 255, 255, 0.8);
 
-  /* Deep Multi-Layer Ambient Drop Shadows */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 14px -2px rgba(0, 0, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 12px 30px -4px rgba(0, 0, 0, 0.12), 0 4px 12px -2px rgba(0, 0, 0, 0.06);
-  --shadow-dock: 0 20px 48px -6px rgba(0, 0, 0, 0.16), 0 8px 16px rgba(0, 0, 0, 0.06);
+  /* Deep Multi-Layer Ambient Drop Shadows with Warm Tactile Depth */
+  --shadow-sm: 0 2px 4px rgba(28, 25, 23, 0.05), 0 1px 2px rgba(28, 25, 23, 0.04);
+  --shadow-card: 0 4px 12px -1px rgba(28, 25, 23, 0.08), 0 1px 3px 0 rgba(28, 25, 23, 0.05), 0 12px 24px -6px rgba(28, 25, 23, 0.06);
+  --shadow-md: 0 8px 20px -3px rgba(28, 25, 23, 0.11), 0 3px 8px -1px rgba(28, 25, 23, 0.06);
+  --shadow-lg: 0 16px 36px -4px rgba(28, 25, 23, 0.15), 0 6px 14px -2px rgba(28, 25, 23, 0.08);
+  --shadow-dock: 0 22px 50px -6px rgba(28, 25, 23, 0.2), 0 8px 18px rgba(28, 25, 23, 0.09);
 
   /* Hero Balance Card */
   --hero-card-bg: linear-gradient(145deg, #ffffff 0%, #faf8f5 100%);
