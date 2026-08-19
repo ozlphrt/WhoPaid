@@ -125,13 +125,14 @@ const AppContent: React.FC<AppContentProps> = () => {
     localStorage.setItem('whopaid_last_view', view);
   };
 
-  // If no active trip is selected, always show Trips Home
+  // If no active trip is selected, only reset view if app is fully initialized and no trip is saved in localStorage
   useEffect(() => {
-    if (!activeTrip && currentView !== 'trips' && currentView !== 'profile' && currentView !== 'archive') {
+    const savedTrip = localStorage.getItem('whopaid_active_trip');
+    if (isInitialized && !activeTrip && !savedTrip && currentView !== 'trips' && currentView !== 'profile' && currentView !== 'archive') {
       setCurrentView('trips');
       localStorage.setItem('whopaid_last_view', 'trips');
     }
-  }, [activeTrip, currentView]);
+  }, [activeTrip, currentView, isInitialized]);
 
   // Handle invitation URL if query params exist (?join=... or ?tripId=...)
   useEffect(() => {

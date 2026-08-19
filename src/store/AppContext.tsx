@@ -350,34 +350,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       },
       onMembersUpdate: async (remoteMembers) => {
-        await db.tripMembers.where('tripId').equals(activeTripId).delete();
-        if (remoteMembers.length > 0) {
+        if (remoteMembers && remoteMembers.length > 0) {
           await db.tripMembers.bulkPut(remoteMembers);
         }
-        setMembers(remoteMembers);
+        const currentLocalMembers = await db.tripMembers.where('tripId').equals(activeTripId).toArray();
+        setMembers(currentLocalMembers);
       },
       onHouseholdsUpdate: async (remoteHouseholds) => {
-        await db.households.where('tripId').equals(activeTripId).delete();
-        if (remoteHouseholds.length > 0) {
+        if (remoteHouseholds && remoteHouseholds.length > 0) {
           await db.households.bulkPut(remoteHouseholds);
         }
-        setHouseholds(remoteHouseholds);
+        const currentLocalHouseholds = await db.households.where('tripId').equals(activeTripId).toArray();
+        setHouseholds(currentLocalHouseholds);
       },
       onExpensesUpdate: async (remoteExpenses) => {
-        await db.expenses.where('tripId').equals(activeTripId).delete();
-        if (remoteExpenses.length > 0) {
+        if (remoteExpenses && remoteExpenses.length > 0) {
           await db.expenses.bulkPut(remoteExpenses);
         }
-        const sorted = [...remoteExpenses].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        setExpenses(sorted);
+        const currentLocal = await db.expenses.where('tripId').equals(activeTripId).toArray();
+        currentLocal.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setExpenses(currentLocal);
         setCloudSyncStatus('connected');
       },
       onSettlementsUpdate: async (remoteSettlements) => {
-        await db.settlements.where('tripId').equals(activeTripId).delete();
-        if (remoteSettlements.length > 0) {
+        if (remoteSettlements && remoteSettlements.length > 0) {
           await db.settlements.bulkPut(remoteSettlements);
         }
-        setSettlements(remoteSettlements);
+        const currentLocalStl = await db.settlements.where('tripId').equals(activeTripId).toArray();
+        setSettlements(currentLocalStl);
       },
       onActivitiesUpdate: async (remoteActs) => {
         if (remoteActs.length > 0) {
