@@ -470,3 +470,37 @@
   border-radius: var(--radius-full);
   margin: -6px auto 18px;
 }
+
+/* In-App Numeric Keypad Styles */
+.keypad-btn:active {
+  background: var(--bg-hover) !important;
+  transform: scale(0.96);
+}
+
+.config-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: var(--radius-full);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+}
+
+.config-pill-btn:hover {
+  border-color: var(--border-strong);
+  background: var(--bg-surface);
+}
+
+.config-pill-btn.active {
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  border-color: var(--btn-primary-border);
+}
+

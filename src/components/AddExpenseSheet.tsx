@@ -4,10 +4,26 @@ import { BottomSheet } from './BottomSheet';
 import { CATEGORIES, suggestCategory } from '../lib/category';
 import { getCurrencySymbol, roundMoney, add, sub, mul } from '../lib/decimal';
 import { CurrencyCode, ExpenseCategory, ExpensePayer, ExpenseParticipant } from '../types';
-import { ChevronDown, ChevronUp, AlertCircle, Check, Users, User, Calendar, FileText, Camera, Image as ImageIcon, X, Loader2, Sparkles } from 'lucide-react';
+import { 
+  ChevronDown, 
+  ChevronUp, 
+  AlertCircle, 
+  Check, 
+  Users, 
+  User, 
+  Calendar, 
+  FileText, 
+  Camera, 
+  Image as ImageIcon, 
+  X, 
+  Loader2, 
+  Sparkles,
+  Keyboard
+} from 'lucide-react';
 import { checkForDuplicateExpense } from '../lib/duplicate';
 import { compressAndUploadReceipt } from '../lib/firestoreSync';
 import { parseReceiptText } from '../lib/receiptOcr';
+import { NumericKeypad } from './NumericKeypad';
 
 interface AddExpenseSheetProps {
   isOpen: boolean;
@@ -16,6 +32,15 @@ interface AddExpenseSheetProps {
 }
 
 const COMMON_CURRENCIES: CurrencyCode[] = ['EUR', 'USD', 'TRY', 'GBP', 'CHF', 'CAD', 'AUD', 'JPY'];
+
+const QUICK_PRESETS = [
+  { label: 'Dinner', emoji: '🍽️', category: 'Food' as ExpenseCategory },
+  { label: 'Taxi', emoji: '🚕', category: 'Transport' as ExpenseCategory },
+  { label: 'Coffee', emoji: '☕', category: 'Food' as ExpenseCategory },
+  { label: 'Groceries', emoji: '🛒', category: 'Groceries' as ExpenseCategory },
+  { label: 'Hotel', emoji: '🏨', category: 'Hotel' as ExpenseCategory },
+  { label: 'Drinks', emoji: '🍻', category: 'Drinks' as ExpenseCategory }
+];
 
 export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   isOpen,
@@ -56,13 +81,16 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   const [splitMode, setSplitMode] = useState<'equal' | 'custom'>('equal');
   const [customShares, setCustomShares] = useState<Record<string, string>>({});
   
+  // Modal states for focused selection (eliminates clutter on main sheet)
+  const [activeModal, setActiveModal] = useState<'none' | 'category' | 'paidBy' | 'splitWith' | 'currency'>('none');
+  const [useNativeKeyboard, setUseNativeKeyboard] = useState<boolean>(false);
+
   // FX Manual Override
   const [isManualFx, setIsManualFx] = useState<boolean>(false);
   const [manualFxRate, setManualFxRate] = useState<string>('1.00');
 
-  // Autocomplete Suggestions & Dropdowns
+  // Autocomplete Suggestions
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
-  const [showCurrencyDropdown, setShowCurrencyDropdown] = useState<boolean>(false);
   const [ocrAutoFilled, setOcrAutoFilled] = useState<boolean>(false);
 
   const handleReceiptFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -110,7 +138,10 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
 
   // Initialize or Reset form
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      setActiveModal('none');
+      return;
+    }
 
     if (editExpenseId) {
       const exp = expenses.find(e => e.id === editExpenseId);
@@ -160,7 +191,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     setIsManualFx(false);
     setManualFxRate('1.00');
     setShowMoreOptions(false);
-    setShowCurrencyDropdown(false);
+    setActiveModal('none');
   }, [isOpen, editExpenseId, expenses, lastUsedCurrency, currentUser.id, activeMembers]);
 
   // Autocomplete descriptions from current trip
@@ -203,13 +234,6 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
       editExpenseId
     );
   }, [parsedAmount, description, currency, paidByUserId, isMultiPayer, payers, currentUser.id, date, expenses, editExpenseId]);
-
-  // Amount input filter
-  const handleAmountChange = (val: string) => {
-    if (/^\d*\.?\d*$/.test(val)) {
-      setAmountStr(val);
-    }
-  };
 
   // Multi-Payer handlers
   const handlePayerAmountChange = (userId: string, val: string) => {
@@ -325,13 +349,23 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     onClose();
   };
 
+  const payerName = isMultiPayer
+    ? 'Multiple People'
+    : (activeMembers.find(m => m.userId === paidByUserId)?.name || (paidByUserId === currentUser.id ? 'You' : 'Member'));
+
+  const splitLabel = includedUserIds.length === activeMembers.length
+    ? `Everyone (${activeMembers.length})`
+    : `${includedUserIds.length} Person${includedUserIds.length > 1 ? 's' : ''}`;
+
+  const currentCategoryObj = CATEGORIES.find(c => c.id === category) || CATEGORIES[0];
+
   return (
     <BottomSheet 
       isOpen={isOpen} 
       onClose={onClose} 
       title={editExpenseId ? 'Edit Expense' : 'Add Expense'}
     >
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         
         {/* Possible Duplicate Warning */}
         {duplicateCheck.isDuplicate && (
@@ -340,13 +374,13 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             border: '1px solid var(--warning-border)',
             color: 'var(--warning-text)',
             borderRadius: 'var(--radius-md)',
-            padding: '10px 12px',
-            fontSize: '0.82rem',
+            padding: '8px 12px',
+            fontSize: '0.8rem',
             display: 'flex',
             alignItems: 'flex-start',
             gap: 8
           }}>
-            <AlertCircle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+            <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
             <div>
               <strong style={{ display: 'block', fontWeight: 600 }}>Possible duplicate</strong>
               <span>{duplicateCheck.reason}</span>
@@ -354,12 +388,12 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
           </div>
         )}
 
-        {/* 1. Large Amount Input Container */}
+        {/* 1. Hero Amount Display Card */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 12,
-          padding: '14px 16px',
+          justifyContent: 'space-between',
+          padding: '12px 16px',
           borderRadius: 'var(--radius-lg)',
           background: 'var(--bg-subtle)',
           border: '1px solid var(--border-subtle)',
@@ -368,16 +402,16 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
           {/* Currency Pill */}
           <button 
             type="button"
-            onClick={() => setShowCurrencyDropdown(prev => !prev)}
+            onClick={() => setActiveModal('currency')}
             style={{ 
               display: 'inline-flex', 
               alignItems: 'center', 
-              gap: 6, 
+              gap: 5, 
               background: 'var(--bg-surface)', 
               border: '1px solid var(--border-subtle)',
-              padding: '8px 12px', 
+              padding: '6px 12px', 
               borderRadius: 'var(--radius-full)',
-              fontSize: '0.95rem',
+              fontSize: '0.9rem',
               fontWeight: 800,
               color: 'var(--text-primary)',
               cursor: 'pointer',
@@ -385,393 +419,210 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             }}
           >
             <span>{getCurrencySymbol(currency)}</span>
-            <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{currency}</span>
-            <ChevronDown size={14} color="var(--text-tertiary)" />
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{currency}</span>
+            <ChevronDown size={13} color="var(--text-tertiary)" />
           </button>
 
-          {/* Amount Number Input */}
-          <input
-            type="text"
-            inputMode="decimal"
-            autoFocus
-            placeholder="0.00"
-            value={amountStr}
-            onChange={(e) => handleAmountChange(e.target.value)}
-            style={{
-              fontSize: '2.4rem',
-              fontWeight: 800,
-              color: 'var(--text-primary)',
-              width: '100%',
-              textAlign: 'left',
-              border: 'none',
-              outline: 'none',
-              background: 'transparent',
-              fontFamily: 'var(--font-mono)',
-              letterSpacing: '-0.03em'
-            }}
-            required
-          />
-
-          {/* Currency Dropdown Menu */}
-          {showCurrencyDropdown && (
-            <div style={{
-              position: 'absolute',
-              top: '100%',
-              left: 14,
-              zIndex: 30,
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--border-strong)',
-              borderRadius: 'var(--radius-md)',
-              boxShadow: 'var(--shadow-lg)',
-              padding: 6,
-              display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
-              gap: 4,
-              marginTop: 6
-            }}>
-              {COMMON_CURRENCIES.map(curr => (
-                <button
-                  key={curr}
-                  type="button"
-                  onClick={() => {
-                    setCurrency(curr);
-                    setShowCurrencyDropdown(false);
-                  }}
-                  style={{
-                    padding: '8px 10px',
-                    borderRadius: 'var(--radius-sm)',
-                    background: currency === curr ? 'var(--btn-primary-bg)' : 'transparent',
-                    color: currency === curr ? 'var(--btn-primary-text)' : 'var(--text-primary)',
-                    fontWeight: 700,
-                    fontSize: '0.8rem',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {curr}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* 2. Expense Name Input */}
-        <div style={{ position: 'relative' }}>
-          <input
-            type="text"
-            placeholder="Expense name (e.g. Asador Portuetxe, Uber, Txakoli)"
-            className="input-pill"
-            value={description}
-            onChange={(e) => handleDescriptionChange(e.target.value)}
-            onFocus={() => setShowSuggestions(true)}
-            style={{ fontSize: '0.95rem', padding: '13px 16px' }}
-            required
-          />
-
-          {showSuggestions && filteredSuggestions.length > 0 && (
-            <div style={{
-              position: 'absolute',
-              top: '100%',
-              left: 0,
-              right: 0,
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--border-strong)',
-              borderRadius: 'var(--radius-md)',
-              boxShadow: 'var(--shadow-md)',
-              zIndex: 20,
-              marginTop: 4,
-              overflow: 'hidden'
-            }}>
-              {filteredSuggestions.map((suggestion, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => {
-                    handleDescriptionChange(suggestion);
-                    setShowSuggestions(false);
-                  }}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    textAlign: 'left',
-                    padding: '10px 14px',
-                    fontSize: '0.88rem',
-                    color: 'var(--text-primary)',
-                    borderBottom: idx < filteredSuggestions.length - 1 ? '1px solid var(--border-subtle)' : 'none',
-                    background: 'transparent',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {suggestion}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* 3. Category Grid (All 6 Visible At a Glance, No Scrollbar) */}
-        <div>
-          <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 }}>
-            Category
-          </label>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(3, 1fr)',
-            gap: 6
-          }}>
-            {CATEGORIES.map(cat => {
-              const isSelected = category === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  type="button"
-                  onClick={() => setCategory(cat.id)}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 6,
-                    padding: '9px 10px',
-                    borderRadius: 'var(--radius-md)',
-                    background: isSelected ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
-                    color: isSelected ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
-                    border: `1px solid ${isSelected ? 'var(--btn-primary-border)' : 'var(--border-subtle)'}`,
-                    fontSize: '0.82rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease'
-                  }}
-                >
-                  <span style={{ fontSize: '1rem' }}>{cat.emoji}</span>
-                  <span>{cat.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 4. One-Tap Payer Selection Chips */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <label style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Paid By
-            </label>
-            {isMultiPayer && (
-              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--accent-primary)' }}>
-                Multiple Payers Active
-              </span>
-            )}
-          </div>
-
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {activeMembers.map(m => {
-              const isSelected = !isMultiPayer && paidByUserId === m.userId;
-              return (
-                <button
-                  key={m.userId}
-                  type="button"
-                  onClick={() => {
-                    setIsMultiPayer(false);
-                    setPaidByUserId(m.userId);
-                  }}
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: 'var(--radius-full)',
-                    background: isSelected ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
-                    color: isSelected ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
-                    border: `1px solid ${isSelected ? 'var(--btn-primary-border)' : 'var(--border-subtle)'}`,
-                    fontSize: '0.82rem',
-                    fontWeight: 700,
-                    cursor: 'pointer'
-                  }}
-                >
-                  {m.name} {m.userId === currentUser.id && '(You)'}
-                </button>
-              );
-            })}
-
-            <button
-              type="button"
-              onClick={() => {
-                setIsMultiPayer(true);
-                if (payers.length <= 1) {
-                  setPayers(activeMembers.map(m => ({
-                    userId: m.userId,
-                    amount: m.userId === paidByUserId ? (parsedAmount || 0) : 0
-                  })));
-                }
-              }}
-              style={{
-                padding: '8px 12px',
-                borderRadius: 'var(--radius-full)',
-                background: isMultiPayer ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
-                color: isMultiPayer ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
-                border: `1px solid ${isMultiPayer ? 'var(--btn-primary-border)' : 'var(--border-subtle)'}`,
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                cursor: 'pointer'
-              }}
-            >
-              + Multiple People...
-            </button>
-          </div>
-        </div>
-
-        {/* Multi-Payer Breakdown if isMultiPayer */}
-        {isMultiPayer && (
-          <div style={{
-            background: 'var(--bg-subtle)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-md)',
-            padding: 12,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 10
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
-                  Who Paid What?
-                </span>
-                <div style={{
-                  fontSize: '0.82rem',
-                  fontWeight: 700,
-                  color: Math.abs(multiPayerTotal - parsedAmount) < 0.01 && parsedAmount > 0 ? 'var(--positive-text)' : 'var(--warning-text)',
-                  marginTop: 2
-                }}>
-                  {currency} {multiPayerTotal.toFixed(2)} / {currency} {parsedAmount.toFixed(2)}
-                  {parsedAmount > 0 && (
-                    Math.abs(multiPayerTotal - parsedAmount) < 0.01 
-                      ? ' ✓ Exact match' 
-                      : (multiPayerTotal < parsedAmount 
-                          ? ` (Remaining: ${currency} ${(parsedAmount - multiPayerTotal).toFixed(2)})`
-                          : ` (Over by ${currency} ${(multiPayerTotal - parsedAmount).toFixed(2)})`)
-                  )}
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={handleSplitPaidEqually}
+          {/* Amount Display / Input */}
+          <div style={{ flex: 1, textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+            {useNativeKeyboard ? (
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder="0.00"
+                value={amountStr}
+                onChange={(e) => {
+                  if (/^\d*\.?\d*$/.test(e.target.value)) setAmountStr(e.target.value);
+                }}
                 style={{
-                  padding: '5px 10px',
-                  borderRadius: 'var(--radius-sm)',
-                  background: 'var(--bg-surface)',
-                  border: '1px solid var(--border-subtle)',
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
+                  fontSize: '2.2rem',
+                  fontWeight: 800,
                   color: 'var(--text-primary)',
+                  width: '100%',
+                  textAlign: 'right',
+                  border: 'none',
+                  outline: 'none',
+                  background: 'transparent',
+                  fontFamily: 'var(--font-mono)',
+                  letterSpacing: '-0.03em'
+                }}
+              />
+            ) : (
+              <div 
+                style={{
+                  fontSize: '2.2rem',
+                  fontWeight: 800,
+                  color: amountStr ? 'var(--text-primary)' : 'var(--text-tertiary)',
+                  fontFamily: 'var(--font-mono)',
+                  letterSpacing: '-0.03em',
                   cursor: 'pointer'
                 }}
               >
-                Split Equally
-              </button>
-            </div>
+                {amountStr || '0.00'}
+              </div>
+            )}
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {activeMembers.map(m => {
-                const payerObj = payers.find(p => p.userId === m.userId);
-                const currentVal = payerObj ? (payerObj.amount > 0 ? payerObj.amount.toString() : '') : '';
-                return (
-                  <div key={m.userId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {m.name} {m.userId === currentUser.id && '(You)'}
-                    </span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>{currency}</span>
-                      <input
-                        type="number"
-                        step="any"
-                        placeholder="0.00"
-                        value={currentVal}
-                        onChange={(e) => handlePayerAmountChange(m.userId, e.target.value)}
-                        style={{
-                          width: 85,
-                          padding: '6px 8px',
-                          borderRadius: 'var(--radius-sm)',
-                          border: '1px solid var(--border-subtle)',
-                          background: 'var(--bg-surface)',
-                          fontSize: '0.88rem',
-                          fontFamily: 'var(--font-mono)',
-                          color: 'var(--text-primary)'
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* 5. Split With Selector */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-            <label style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Split With
-            </label>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-              {includedUserIds.length === activeMembers.length 
-                ? `Everyone (${activeMembers.length})` 
-                : `${includedUserIds.length} of ${activeMembers.length}`}
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {/* Toggle between In-App Keypad and Native Keyboard */}
             <button
               type="button"
-              onClick={() => {
-                setIncludedUserIds(activeMembers.map(m => m.userId));
-                setSplitMode('equal');
-              }}
+              onClick={() => setUseNativeKeyboard(prev => !prev)}
+              title={useNativeKeyboard ? 'Use In-App Keypad' : 'Use System Keyboard'}
               style={{
-                padding: '7px 12px',
-                borderRadius: 'var(--radius-full)',
-                background: includedUserIds.length === activeMembers.length && splitMode === 'equal' ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
-                color: includedUserIds.length === activeMembers.length && splitMode === 'equal' ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
-                border: `1px solid ${includedUserIds.length === activeMembers.length && splitMode === 'equal' ? 'var(--btn-primary-border)' : 'var(--border-subtle)'}`,
-                fontSize: '0.82rem',
-                fontWeight: 700,
-                cursor: 'pointer'
+                background: 'transparent',
+                border: 'none',
+                color: useNativeKeyboard ? 'var(--btn-primary-bg)' : 'var(--text-tertiary)',
+                cursor: 'pointer',
+                padding: 4,
+                display: 'flex',
+                alignItems: 'center'
               }}
             >
-              ✓ Everyone ({activeMembers.length})
+              <Keyboard size={16} />
             </button>
-
-            {activeMembers.map(m => {
-              const isIncluded = includedUserIds.includes(m.userId);
-              return (
-                <button
-                  key={m.userId}
-                  type="button"
-                  onClick={() => {
-                    if (isIncluded) {
-                      if (includedUserIds.length > 1) {
-                        setIncludedUserIds(prev => prev.filter(id => id !== m.userId));
-                      }
-                    } else {
-                      setIncludedUserIds(prev => [...prev, m.userId]);
-                    }
-                  }}
-                  style={{
-                    padding: '7px 11px',
-                    borderRadius: 'var(--radius-full)',
-                    background: isIncluded ? 'var(--bg-surface)' : 'transparent',
-                    color: isIncluded ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                    border: `1px solid ${isIncluded ? 'var(--border-strong)' : 'var(--border-subtle)'}`,
-                    fontSize: '0.8rem',
-                    fontWeight: isIncluded ? 700 : 500,
-                    cursor: 'pointer',
-                    opacity: isIncluded ? 1 : 0.6
-                  }}
-                >
-                  {isIncluded ? '✓ ' : ''}{m.name}
-                </button>
-              );
-            })}
           </div>
         </div>
 
-        {/* 6. More Options Toggle */}
+        {/* 2. Expense Name Input + Quick Preset Pills */}
+        <div>
+          <div style={{ position: 'relative' }}>
+            <input
+              type="text"
+              placeholder="What is this for? (e.g. Dinner, Taxi, Drinks)"
+              className="input-pill"
+              value={description}
+              onChange={(e) => handleDescriptionChange(e.target.value)}
+              onFocus={() => setShowSuggestions(true)}
+              style={{ fontSize: '0.92rem', padding: '11px 14px' }}
+              required
+            />
+
+            {showSuggestions && filteredSuggestions.length > 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-strong)',
+                borderRadius: 'var(--radius-md)',
+                boxShadow: 'var(--shadow-md)',
+                zIndex: 20,
+                marginTop: 4,
+                overflow: 'hidden'
+              }}>
+                {filteredSuggestions.map((suggestion, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      handleDescriptionChange(suggestion);
+                      setShowSuggestions(false);
+                    }}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '8px 12px',
+                      fontSize: '0.85rem',
+                      color: 'var(--text-primary)',
+                      borderBottom: idx < filteredSuggestions.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                      background: 'transparent',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Quick Preset Badges */}
+          <div style={{ display: 'flex', gap: 5, overflowX: 'auto', padding: '6px 0 2px', scrollbarWidth: 'none' }}>
+            {QUICK_PRESETS.map(preset => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => {
+                  setDescription(preset.label);
+                  setCategory(preset.category);
+                }}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '4px 9px',
+                  borderRadius: 'var(--radius-full)',
+                  background: description === preset.label ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
+                  color: description === preset.label ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
+                  border: '1px solid var(--border-subtle)',
+                  fontSize: '0.74rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                <span>{preset.emoji}</span>
+                <span>{preset.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 3. Streamlined Organized Configuration Pills */}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          
+          {/* Category Pill */}
+          <button
+            type="button"
+            onClick={() => setActiveModal('category')}
+            className="config-pill-btn"
+          >
+            <span>{currentCategoryObj.emoji}</span>
+            <span>{currentCategoryObj.label}</span>
+            <ChevronDown size={13} color="var(--text-tertiary)" />
+          </button>
+
+          {/* Paid By Pill */}
+          <button
+            type="button"
+            onClick={() => setActiveModal('paidBy')}
+            className="config-pill-btn"
+          >
+            <User size={13} color="var(--text-tertiary)" />
+            <span>Paid by: <strong>{payerName}</strong></span>
+            <ChevronDown size={13} color="var(--text-tertiary)" />
+          </button>
+
+          {/* Split With Pill */}
+          <button
+            type="button"
+            onClick={() => setActiveModal('splitWith')}
+            className="config-pill-btn"
+          >
+            <Users size={13} color="var(--text-tertiary)" />
+            <span>Split: <strong>{splitLabel}</strong></span>
+            <ChevronDown size={13} color="var(--text-tertiary)" />
+          </button>
+        </div>
+
+        {/* 4. In-App Numeric Keypad (Renders when not using native keyboard) */}
+        {!useNativeKeyboard && (
+          <div style={{
+            background: 'var(--bg-subtle)',
+            padding: 8,
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--border-subtle)',
+            marginTop: 2
+          }}>
+            <NumericKeypad
+              value={amountStr}
+              onChange={setAmountStr}
+            />
+          </div>
+        )}
+
+        {/* 5. More Options Toggle (Date, Note, Receipt, FX) */}
         <button
           type="button"
           onClick={() => setShowMoreOptions(prev => !prev)}
@@ -782,168 +633,71 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             gap: 6,
             color: 'var(--text-secondary)',
             fontWeight: 700,
-            fontSize: '0.82rem',
-            padding: '4px 0',
+            fontSize: '0.78rem',
+            padding: '2px 0',
             cursor: 'pointer',
             marginTop: 2
           }}
         >
-          <span>{showMoreOptions ? 'Fewer options' : 'More options (date, notes, custom shares)'}</span>
-          {showMoreOptions ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+          <span>{showMoreOptions ? 'Hide details' : 'More options (date, receipt photo, notes)'}</span>
+          {showMoreOptions ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
 
-        {/* Expanded Options */}
+        {/* Expanded Options Drawer */}
         {showMoreOptions && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, borderTop: '1px solid var(--border-subtle)', paddingTop: 14 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid var(--border-subtle)', paddingTop: 10 }}>
             
             {/* Date Time */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
-                Expense Date & Time
+              <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: 4 }}>
+                Date & Time
               </label>
               <input
                 type="datetime-local"
+                className="input-pill"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="input-pill"
-                style={{ padding: '8px 12px', fontSize: '0.85rem' }}
+                style={{ fontSize: '0.85rem' }}
               />
             </div>
 
-            {/* Custom Split Mode */}
+            {/* Receipt Photo */}
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <label style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Custom Exact Split Amounts
-                </label>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  <button
-                    type="button"
-                    onClick={() => setSplitMode('equal')}
-                    style={{
-                      padding: '4px 10px',
-                      borderRadius: 'var(--radius-sm)',
-                      background: splitMode === 'equal' ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
-                      color: splitMode === 'equal' ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
-                      fontSize: '0.75rem',
-                      fontWeight: 700
-                    }}
-                  >
-                    Equally
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSplitMode('custom')}
-                    style={{
-                      padding: '4px 10px',
-                      borderRadius: 'var(--radius-sm)',
-                      background: splitMode === 'custom' ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
-                      color: splitMode === 'custom' ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
-                      fontSize: '0.75rem',
-                      fontWeight: 700
-                    }}
-                  >
-                    Custom Exact
-                  </button>
-                </div>
-              </div>
-
-              {splitMode === 'custom' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-subtle)', padding: 10, borderRadius: 'var(--radius-md)' }}>
-                  {includedUserIds.map(uId => {
-                    const memberName = members.find(m => m.userId === uId)?.name || 'Member';
-                    return (
-                      <div key={uId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{memberName}</span>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>{currency}</span>
-                          <input
-                            type="number"
-                            step="any"
-                            placeholder="0.00"
-                            value={customShares[uId] || ''}
-                            onChange={(e) => handleCustomShareChange(uId, e.target.value)}
-                            style={{
-                              width: 80,
-                              padding: '4px 6px',
-                              borderRadius: 'var(--radius-sm)',
-                              border: '1px solid var(--border-subtle)',
-                              background: 'var(--bg-surface)',
-                              fontSize: '0.85rem',
-                              fontFamily: 'var(--font-mono)'
-                            }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Note */}
-            <div>
-              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
-                Note (Optional)
-              </label>
-              <input
-                type="text"
-                placeholder="Additional details, table number, etc."
-                className="input-pill"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                style={{ padding: '8px 12px', fontSize: '0.85rem' }}
-              />
-            </div>
-
-            {/* Receipt Photo Attachment */}
-            <div>
-              <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+              <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: 4 }}>
                 Receipt Photo
               </label>
+              
               <input
-                type="file"
                 ref={fileInputRef}
+                type="file"
                 accept="image/*"
-                capture="environment"
                 onChange={handleReceiptFile}
                 style={{ display: 'none' }}
               />
 
               {receiptUrl ? (
-                <div style={{ position: 'relative', display: 'inline-block', width: '100%' }}>
-                  <img
-                    src={receiptUrl}
-                    alt="Receipt preview"
-                    style={{
-                      width: '100%',
-                      maxHeight: 180,
-                      objectFit: 'cover',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1px solid var(--border-subtle)'
-                    }}
-                  />
+                <div style={{ position: 'relative', width: 90, height: 90, borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-strong)' }}>
+                  <img src={receiptUrl} alt="Receipt" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   <button
                     type="button"
                     onClick={() => setReceiptUrl(undefined)}
                     style={{
                       position: 'absolute',
-                      top: 8,
-                      right: 8,
+                      top: 4,
+                      right: 4,
                       background: 'rgba(0,0,0,0.65)',
-                      color: '#ffffff',
+                      color: '#fff',
                       border: 'none',
-                      borderRadius: 'var(--radius-full)',
-                      width: 28,
-                      height: 28,
+                      borderRadius: '50%',
+                      width: 22,
+                      height: 22,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       cursor: 'pointer'
                     }}
-                    title="Remove receipt"
                   >
-                    <X size={16} />
+                    <X size={13} />
                   </button>
                 </div>
               ) : (
@@ -951,50 +705,441 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploadingReceipt}
-                  className="btn-secondary"
                   style={{
-                    width: '100%',
-                    padding: '10px 14px',
-                    fontSize: '0.85rem',
-                    justifyContent: 'center',
-                    gap: 8,
-                    borderStyle: 'dashed'
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '8px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    background: 'var(--bg-subtle)',
+                    border: '1px dashed var(--border-strong)',
+                    color: 'var(--text-secondary)',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer'
                   }}
                 >
-                  {isUploadingReceipt ? (
-                    <>
-                      <Loader2 size={16} className="animate-spin" />
-                      <span>Optimizing & Uploading...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Camera size={16} />
-                      <span>Take Photo or Upload Receipt</span>
-                    </>
-                  )}
+                  {isUploadingReceipt ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
+                  <span>{isUploadingReceipt ? 'Uploading...' : 'Attach Receipt'}</span>
                 </button>
               )}
             </div>
 
+            {/* Note */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: 4 }}>
+                Note
+              </label>
+              <textarea
+                rows={2}
+                placeholder="Add details, notes or order items..."
+                className="input-pill"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                style={{ borderRadius: 'var(--radius-md)', resize: 'vertical', fontSize: '0.85rem' }}
+              />
+            </div>
           </div>
         )}
 
-        {/* Big Submit Button */}
+        {/* Primary Save Button */}
         <button
           type="submit"
           className="btn-primary"
           style={{
-            marginTop: 6,
-            padding: '14px',
-            fontSize: '1rem',
+            padding: '13px',
+            fontSize: '0.98rem',
             fontWeight: 800,
-            borderRadius: 'var(--radius-lg)'
+            borderRadius: 'var(--radius-lg)',
+            marginTop: 4
           }}
         >
-          <span>{editExpenseId ? 'Save Changes' : 'Add Expense'}</span>
+          <span>Save Expense {parsedAmount > 0 ? `• ${getCurrencySymbol(currency)}${parsedAmount.toFixed(2)}` : ''}</span>
         </button>
 
       </form>
+
+      {/* ========================================================================= */}
+      {/* 6. Focused Sub-Modals (Clean, Non-Cluttered Focused Selection)            */}
+      {/* ========================================================================= */}
+
+      {/* Modal A: Category Selector */}
+      {activeModal === 'category' && (
+        <div className="sheet-backdrop" onClick={() => setActiveModal('none')}>
+          <div className="sheet-content animate-slide-up" onClick={e => e.stopPropagation()} style={{ maxWidth: 420 }}>
+            <div className="sheet-handle" />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800 }}>Select Category</h3>
+              <button type="button" onClick={() => setActiveModal('none')} style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                <X size={18} color="var(--text-tertiary)" />
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+              {CATEGORIES.map(cat => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => {
+                    setCategory(cat.id);
+                    setActiveModal('none');
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '12px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    background: category === cat.id ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
+                    color: category === cat.id ? 'var(--btn-primary-text)' : 'var(--text-primary)',
+                    border: `1px solid ${category === cat.id ? 'var(--btn-primary-border)' : 'var(--border-subtle)'}`,
+                    fontSize: '0.9rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                >
+                  <span style={{ fontSize: '1.25rem' }}>{cat.emoji}</span>
+                  <span>{cat.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal B: Paid By Selector */}
+      {activeModal === 'paidBy' && (
+        <div className="sheet-backdrop" onClick={() => setActiveModal('none')}>
+          <div className="sheet-content animate-slide-up" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
+            <div className="sheet-handle" />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800 }}>Who Paid for this?</h3>
+              <button type="button" onClick={() => setActiveModal('none')} style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                <X size={18} color="var(--text-tertiary)" />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {activeMembers.map(m => {
+                const isSelected = !isMultiPayer && paidByUserId === m.userId;
+                return (
+                  <button
+                    key={m.userId}
+                    type="button"
+                    onClick={() => {
+                      setIsMultiPayer(false);
+                      setPaidByUserId(m.userId);
+                      setActiveModal('none');
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '12px 14px',
+                      borderRadius: 'var(--radius-md)',
+                      background: isSelected ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
+                      color: isSelected ? 'var(--btn-primary-text)' : 'var(--text-primary)',
+                      border: `1px solid ${isSelected ? 'var(--btn-primary-border)' : 'var(--border-subtle)'}`,
+                      fontSize: '0.9rem',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <span>{m.name} {m.userId === currentUser.id && '(You)'}</span>
+                    {isSelected && <Check size={16} />}
+                  </button>
+                );
+              })}
+
+              {/* Multiple Payers Option */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsMultiPayer(true);
+                  if (payers.length <= 1) {
+                    setPayers(activeMembers.map(m => ({
+                      userId: m.userId,
+                      amount: m.userId === paidByUserId ? (parsedAmount || 0) : 0
+                    })));
+                  }
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  background: isMultiPayer ? 'var(--bg-surface)' : 'transparent',
+                  color: isMultiPayer ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                  border: '1px dashed var(--border-strong)',
+                  fontSize: '0.88rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  marginTop: 6
+                }}
+              >
+                <span>+ Split Paid Amount Among Multiple People</span>
+              </button>
+            </div>
+
+            {/* If Multi-Payer is Active in Modal */}
+            {isMultiPayer && (
+              <div style={{ marginTop: 14, borderTop: '1px solid var(--border-subtle)', paddingTop: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
+                    Payer Amounts
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleSplitPaidEqually}
+                    style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--brand-600)', background: 'none', border: 'none', cursor: 'pointer' }}
+                  >
+                    Split Equally
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {activeMembers.map(m => {
+                    const payerObj = payers.find(p => p.userId === m.userId);
+                    const currentVal = payerObj ? (payerObj.amount > 0 ? payerObj.amount.toString() : '') : '';
+                    return (
+                      <div key={m.userId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-subtle)', padding: '6px 10px', borderRadius: 'var(--radius-md)' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{m.name}</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>{currency}</span>
+                          <input
+                            type="number"
+                            step="any"
+                            placeholder="0.00"
+                            value={currentVal}
+                            onChange={(e) => handlePayerAmountChange(m.userId, e.target.value)}
+                            style={{
+                              width: 80,
+                              padding: '5px 8px',
+                              borderRadius: 'var(--radius-sm)',
+                              border: '1px solid var(--border-subtle)',
+                              background: 'var(--bg-surface)',
+                              fontSize: '0.88rem',
+                              fontFamily: 'var(--font-mono)',
+                              color: 'var(--text-primary)'
+                            }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveModal('none')}
+                  className="btn-primary"
+                  style={{ width: '100%', marginTop: 12, padding: '10px' }}
+                >
+                  Done
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal C: Split With Selector */}
+      {activeModal === 'splitWith' && (
+        <div className="sheet-backdrop" onClick={() => setActiveModal('none')}>
+          <div className="sheet-content animate-slide-up" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
+            <div className="sheet-handle" />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800 }}>Split With</h3>
+              <button type="button" onClick={() => setActiveModal('none')} style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                <X size={18} color="var(--text-tertiary)" />
+              </button>
+            </div>
+
+            {/* Split Mode Tabs (Equal vs Custom) */}
+            <div style={{ display: 'flex', gap: 6, background: 'var(--bg-subtle)', padding: 4, borderRadius: 'var(--radius-md)', marginBottom: 12 }}>
+              <button
+                type="button"
+                onClick={() => setSplitMode('equal')}
+                style={{
+                  flex: 1,
+                  padding: '8px',
+                  borderRadius: 'var(--radius-sm)',
+                  background: splitMode === 'equal' ? 'var(--btn-primary-bg)' : 'transparent',
+                  color: splitMode === 'equal' ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
+                  border: 'none',
+                  fontWeight: 700,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Split Equally
+              </button>
+              <button
+                type="button"
+                onClick={() => setSplitMode('custom')}
+                style={{
+                  flex: 1,
+                  padding: '8px',
+                  borderRadius: 'var(--radius-sm)',
+                  background: splitMode === 'custom' ? 'var(--btn-primary-bg)' : 'transparent',
+                  color: splitMode === 'custom' ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
+                  border: 'none',
+                  fontWeight: 700,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Custom Amounts
+              </button>
+            </div>
+
+            {/* Member Checklist */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {/* Select All */}
+              <button
+                type="button"
+                onClick={() => setIncludedUserIds(activeMembers.map(m => m.userId))}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  background: includedUserIds.length === activeMembers.length ? 'var(--bg-surface)' : 'var(--bg-subtle)',
+                  border: '1px solid var(--border-subtle)',
+                  fontWeight: 700,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <span>Select Everyone ({activeMembers.length})</span>
+                {includedUserIds.length === activeMembers.length && <Check size={16} color="var(--brand-600)" />}
+              </button>
+
+              {activeMembers.map(m => {
+                const isIncluded = includedUserIds.includes(m.userId);
+                return (
+                  <div
+                    key={m.userId}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 14px',
+                      borderRadius: 'var(--radius-md)',
+                      background: 'var(--bg-subtle)',
+                      border: '1px solid var(--border-subtle)'
+                    }}
+                  >
+                    <div 
+                      onClick={() => {
+                        if (isIncluded) {
+                          if (includedUserIds.length > 1) {
+                            setIncludedUserIds(prev => prev.filter(id => id !== m.userId));
+                          }
+                        } else {
+                          setIncludedUserIds(prev => [...prev, m.userId]);
+                        }
+                      }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, cursor: 'pointer' }}
+                    >
+                      <div style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: 4,
+                        border: `1.5px solid ${isIncluded ? 'var(--brand-600)' : 'var(--border-strong)'}`,
+                        background: isIncluded ? 'var(--brand-600)' : 'transparent',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#fff'
+                      }}>
+                        {isIncluded && <Check size={14} />}
+                      </div>
+                      <span style={{ fontSize: '0.88rem', fontWeight: 600 }}>{m.name}</span>
+                    </div>
+
+                    {/* If Custom Split mode is selected */}
+                    {splitMode === 'custom' && isIncluded && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>{currency}</span>
+                        <input
+                          type="number"
+                          step="any"
+                          placeholder="0.00"
+                          value={customShares[m.userId] || ''}
+                          onChange={(e) => handleCustomShareChange(m.userId, e.target.value)}
+                          style={{
+                            width: 80,
+                            padding: '5px 8px',
+                            borderRadius: 'var(--radius-sm)',
+                            border: '1px solid var(--border-subtle)',
+                            background: 'var(--bg-surface)',
+                            fontSize: '0.88rem',
+                            fontFamily: 'var(--font-mono)',
+                            color: 'var(--text-primary)'
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setActiveModal('none')}
+              className="btn-primary"
+              style={{ width: '100%', marginTop: 14, padding: '10px' }}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal D: Currency Selector */}
+      {activeModal === 'currency' && (
+        <div className="sheet-backdrop" onClick={() => setActiveModal('none')}>
+          <div className="sheet-content animate-slide-up" onClick={e => e.stopPropagation()} style={{ maxWidth: 380 }}>
+            <div className="sheet-handle" />
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 800 }}>Select Currency</h3>
+              <button type="button" onClick={() => setActiveModal('none')} style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}>
+                <X size={18} color="var(--text-tertiary)" />
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+              {COMMON_CURRENCIES.map(curr => (
+                <button
+                  key={curr}
+                  type="button"
+                  onClick={() => {
+                    setCurrency(curr);
+                    setActiveModal('none');
+                  }}
+                  style={{
+                    padding: '10px 8px',
+                    borderRadius: 'var(--radius-md)',
+                    background: currency === curr ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
+                    color: currency === curr ? 'var(--btn-primary-text)' : 'var(--text-primary)',
+                    border: `1px solid ${currency === curr ? 'var(--btn-primary-border)' : 'var(--border-subtle)'}`,
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {curr}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
     </BottomSheet>
   );
 };
