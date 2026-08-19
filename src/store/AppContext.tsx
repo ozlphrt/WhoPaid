@@ -951,22 +951,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       if (activeUser && activeUser.id) {
-        const existing = await db.tripMembers.where('tripId').equals(tripId).and(m => m.userId === activeUser.id).first();
-        if (!existing || existing.name === 'User' || existing.name === 'Member' || existing.name !== activeUser.name) {
-          const newMember: TripMember = {
-            id: existing ? existing.id : `member_${activeUser.id}_${tripId}`,
-            tripId,
-            userId: activeUser.id,
-            name: activeUser.name || 'Member',
-            email: activeUser.email || `${(activeUser.name || 'guest').toLowerCase()}@whopaid.app`,
-            role: existing ? existing.role : 'member',
-            isActive: true,
-            joinedAt: existing ? existing.joinedAt : new Date().toISOString()
-          };
-          await db.tripMembers.put(newMember);
-          if (isFirebaseConfigured() && isOnline) {
-            await syncMemberToCloud(tripId, newMember).catch(console.warn);
-          }
+        // Look for existing member by userId OR by matching name/email to avoid duplicates
+        const allTripMembers = await db.tripMembers.where('tripId').equals(tripId).toArray();
+        const existing = allTripMembers.find(m => 
+          m.userId === activeUser.id || 
+          (activeUser.email && m.email && m.email.toLowerCase() === activeUser.email.toLowerCase()) ||
+          (activeUser.name && m.name && m.name.toLowerCase() === activeUser.name.toLowerCase())
+        );
+
+        const memberRecord: TripMember = {
+          id: existing ? existing.id : `member_${activeUser.id}_${tripId}`,
+          tripId,
+          userId: activeUser.id,
+          name: existing?.name || activeUser.name || 'Member',
+          email: activeUser.email || existing?.email || `${(activeUser.name || 'guest').toLowerCase().replace(/[^a-z0-9]/g, '')}@whopaid.app`,
+          role: existing ? existing.role : 'member',
+          isActive: true,
+          joinedAt: existing ? existing.joinedAt : new Date().toISOString()
+        };
+        await db.tripMembers.put(memberRecord);
+        if (isFirebaseConfigured() && isOnline) {
+          await syncMemberToCloud(tripId, memberRecord).catch(console.warn);
         }
       }
 
