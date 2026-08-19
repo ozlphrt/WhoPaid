@@ -259,6 +259,51 @@ export async function fetchTripFromCloud(tripId: string): Promise<Trip | null> {
   return null;
 }
 
+export async function fetchUserTripsFromCloud(userId: string, userEmail?: string): Promise<Trip[]> {
+  const { db } = getFirebaseInstances();
+  if (!db || !userId) return [];
+  try {
+    const tripsRef = collection(db, 'trips');
+    const allSnap = await getDocs(tripsRef);
+    const resultTrips: Trip[] = [];
+
+    for (const docSnap of allSnap.docs) {
+      const tripData = { id: docSnap.id, ...docSnap.data() } as Trip;
+      if (tripData.isDeleted) continue;
+
+      if (tripData.ownerId === userId) {
+        resultTrips.push(tripData);
+        continue;
+      }
+
+      // Check if user is member of this trip in cloud
+      try {
+        const memRef = collection(db, 'trips', docSnap.id, 'members');
+        const memSnap = await getDocs(memRef);
+        let isMem = false;
+        memSnap.forEach(mDoc => {
+          const m = mDoc.data() as TripMember;
+          if (
+            m.userId === userId ||
+            (userEmail && m.email && m.email.toLowerCase() === userEmail.toLowerCase())
+          ) {
+            isMem = true;
+          }
+        });
+        if (isMem) {
+          resultTrips.push(tripData);
+        }
+      } catch (memErr) {
+        console.warn('Error checking membership for trip:', docSnap.id, memErr);
+      }
+    }
+    return resultTrips;
+  } catch (err) {
+    console.warn('[Firestore] fetchUserTripsFromCloud error:', err);
+    return [];
+  }
+}
+
 export async function fetchTripExpensesFromCloud(tripId: string): Promise<Expense[]> {
   const { db } = getFirebaseInstances();
   if (!db || !tripId) return [];

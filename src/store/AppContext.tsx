@@ -27,6 +27,7 @@ import {
   syncUserToCloud,
   fetchUserFromCloud,
   fetchTripFromCloud,
+  fetchUserTripsFromCloud,
   fetchTripExpensesFromCloud,
   fetchTripMembersFromCloud,
   ActiveTripListeners
@@ -323,12 +324,57 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const tripNotifs = await db.notifications.where('userId').equals(currentUser.id).toArray();
         setNotifications(tripNotifs);
       }
+
+      // Sync trips and expenses from cloud across all devices
+      if (isFirebaseConfigured() && navigator.onLine && currentUser.id) {
+        fetchUserTripsFromCloud(currentUser.id, currentUser.email).then(async (remoteTrips) => {
+          if (remoteTrips && remoteTrips.length > 0) {
+            for (const rTrip of remoteTrips) {
+              await db.trips.put(rTrip);
+              const rMembers = await fetchTripMembersFromCloud(rTrip.id);
+              if (rMembers.length > 0) {
+                await db.tripMembers.bulkPut(rMembers);
+              }
+              const rExpenses = await fetchTripExpensesFromCloud(rTrip.id);
+              if (rExpenses.length > 0) {
+                await db.expenses.bulkPut(rExpenses);
+              }
+            }
+
+            const freshTrips = await db.trips.toArray();
+            const freshMemberships = await db.tripMembers.where('userId').equals(currentUser.id).toArray();
+            const freshMemberTripIds = new Set(freshMemberships.map(m => m.tripId));
+            const freshAllMembers = await db.tripMembers.toArray();
+            for (const m of freshAllMembers) {
+              if (
+                (currentUser.email && m.email && m.email.toLowerCase() === currentUser.email.toLowerCase()) ||
+                (currentUser.name && m.name && m.name.toLowerCase() === currentUser.name.toLowerCase())
+              ) {
+                freshMemberTripIds.add(m.tripId);
+              }
+            }
+            const updatedTrips = freshTrips.filter(t => 
+              t.ownerId === currentUser.id || freshMemberTripIds.has(t.id)
+            );
+            setTrips(updatedTrips);
+
+            if (activeTripId) {
+              const freshExps = await db.expenses.where('tripId').equals(activeTripId).toArray();
+              freshExps.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+              setExpenses(freshExps);
+
+              const freshMems = await db.tripMembers.where('tripId').equals(activeTripId).toArray();
+              setMembers(freshMems);
+            }
+          }
+        }).catch(console.warn);
+      }
     } catch (err) {
       console.warn('IndexedDB initial load error, continuing with fallback:', err);
     } finally {
       setIsInitialized(true);
     }
-  }, [activeTripId, currentUser.id]);
+  }, [activeTripId, currentUser.id, currentUser.email, currentUser.name]);
 
   useEffect(() => {
     refreshData();
