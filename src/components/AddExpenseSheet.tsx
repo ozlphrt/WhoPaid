@@ -394,43 +394,62 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
           </div>
         )}
 
-        {/* 1. Compact Hero Amount Display */}
+        {/* 1. Centered Hero Amount Display */}
         <div style={{
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '8px 12px',
-          borderRadius: 'var(--radius-md)',
-          background: 'var(--bg-subtle)',
-          border: '1px solid var(--border-subtle)',
+          justifyContent: 'center',
+          padding: '12px 16px 8px',
           position: 'relative'
         }}>
-          {/* Currency Pill */}
-          <button 
-            type="button"
-            onClick={() => setActiveModal('currency')}
-            style={{ 
-              display: 'inline-flex', 
-              alignItems: 'center', 
-              gap: 4, 
-              background: 'var(--bg-surface)', 
-              border: '1px solid var(--border-subtle)',
-              padding: '5px 10px', 
-              borderRadius: 'var(--radius-full)',
-              fontSize: '0.85rem',
-              fontWeight: 800,
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              flexShrink: 0
-            }}
-          >
-            <span>{getCurrencySymbol(currency)}</span>
-            <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{currency}</span>
-            <ChevronDown size={12} color="var(--text-tertiary)" />
-          </button>
+          {/* Floating Currency Pill (Top Right) */}
+          <div style={{ position: 'absolute', top: 0, right: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <button 
+              type="button"
+              onClick={() => setActiveModal('currency')}
+              style={{ 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                gap: 4, 
+                background: 'var(--bg-subtle)', 
+                border: '1px solid var(--border-subtle)',
+                padding: '4px 9px', 
+                borderRadius: 'var(--radius-full)',
+                fontSize: '0.78rem',
+                fontWeight: 700,
+                color: 'var(--text-primary)',
+                cursor: 'pointer'
+              }}
+            >
+              <span>{currency}</span>
+              <ChevronDown size={11} color="var(--text-tertiary)" />
+            </button>
 
-          {/* Amount Display / Input */}
-          <div style={{ flex: 1, textAlign: 'right', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+            {/* Keyboard Switcher */}
+            <button
+              type="button"
+              onClick={() => setUseNativeKeyboard(prev => !prev)}
+              title={useNativeKeyboard ? 'Use In-App Keypad' : 'Use System Keyboard'}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: useNativeKeyboard ? 'var(--brand-500)' : 'var(--text-tertiary)',
+                cursor: 'pointer',
+                padding: 2,
+                display: 'flex',
+                alignItems: 'center'
+              }}
+            >
+              <Keyboard size={14} />
+            </button>
+          </div>
+
+          {/* Centered Large Typography */}
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 6, marginTop: 4 }}>
+            <span style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--text-tertiary)' }}>
+              {getCurrencySymbol(currency)}
+            </span>
             {useNativeKeyboard ? (
               <input
                 type="text"
@@ -441,11 +460,11 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                   if (/^\d*\.?\d*$/.test(e.target.value)) setAmountStr(e.target.value);
                 }}
                 style={{
-                  fontSize: '1.9rem',
+                  fontSize: '2.6rem',
                   fontWeight: 800,
                   color: 'var(--text-primary)',
-                  width: '100%',
-                  textAlign: 'right',
+                  width: '180px',
+                  textAlign: 'center',
                   border: 'none',
                   outline: 'none',
                   background: 'transparent',
@@ -456,7 +475,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             ) : (
               <div 
                 style={{
-                  fontSize: '1.9rem',
+                  fontSize: '2.6rem',
                   fontWeight: 800,
                   color: amountStr ? 'var(--text-primary)' : 'var(--text-tertiary)',
                   fontFamily: 'var(--font-mono)',
@@ -467,128 +486,127 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                 {amountStr || '0.00'}
               </div>
             )}
+          </div>
+        </div>
 
-            {/* Toggle between In-App Keypad and Native Keyboard */}
+        {/* 2. Grouped Info Card (Title Input + 3 Config Pills) */}
+        <div style={{
+          background: 'var(--bg-subtle)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-lg)',
+          padding: 8,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6
+        }}>
+          {/* Title Input */}
+          <div style={{ position: 'relative' }}>
+            <input
+              type="text"
+              placeholder="Expense title (e.g. Dinner, Taxi, Drinks)"
+              value={description}
+              onChange={(e) => handleDescriptionChange(e.target.value)}
+              onFocus={() => setShowSuggestions(true)}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-primary)',
+                fontSize: '0.88rem',
+                fontWeight: 600,
+                outline: 'none'
+              }}
+              required
+            />
+
+            {showSuggestions && filteredSuggestions.length > 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-strong)',
+                borderRadius: 'var(--radius-md)',
+                boxShadow: 'var(--shadow-md)',
+                zIndex: 20,
+                marginTop: 2,
+                overflow: 'hidden'
+              }}>
+                {filteredSuggestions.map((suggestion, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      handleDescriptionChange(suggestion);
+                      setShowSuggestions(false);
+                    }}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '7px 12px',
+                      fontSize: '0.82rem',
+                      color: 'var(--text-primary)',
+                      borderBottom: idx < filteredSuggestions.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                      background: 'transparent',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 3 Config Pills */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 5 }}>
             <button
               type="button"
-              onClick={() => setUseNativeKeyboard(prev => !prev)}
-              title={useNativeKeyboard ? 'Use In-App Keypad' : 'Use System Keyboard'}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: useNativeKeyboard ? 'var(--btn-primary-bg)' : 'var(--text-tertiary)',
-                cursor: 'pointer',
-                padding: 2,
-                display: 'flex',
-                alignItems: 'center'
-              }}
+              onClick={() => setActiveModal('category')}
+              className="config-pill-btn"
+              style={{ padding: '6px 8px', fontSize: '0.78rem', justifyContent: 'center' }}
             >
-              <Keyboard size={15} />
+              <span>{currentCategoryObj.emoji}</span>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentCategoryObj.label}</span>
+              <ChevronDown size={11} color="var(--text-tertiary)" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveModal('paidBy')}
+              className="config-pill-btn"
+              style={{ padding: '6px 8px', fontSize: '0.78rem', justifyContent: 'center' }}
+            >
+              <User size={12} color="var(--text-tertiary)" />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{payerName}</span>
+              <ChevronDown size={11} color="var(--text-tertiary)" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveModal('splitWith')}
+              className="config-pill-btn"
+              style={{ padding: '6px 8px', fontSize: '0.78rem', justifyContent: 'center' }}
+            >
+              <Users size={12} color="var(--text-tertiary)" />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{splitLabel}</span>
+              <ChevronDown size={11} color="var(--text-tertiary)" />
             </button>
           </div>
         </div>
 
-        {/* 2. Expense Name Input */}
-        <div style={{ position: 'relative' }}>
-          <input
-            type="text"
-            placeholder="Expense title (e.g. Dinner, Taxi, Drinks)"
-            className="input-pill"
-            value={description}
-            onChange={(e) => handleDescriptionChange(e.target.value)}
-            onFocus={() => setShowSuggestions(true)}
-            style={{ fontSize: '0.88rem', padding: '9px 12px' }}
-            required
-          />
-
-          {showSuggestions && filteredSuggestions.length > 0 && (
-            <div style={{
-              position: 'absolute',
-              top: '100%',
-              left: 0,
-              right: 0,
-              background: 'var(--bg-surface)',
-              border: '1px solid var(--border-strong)',
-              borderRadius: 'var(--radius-md)',
-              boxShadow: 'var(--shadow-md)',
-              zIndex: 20,
-              marginTop: 2,
-              overflow: 'hidden'
-            }}>
-              {filteredSuggestions.map((suggestion, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => {
-                    handleDescriptionChange(suggestion);
-                    setShowSuggestions(false);
-                  }}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    textAlign: 'left',
-                    padding: '7px 12px',
-                    fontSize: '0.82rem',
-                    color: 'var(--text-primary)',
-                    borderBottom: idx < filteredSuggestions.length - 1 ? '1px solid var(--border-subtle)' : 'none',
-                    background: 'transparent',
-                    cursor: 'pointer'
-                  }}
-                >
-                  {suggestion}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* 3. Streamlined Organized Configuration Pills */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 5 }}>
-          
-          {/* Category Pill */}
-          <button
-            type="button"
-            onClick={() => setActiveModal('category')}
-            className="config-pill-btn"
-            style={{ padding: '6px 8px', fontSize: '0.78rem', justifyContent: 'center' }}
-          >
-            <span>{currentCategoryObj.emoji}</span>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentCategoryObj.label}</span>
-            <ChevronDown size={11} color="var(--text-tertiary)" />
-          </button>
-
-          {/* Paid By Pill */}
-          <button
-            type="button"
-            onClick={() => setActiveModal('paidBy')}
-            className="config-pill-btn"
-            style={{ padding: '6px 8px', fontSize: '0.78rem', justifyContent: 'center' }}
-          >
-            <User size={12} color="var(--text-tertiary)" />
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{payerName}</span>
-            <ChevronDown size={11} color="var(--text-tertiary)" />
-          </button>
-
-          {/* Split With Pill */}
-          <button
-            type="button"
-            onClick={() => setActiveModal('splitWith')}
-            className="config-pill-btn"
-            style={{ padding: '6px 8px', fontSize: '0.78rem', justifyContent: 'center' }}
-          >
-            <Users size={12} color="var(--text-tertiary)" />
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{splitLabel}</span>
-            <ChevronDown size={11} color="var(--text-tertiary)" />
-          </button>
-        </div>
-
-        {/* 4. In-App Numeric Keypad (Compact 4x3 Grid) */}
+        {/* 3. In-App Numeric Keypad (Compact Oval Keys) */}
         {!useNativeKeyboard && (
           <div style={{
             background: 'var(--bg-subtle)',
-            padding: 4,
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--border-subtle)'
+            padding: 5,
+            borderRadius: 'var(--radius-lg)',
+            border: '1px solid var(--border-subtle)',
+            marginTop: 2
           }}>
             <NumericKeypad
               value={amountStr}

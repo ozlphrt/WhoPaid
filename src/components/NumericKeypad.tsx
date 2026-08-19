@@ -55,14 +55,14 @@ export const NumericKeypad: React.FC<NumericKeypadProps> = ({
     { label: '9', action: () => handleDigit('9') },
     { label: '.', action: handleDecimal },
     { label: '0', action: () => handleDigit('0') },
-    { label: 'backspace', icon: <Delete size={18} />, action: handleBackspace }
+    { label: 'backspace', icon: <Delete size={19} />, action: handleBackspace }
   ];
 
   return (
     <div style={{
       display: 'grid',
       gridTemplateColumns: 'repeat(3, 1fr)',
-      gap: 4,
+      gap: 6,
       width: '100%',
       userSelect: 'none'
     }}>
@@ -77,21 +77,21 @@ export const NumericKeypad: React.FC<NumericKeypadProps> = ({
           }}
           className="keypad-btn"
           style={{
-            height: 42,
+            height: 44,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '1.25rem',
+            fontSize: '1.35rem',
             fontWeight: 700,
             fontFamily: 'var(--font-main)',
-            borderRadius: 'var(--radius-sm)',
-            background: 'var(--bg-surface)',
+            borderRadius: 'var(--radius-full)',
+            background: 'var(--bg-elevated)',
             color: 'var(--text-primary)',
-            border: '1px solid var(--border-subtle)',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+            border: '1px solid var(--border-strong)',
+            boxShadow: 'var(--shadow-sm)',
             cursor: 'pointer',
             touchAction: 'manipulation',
-            transition: 'all 0.1s ease',
+            transition: 'all 0.12s ease',
             WebkitTapHighlightColor: 'transparent'
           }}
         >
