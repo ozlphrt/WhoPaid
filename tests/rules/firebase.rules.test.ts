@@ -16,7 +16,7 @@ import {
 } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadString } from 'firebase/storage';
 
-const PROJECT_ID = 'whopaid-rules-test';
+const PROJECT_ID = 'demo-whopaid-rules-test';
 let testEnv: RulesTestEnvironment;
 
 beforeAll(async () => {
