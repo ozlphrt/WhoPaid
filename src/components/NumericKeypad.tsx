@@ -4,7 +4,6 @@ import { Delete } from 'lucide-react';
 interface NumericKeypadProps {
   value: string;
   onChange: (value: string) => void;
-  onSubmit?: () => void;
 }
 
 export const NumericKeypad: React.FC<NumericKeypadProps> = ({
@@ -56,16 +55,15 @@ export const NumericKeypad: React.FC<NumericKeypadProps> = ({
     { label: '9', action: () => handleDigit('9') },
     { label: '.', action: handleDecimal },
     { label: '0', action: () => handleDigit('0') },
-    { label: 'backspace', icon: <Delete size={20} />, action: handleBackspace }
+    { label: 'backspace', icon: <Delete size={18} />, action: handleBackspace }
   ];
 
   return (
     <div style={{
       display: 'grid',
       gridTemplateColumns: 'repeat(3, 1fr)',
-      gap: 6,
+      gap: 4,
       width: '100%',
-      paddingTop: 4,
       userSelect: 'none'
     }}>
       {keys.map((k, idx) => (
@@ -79,18 +77,18 @@ export const NumericKeypad: React.FC<NumericKeypadProps> = ({
           }}
           className="keypad-btn"
           style={{
-            height: 48,
+            height: 42,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '1.35rem',
+            fontSize: '1.25rem',
             fontWeight: 700,
             fontFamily: 'var(--font-main)',
-            borderRadius: 'var(--radius-md)',
+            borderRadius: 'var(--radius-sm)',
             background: 'var(--bg-surface)',
             color: 'var(--text-primary)',
             border: '1px solid var(--border-subtle)',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
             cursor: 'pointer',
             touchAction: 'manipulation',
             transition: 'all 0.1s ease',

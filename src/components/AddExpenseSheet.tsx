@@ -14,10 +14,8 @@ import {
   Calendar, 
   FileText, 
   Camera, 
-  Image as ImageIcon, 
   X, 
   Loader2, 
-  Sparkles,
   Keyboard
 } from 'lucide-react';
 import { checkForDuplicateExpense } from '../lib/duplicate';
@@ -32,15 +30,6 @@ interface AddExpenseSheetProps {
 }
 
 const COMMON_CURRENCIES: CurrencyCode[] = ['EUR', 'USD', 'TRY', 'GBP', 'CHF', 'CAD', 'AUD', 'JPY'];
-
-const QUICK_PRESETS = [
-  { label: 'Dinner', emoji: '🍽️', category: 'Food' as ExpenseCategory },
-  { label: 'Taxi', emoji: '🚕', category: 'Transport' as ExpenseCategory },
-  { label: 'Coffee', emoji: '☕', category: 'Food' as ExpenseCategory },
-  { label: 'Groceries', emoji: '🛒', category: 'Groceries' as ExpenseCategory },
-  { label: 'Hotel', emoji: '🏨', category: 'Hotel' as ExpenseCategory },
-  { label: 'Drinks', emoji: '🍻', category: 'Drinks' as ExpenseCategory }
-];
 
 export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   isOpen,
@@ -82,7 +71,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   const [splitMode, setSplitMode] = useState<'equal' | 'custom'>('equal');
   const [customShares, setCustomShares] = useState<Record<string, string>>({});
   
-  // Modal states for focused selection (eliminates clutter on main sheet)
+  // Modal states for focused selection
   const [activeModal, setActiveModal] = useState<'none' | 'category' | 'paidBy' | 'splitWith' | 'currency'>('none');
   const [useNativeKeyboard, setUseNativeKeyboard] = useState<boolean>(false);
 
@@ -92,7 +81,6 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
 
   // Autocomplete Suggestions
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
-  const [ocrAutoFilled, setOcrAutoFilled] = useState<boolean>(false);
 
   const handleReceiptFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -111,11 +99,9 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
         reader.readAsDataURL(file);
       }
 
-      // Check if filename contains hints (e.g. "Dinner_Mylos_45EUR.jpg")
       const parsed = parseReceiptText(file.name.replace(/[._-]/g, ' '));
       if (parsed.amount && !amountStr) {
         setAmountStr(parsed.amount.toString());
-        setOcrAutoFilled(true);
       }
       if (parsed.currency && (!currency || currency === lastUsedCurrency)) {
         setCurrency(parsed.currency);
@@ -123,7 +109,6 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
       if (parsed.vendor && !description) {
         setDescription(parsed.vendor);
         if (parsed.category) setCategory(parsed.category);
-        setOcrAutoFilled(true);
       }
     } catch (err: any) {
       console.warn('Firebase upload fallback to local dataURL:', err);
@@ -158,7 +143,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
         setIsMultiPayer(exp.payers && exp.payers.length > 1);
         setPayers(exp.payers || [{ userId: exp.paidByUserId, amount: exp.originalAmount }]);
         setIncludedUserIds(exp.participants.map(p => p.userId));
-        setSplitMode(exp.splitMode);
+        setSplitMode(exp.splitMode || 'equal');
         setIsManualFx(exp.isManualExchangeRate);
         setManualFxRate(exp.exchangeRate.toString());
 
@@ -167,7 +152,6 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
           shares[p.userId] = p.amount.toString();
         });
         setCustomShares(shares);
-        setShowMoreOptions(true);
         return;
       }
     }
@@ -208,7 +192,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     if (!description.trim() || description.length < 2) return [];
     return tripDescriptions.filter(d => 
       d.toLowerCase().startsWith(description.toLowerCase()) && d.toLowerCase() !== description.toLowerCase()
-    ).slice(0, 4);
+    ).slice(0, 3);
   }, [description, tripDescriptions]);
 
   // Auto-suggest category when description changes
@@ -275,6 +259,21 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     }, 0);
   }, [includedUserIds, customShares]);
 
+  // Switch to Custom Split and prefill with equal portions
+  const handleSetSplitModeCustom = () => {
+    setSplitMode('custom');
+    if (parsedAmount > 0 && includedUserIds.length > 0) {
+      const share = roundMoney(parsedAmount / includedUserIds.length, 2);
+      const shares: Record<string, string> = {};
+      includedUserIds.forEach((id, idx) => {
+        shares[id] = idx === 0 
+          ? roundMoney(sub(parsedAmount, mul(share, includedUserIds.length - 1)), 2).toString()
+          : share.toString();
+      });
+      setCustomShares(shares);
+    }
+  };
+
   // Save Expense
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -296,13 +295,20 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
       return;
     }
 
-    if (splitMode === 'custom' && Math.abs(customSharesTotal - parsedAmount) > 0.01) {
-      showAlert(`Custom shares (${currency} ${customSharesTotal.toFixed(2)}) must equal total amount (${currency} ${parsedAmount.toFixed(2)}).`, 'Custom Share Mismatch', 'warning');
-      return;
+    let effectiveSplitMode = splitMode;
+    let participants: ExpenseParticipant[] = [];
+
+    if (effectiveSplitMode === 'custom') {
+      if (customSharesTotal <= 0) {
+        // If no custom amounts were typed, safely default to equal split
+        effectiveSplitMode = 'equal';
+      } else if (Math.abs(customSharesTotal - parsedAmount) > 0.01) {
+        showAlert(`Custom shares (${currency} ${customSharesTotal.toFixed(2)}) must equal total amount (${currency} ${parsedAmount.toFixed(2)}).`, 'Custom Share Mismatch', 'warning');
+        return;
+      }
     }
 
-    let participants: ExpenseParticipant[] = [];
-    if (splitMode === 'custom') {
+    if (effectiveSplitMode === 'custom') {
       participants = includedUserIds.map(uId => ({
         userId: uId,
         amount: roundMoney(parseFloat(customShares[uId] || '0') || 0, 2)
@@ -330,7 +336,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
       paidByUserId: isMultiPayer ? (payersPayload[0]?.userId || paidByUserId) : paidByUserId,
       payers: payersPayload,
       participants,
-      splitMode,
+      splitMode: effectiveSplitMode,
       isManualExchangeRate: isManualFx,
       exchangeRate: isManualFx ? parseFloat(manualFxRate) || 1 : undefined
     };
@@ -351,7 +357,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   };
 
   const payerName = isMultiPayer
-    ? 'Multiple People'
+    ? 'Multiple'
     : (activeMembers.find(m => m.userId === paidByUserId)?.name || (paidByUserId === currentUser.id ? 'You' : 'Member'));
 
   const splitLabel = includedUserIds.length === activeMembers.length
@@ -366,7 +372,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
       onClose={onClose} 
       title={editExpenseId ? 'Edit Expense' : 'Add Expense'}
     >
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         
         {/* Possible Duplicate Warning */}
         {duplicateCheck.isDuplicate && (
@@ -375,27 +381,24 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             border: '1px solid var(--warning-border)',
             color: 'var(--warning-text)',
             borderRadius: 'var(--radius-md)',
-            padding: '8px 12px',
-            fontSize: '0.8rem',
+            padding: '6px 10px',
+            fontSize: '0.75rem',
             display: 'flex',
-            alignItems: 'flex-start',
-            gap: 8
+            alignItems: 'center',
+            gap: 6
           }}>
-            <AlertCircle size={15} style={{ flexShrink: 0, marginTop: 1 }} />
-            <div>
-              <strong style={{ display: 'block', fontWeight: 600 }}>Possible duplicate</strong>
-              <span>{duplicateCheck.reason}</span>
-            </div>
+            <AlertCircle size={14} style={{ flexShrink: 0 }} />
+            <span>Possible duplicate: {duplicateCheck.reason}</span>
           </div>
         )}
 
-        {/* 1. Hero Amount Display Card */}
+        {/* 1. Compact Hero Amount Display */}
         <div style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '12px 16px',
-          borderRadius: 'var(--radius-lg)',
+          padding: '8px 12px',
+          borderRadius: 'var(--radius-md)',
           background: 'var(--bg-subtle)',
           border: '1px solid var(--border-subtle)',
           position: 'relative'
@@ -407,12 +410,12 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             style={{ 
               display: 'inline-flex', 
               alignItems: 'center', 
-              gap: 5, 
+              gap: 4, 
               background: 'var(--bg-surface)', 
               border: '1px solid var(--border-subtle)',
-              padding: '6px 12px', 
+              padding: '5px 10px', 
               borderRadius: 'var(--radius-full)',
-              fontSize: '0.9rem',
+              fontSize: '0.85rem',
               fontWeight: 800,
               color: 'var(--text-primary)',
               cursor: 'pointer',
@@ -420,8 +423,8 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             }}
           >
             <span>{getCurrencySymbol(currency)}</span>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{currency}</span>
-            <ChevronDown size={13} color="var(--text-tertiary)" />
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)' }}>{currency}</span>
+            <ChevronDown size={12} color="var(--text-tertiary)" />
           </button>
 
           {/* Amount Display / Input */}
@@ -436,7 +439,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                   if (/^\d*\.?\d*$/.test(e.target.value)) setAmountStr(e.target.value);
                 }}
                 style={{
-                  fontSize: '2.2rem',
+                  fontSize: '1.9rem',
                   fontWeight: 800,
                   color: 'var(--text-primary)',
                   width: '100%',
@@ -451,7 +454,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             ) : (
               <div 
                 style={{
-                  fontSize: '2.2rem',
+                  fontSize: '1.9rem',
                   fontWeight: 800,
                   color: amountStr ? 'var(--text-primary)' : 'var(--text-tertiary)',
                   fontFamily: 'var(--font-mono)',
@@ -473,115 +476,83 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                 border: 'none',
                 color: useNativeKeyboard ? 'var(--btn-primary-bg)' : 'var(--text-tertiary)',
                 cursor: 'pointer',
-                padding: 4,
+                padding: 2,
                 display: 'flex',
                 alignItems: 'center'
               }}
             >
-              <Keyboard size={16} />
+              <Keyboard size={15} />
             </button>
           </div>
         </div>
 
-        {/* 2. Expense Name Input + Quick Preset Pills */}
-        <div>
-          <div style={{ position: 'relative' }}>
-            <input
-              type="text"
-              placeholder="What is this for? (e.g. Dinner, Taxi, Drinks)"
-              className="input-pill"
-              value={description}
-              onChange={(e) => handleDescriptionChange(e.target.value)}
-              onFocus={() => setShowSuggestions(true)}
-              style={{ fontSize: '0.92rem', padding: '11px 14px' }}
-              required
-            />
+        {/* 2. Expense Name Input */}
+        <div style={{ position: 'relative' }}>
+          <input
+            type="text"
+            placeholder="Expense title (e.g. Dinner, Taxi, Drinks)"
+            className="input-pill"
+            value={description}
+            onChange={(e) => handleDescriptionChange(e.target.value)}
+            onFocus={() => setShowSuggestions(true)}
+            style={{ fontSize: '0.88rem', padding: '9px 12px' }}
+            required
+          />
 
-            {showSuggestions && filteredSuggestions.length > 0 && (
-              <div style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 0,
-                background: 'var(--bg-surface)',
-                border: '1px solid var(--border-strong)',
-                borderRadius: 'var(--radius-md)',
-                boxShadow: 'var(--shadow-md)',
-                zIndex: 20,
-                marginTop: 4,
-                overflow: 'hidden'
-              }}>
-                {filteredSuggestions.map((suggestion, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => {
-                      handleDescriptionChange(suggestion);
-                      setShowSuggestions(false);
-                    }}
-                    style={{
-                      display: 'block',
-                      width: '100%',
-                      textAlign: 'left',
-                      padding: '8px 12px',
-                      fontSize: '0.85rem',
-                      color: 'var(--text-primary)',
-                      borderBottom: idx < filteredSuggestions.length - 1 ? '1px solid var(--border-subtle)' : 'none',
-                      background: 'transparent',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Quick Preset Badges */}
-          <div style={{ display: 'flex', gap: 5, overflowX: 'auto', padding: '6px 0 2px', scrollbarWidth: 'none' }}>
-            {QUICK_PRESETS.map(preset => (
-              <button
-                key={preset.label}
-                type="button"
-                onClick={() => {
-                  setDescription(preset.label);
-                  setCategory(preset.category);
-                }}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  padding: '4px 9px',
-                  borderRadius: 'var(--radius-full)',
-                  background: description === preset.label ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
-                  color: description === preset.label ? 'var(--btn-primary-text)' : 'var(--text-secondary)',
-                  border: '1px solid var(--border-subtle)',
-                  fontSize: '0.74rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                <span>{preset.emoji}</span>
-                <span>{preset.label}</span>
-              </button>
-            ))}
-          </div>
+          {showSuggestions && filteredSuggestions.length > 0 && (
+            <div style={{
+              position: 'absolute',
+              top: '100%',
+              left: 0,
+              right: 0,
+              background: 'var(--bg-surface)',
+              border: '1px solid var(--border-strong)',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: 'var(--shadow-md)',
+              zIndex: 20,
+              marginTop: 2,
+              overflow: 'hidden'
+            }}>
+              {filteredSuggestions.map((suggestion, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    handleDescriptionChange(suggestion);
+                    setShowSuggestions(false);
+                  }}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '7px 12px',
+                    fontSize: '0.82rem',
+                    color: 'var(--text-primary)',
+                    borderBottom: idx < filteredSuggestions.length - 1 ? '1px solid var(--border-subtle)' : 'none',
+                    background: 'transparent',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {suggestion}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* 3. Streamlined Organized Configuration Pills */}
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 5 }}>
           
           {/* Category Pill */}
           <button
             type="button"
             onClick={() => setActiveModal('category')}
             className="config-pill-btn"
+            style={{ padding: '6px 8px', fontSize: '0.78rem', justifyContent: 'center' }}
           >
             <span>{currentCategoryObj.emoji}</span>
-            <span>{currentCategoryObj.label}</span>
-            <ChevronDown size={13} color="var(--text-tertiary)" />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentCategoryObj.label}</span>
+            <ChevronDown size={11} color="var(--text-tertiary)" />
           </button>
 
           {/* Paid By Pill */}
@@ -589,10 +560,11 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             type="button"
             onClick={() => setActiveModal('paidBy')}
             className="config-pill-btn"
+            style={{ padding: '6px 8px', fontSize: '0.78rem', justifyContent: 'center' }}
           >
-            <User size={13} color="var(--text-tertiary)" />
-            <span>Paid by: <strong>{payerName}</strong></span>
-            <ChevronDown size={13} color="var(--text-tertiary)" />
+            <User size={12} color="var(--text-tertiary)" />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{payerName}</span>
+            <ChevronDown size={11} color="var(--text-tertiary)" />
           </button>
 
           {/* Split With Pill */}
@@ -600,21 +572,21 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             type="button"
             onClick={() => setActiveModal('splitWith')}
             className="config-pill-btn"
+            style={{ padding: '6px 8px', fontSize: '0.78rem', justifyContent: 'center' }}
           >
-            <Users size={13} color="var(--text-tertiary)" />
-            <span>Split: <strong>{splitLabel}</strong></span>
-            <ChevronDown size={13} color="var(--text-tertiary)" />
+            <Users size={12} color="var(--text-tertiary)" />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{splitLabel}</span>
+            <ChevronDown size={11} color="var(--text-tertiary)" />
           </button>
         </div>
 
-        {/* 4. In-App Numeric Keypad (Renders when not using native keyboard) */}
+        {/* 4. In-App Numeric Keypad (Compact 4x3 Grid) */}
         {!useNativeKeyboard && (
           <div style={{
             background: 'var(--bg-subtle)',
-            padding: 8,
-            borderRadius: 'var(--radius-lg)',
-            border: '1px solid var(--border-subtle)',
-            marginTop: 2
+            padding: 4,
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--border-subtle)'
           }}>
             <NumericKeypad
               value={amountStr}
@@ -624,33 +596,35 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
         )}
 
         {/* 5. More Options Toggle (Date, Note, Receipt, FX) */}
-        <button
-          type="button"
-          onClick={() => setShowMoreOptions(prev => !prev)}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 6,
-            color: 'var(--text-secondary)',
-            fontWeight: 700,
-            fontSize: '0.78rem',
-            padding: '2px 0',
-            cursor: 'pointer',
-            marginTop: 2
-          }}
-        >
-          <span>{showMoreOptions ? 'Hide details' : 'More options (date, receipt photo, notes)'}</span>
-          {showMoreOptions ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        </button>
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <button
+            type="button"
+            onClick={() => setShowMoreOptions(prev => !prev)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              color: 'var(--text-tertiary)',
+              fontWeight: 600,
+              fontSize: '0.74rem',
+              padding: '2px 6px',
+              cursor: 'pointer',
+              background: 'none',
+              border: 'none'
+            }}
+          >
+            <span>{showMoreOptions ? 'Hide details' : '+ More options (date, receipt photo, notes)'}</span>
+            {showMoreOptions ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          </button>
+        </div>
 
         {/* Expanded Options Drawer */}
         {showMoreOptions && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, borderTop: '1px solid var(--border-subtle)', paddingTop: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px solid var(--border-subtle)', paddingTop: 8 }}>
             
             {/* Date Time */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: 4 }}>
+              <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: 2 }}>
                 Date & Time
               </label>
               <input
@@ -658,13 +632,13 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                 className="input-pill"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                style={{ fontSize: '0.85rem' }}
+                style={{ fontSize: '0.82rem', padding: '6px 10px' }}
               />
             </div>
 
             {/* Receipt Photo */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: 4 }}>
+              <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: 2 }}>
                 Receipt Photo
               </label>
               
@@ -677,28 +651,28 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
               />
 
               {receiptUrl ? (
-                <div style={{ position: 'relative', width: 90, height: 90, borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-strong)' }}>
+                <div style={{ position: 'relative', width: 70, height: 70, borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-strong)' }}>
                   <img src={receiptUrl} alt="Receipt" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   <button
                     type="button"
                     onClick={() => setReceiptUrl(undefined)}
                     style={{
                       position: 'absolute',
-                      top: 4,
-                      right: 4,
+                      top: 2,
+                      right: 2,
                       background: 'rgba(0,0,0,0.65)',
                       color: '#fff',
                       border: 'none',
                       borderRadius: '50%',
-                      width: 22,
-                      height: 22,
+                      width: 20,
+                      height: 20,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       cursor: 'pointer'
                     }}
                   >
-                    <X size={13} />
+                    <X size={12} />
                   </button>
                 </div>
               ) : (
@@ -710,17 +684,17 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 6,
-                    padding: '8px 12px',
+                    padding: '6px 10px',
                     borderRadius: 'var(--radius-md)',
                     background: 'var(--bg-subtle)',
                     border: '1px dashed var(--border-strong)',
                     color: 'var(--text-secondary)',
-                    fontSize: '0.8rem',
+                    fontSize: '0.78rem',
                     fontWeight: 600,
                     cursor: 'pointer'
                   }}
                 >
-                  {isUploadingReceipt ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />}
+                  {isUploadingReceipt ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
                   <span>{isUploadingReceipt ? 'Uploading...' : 'Attach Receipt'}</span>
                 </button>
               )}
@@ -728,7 +702,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
 
             {/* Note */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: 4 }}>
+              <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: 2 }}>
                 Note
               </label>
               <textarea
@@ -737,7 +711,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                 className="input-pill"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                style={{ borderRadius: 'var(--radius-md)', resize: 'vertical', fontSize: '0.85rem' }}
+                style={{ borderRadius: 'var(--radius-md)', resize: 'vertical', fontSize: '0.82rem', padding: '6px 10px' }}
               />
             </div>
           </div>
@@ -748,11 +722,10 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
           type="submit"
           className="btn-primary"
           style={{
-            padding: '13px',
-            fontSize: '0.98rem',
+            padding: '11px',
+            fontSize: '0.92rem',
             fontWeight: 800,
-            borderRadius: 'var(--radius-lg)',
-            marginTop: 4
+            borderRadius: 'var(--radius-md)'
           }}
         >
           <span>Save Expense {parsedAmount > 0 ? `• ${getCurrencySymbol(currency)}${parsedAmount.toFixed(2)}` : ''}</span>
@@ -978,7 +951,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setSplitMode('custom')}
+                onClick={handleSetSplitModeCustom}
                 style={{
                   flex: 1,
                   padding: '8px',
@@ -1000,7 +973,19 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
               {/* Select All */}
               <button
                 type="button"
-                onClick={() => setIncludedUserIds(activeMembers.map(m => m.userId))}
+                onClick={() => {
+                  setIncludedUserIds(activeMembers.map(m => m.userId));
+                  if (splitMode === 'custom' && parsedAmount > 0) {
+                    const share = roundMoney(parsedAmount / activeMembers.length, 2);
+                    const shares: Record<string, string> = {};
+                    activeMembers.forEach((m, idx) => {
+                      shares[m.userId] = idx === 0 
+                        ? roundMoney(sub(parsedAmount, mul(share, activeMembers.length - 1)), 2).toString()
+                        : share.toString();
+                    });
+                    setCustomShares(shares);
+                  }
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
