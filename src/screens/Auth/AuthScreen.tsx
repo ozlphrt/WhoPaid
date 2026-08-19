@@ -433,7 +433,7 @@ export const AuthScreen: React.FC = () => {
           <span>Encrypted Auth • Works with any email • Cloud Backup</span>
         </div>
         <span style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)' }}>
-          WhoPaid • v1.0.0
+          WhoPaid • v1.1.0
         </span>
       </div>
 
