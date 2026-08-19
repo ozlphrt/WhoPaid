@@ -153,6 +153,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (isFirebaseConfigured() && isOnline) {
       syncUserToCloud(u).catch(console.warn);
     }
+
+    // Propagate updated display name across all trip memberships in local DB and Firestore
+    db.tripMembers.toArray().then(async (allMembers) => {
+      for (const m of allMembers) {
+        const isMatch = (u.id && m.userId === u.id) || 
+                        (u.email && m.email && m.email.toLowerCase() === u.email.toLowerCase());
+        if (isMatch && m.name !== u.name) {
+          const updatedMember: TripMember = { ...m, name: u.name, userId: u.id };
+          await db.tripMembers.put(updatedMember);
+          if (isFirebaseConfigured() && isOnline) {
+            syncMemberToCloud(m.tripId, updatedMember).catch(console.warn);
+          }
+        }
+      }
+    }).catch(console.warn);
   };
 
   const [trips, setTrips] = useState<Trip[]>([]);

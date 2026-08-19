@@ -13,7 +13,8 @@ export const ProfileScreen: React.FC = () => {
     logoutUser,
     clearAllData,
     enableNotifications,
-    isNotificationsEnabled
+    isNotificationsEnabled,
+    refreshData
   } = useApp();
 
   const [notifGranted, setNotifGranted] = useState(isNotificationsEnabled);
@@ -28,7 +29,7 @@ export const ProfileScreen: React.FC = () => {
     setDefaultCurrency(currentUser.defaultCurrency || 'EUR');
   }, [currentUser]);
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setCurrentUser({
       ...currentUser,
@@ -36,6 +37,7 @@ export const ProfileScreen: React.FC = () => {
       email: email.trim() || currentUser.email,
       defaultCurrency
     });
+    await refreshData();
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 2500);
   };
