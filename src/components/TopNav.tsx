@@ -161,19 +161,6 @@ export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
 
         {/* Right Actions */}
         <div className="nav-actions" style={{ flexShrink: 0, gap: 8, alignItems: 'center' }}>
-          {/* Small Clean LED Status Dot (Replaces text pill) */}
-          <div
-            title={isOnline ? "Cloud Sync Active" : "Offline Mode (Local Storage)"}
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: 'var(--radius-full)',
-              background: isOnline ? '#10b981' : '#f59e0b',
-              boxShadow: isOnline ? '0 0 6px rgba(16, 185, 129, 0.6)' : '0 0 6px rgba(245, 158, 11, 0.6)',
-              marginRight: 2
-            }}
-          />
-
           {/* Light / Dark Mode Toggle Button */}
           <button
             onClick={toggleTheme}
