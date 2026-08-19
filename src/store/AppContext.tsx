@@ -24,6 +24,8 @@ import {
   deleteExpenseFromCloud, 
   syncSettlementToCloud, 
   syncActivityToCloud,
+  syncUserToCloud,
+  fetchUserFromCloud,
   ActiveTripListeners
 } from '../lib/firestoreSync';
 import { sendLocalNotification, requestNotificationPermission, isNotificationGranted } from '../lib/notifications';
@@ -144,6 +146,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setStoredUser(u);
     localStorage.setItem('whopaid_auth_user', JSON.stringify(u));
     db.users.put(u);
+    if (isFirebaseConfigured() && isOnline) {
+      syncUserToCloud(u).catch(console.warn);
+    }
   };
 
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -200,15 +205,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     setCloudSyncStatus('connected');
-    const unsubscribeAuth = subscribeToAuthChanges((fbUser) => {
+    const unsubscribeAuth = subscribeToAuthChanges(async (fbUser) => {
       setFirebaseUser(fbUser);
       if (fbUser) {
+        // Retrieve customized display name and currency if previously saved
+        const localExisting = await db.users.get(fbUser.uid);
+        const cloudExisting = isFirebaseConfigured() ? await fetchUserFromCloud(fbUser.uid) : null;
+
+        const resolvedName = localExisting?.name || cloudExisting?.name || fbUser.displayName || 'User';
+        const resolvedCurrency = localExisting?.defaultCurrency || cloudExisting?.defaultCurrency || 'EUR';
+        const resolvedAvatar = fbUser.photoURL || localExisting?.avatarUrl || cloudExisting?.avatarUrl;
+
         const updatedUser: User = {
           id: fbUser.uid,
-          name: fbUser.displayName || 'User',
-          email: fbUser.email || 'user@whopaid.app',
-          defaultCurrency: 'EUR',
-          avatarUrl: fbUser.photoURL || undefined
+          name: resolvedName,
+          email: fbUser.email || localExisting?.email || 'user@whopaid.app',
+          defaultCurrency: resolvedCurrency,
+          avatarUrl: resolvedAvatar
         };
         setCurrentUser(updatedUser);
       }
@@ -1001,12 +1014,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const fbUser = await fbLoginGoogle();
       if (fbUser) {
+        const localExisting = await db.users.get(fbUser.uid);
+        const cloudExisting = isFirebaseConfigured() ? await fetchUserFromCloud(fbUser.uid) : null;
+
+        const resolvedName = localExisting?.name || cloudExisting?.name || fbUser.displayName || 'User';
+        const resolvedCurrency = localExisting?.defaultCurrency || cloudExisting?.defaultCurrency || 'EUR';
+        const resolvedAvatar = fbUser.photoURL || localExisting?.avatarUrl || cloudExisting?.avatarUrl;
+
         const u: User = {
           id: fbUser.uid,
-          name: fbUser.displayName || 'User',
-          email: fbUser.email || 'user@whopaid.app',
-          defaultCurrency: 'EUR',
-          avatarUrl: fbUser.photoURL || undefined
+          name: resolvedName,
+          email: fbUser.email || localExisting?.email || 'user@whopaid.app',
+          defaultCurrency: resolvedCurrency,
+          avatarUrl: resolvedAvatar
         };
         setCurrentUser(u);
       }

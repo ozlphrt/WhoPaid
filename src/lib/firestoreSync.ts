@@ -1,6 +1,7 @@
 import { 
   collection, 
   doc, 
+  getDoc,
   setDoc, 
   deleteDoc, 
   onSnapshot, 
@@ -221,6 +222,39 @@ export async function compressAndUploadReceipt(
     console.warn('[Storage] Upload failed, falling back to compressed inline WebP:', storageErr);
     return compressedDataUrl;
   }
+}
+
+export async function syncUserToCloud(user: { id: string; name: string; email: string; defaultCurrency?: string; avatarUrl?: string }): Promise<void> {
+  const { db } = getFirebaseInstances();
+  if (!db || !user?.id) return;
+  try {
+    const userRef = doc(db, 'users', user.id);
+    await setDoc(userRef, {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      defaultCurrency: user.defaultCurrency || 'EUR',
+      avatarUrl: user.avatarUrl || null,
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+  } catch (err) {
+    console.warn('[Firestore] Failed to sync user profile:', err);
+  }
+}
+
+export async function fetchUserFromCloud(uid: string): Promise<any | null> {
+  const { db } = getFirebaseInstances();
+  if (!db || !uid) return null;
+  try {
+    const userRef = doc(db, 'users', uid);
+    const snap = await getDoc(userRef);
+    if (snap.exists()) {
+      return snap.data();
+    }
+  } catch (err) {
+    console.warn('[Firestore] Failed to fetch user profile:', err);
+  }
+  return null;
 }
 
 function compressImageToWebpDataUrl(source: File | Blob, maxDim = 1200, quality = 0.75): Promise<string> {
