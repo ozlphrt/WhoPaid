@@ -928,10 +928,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const joinTrip = async (tripId: string) => {
     try {
+      // Resolve active user (state or localStorage fallback for new guest logins)
+      let activeUser = currentUser;
+      if (!activeUser.id) {
+        const savedAuth = localStorage.getItem('whopaid_auth_user');
+        if (savedAuth) {
+          try {
+            activeUser = JSON.parse(savedAuth);
+          } catch {}
+        }
+      }
+
       if (isFirebaseConfigured()) {
         const remoteTrip = await fetchTripFromCloud(tripId);
         if (remoteTrip) {
           await db.trips.put(remoteTrip);
+
+          // Populate members and expenses locally so joined user sees them immediately
+          const rMembers = await fetchTripMembersFromCloud(tripId);
+          if (rMembers.length > 0) {
+            await db.tripMembers.bulkPut(rMembers);
+          }
+          const rExpenses = await fetchTripExpensesFromCloud(tripId);
+          if (rExpenses.length > 0) {
+            await db.expenses.bulkPut(rExpenses);
+          }
+
           setTrips(prev => {
             const idx = prev.findIndex(t => t.id === remoteTrip.id);
             if (idx >= 0) {
@@ -944,24 +966,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
 
-      const existing = await db.tripMembers.where('tripId').equals(tripId).and(m => m.userId === currentUser.id).first();
-      if (!existing || existing.name === 'User' || existing.name === 'Member' || existing.name !== currentUser.name) {
-        const newMember: TripMember = {
-          id: existing ? existing.id : `member_${currentUser.id}_${tripId}`,
-          tripId,
-          userId: currentUser.id,
-          name: currentUser.name || 'Member',
-          email: currentUser.email || `${(currentUser.name || 'guest').toLowerCase()}@whopaid.app`,
-          role: existing ? existing.role : 'member',
-          isActive: true,
-          joinedAt: existing ? existing.joinedAt : new Date().toISOString()
-        };
-        await db.tripMembers.put(newMember);
-        if (isFirebaseConfigured() && isOnline) {
-          syncMemberToCloud(tripId, newMember).catch(console.warn);
+      if (activeUser && activeUser.id) {
+        const existing = await db.tripMembers.where('tripId').equals(tripId).and(m => m.userId === activeUser.id).first();
+        if (!existing || existing.name === 'User' || existing.name === 'Member' || existing.name !== activeUser.name) {
+          const newMember: TripMember = {
+            id: existing ? existing.id : `member_${activeUser.id}_${tripId}`,
+            tripId,
+            userId: activeUser.id,
+            name: activeUser.name || 'Member',
+            email: activeUser.email || `${(activeUser.name || 'guest').toLowerCase()}@whopaid.app`,
+            role: existing ? existing.role : 'member',
+            isActive: true,
+            joinedAt: existing ? existing.joinedAt : new Date().toISOString()
+          };
+          await db.tripMembers.put(newMember);
+          if (isFirebaseConfigured() && isOnline) {
+            await syncMemberToCloud(tripId, newMember).catch(console.warn);
+          }
         }
       }
+
       setActiveTripId(tripId);
+      localStorage.setItem('whopaid_active_trip', tripId);
       await refreshData();
     } catch (err) {
       console.warn('Failed to join trip:', err);

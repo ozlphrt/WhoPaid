@@ -14,6 +14,7 @@ export const AuthScreen: React.FC = () => {
     loginWithGoogleAuth, 
     setCurrentUser, 
     refreshData,
+    joinTrip,
     isFirebaseActive 
   } = useApp();
 
@@ -82,7 +83,24 @@ export const AuthScreen: React.FC = () => {
 
       setCurrentUser(newUser);
       localStorage.setItem('whopaid_auth_user', JSON.stringify(newUser));
-      await refreshData();
+
+      // If user arrived via an invitation link or QR code, join the trip immediately
+      const searchParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '');
+      const pendingJoin = searchParams.get('join') ||
+        searchParams.get('tripId') ||
+        hashParams.get('join') ||
+        hashParams.get('tripId') ||
+        sessionStorage.getItem('whopaid_pending_join') ||
+        localStorage.getItem('whopaid_pending_join');
+
+      if (pendingJoin) {
+        sessionStorage.removeItem('whopaid_pending_join');
+        localStorage.removeItem('whopaid_pending_join');
+        await joinTrip(pendingJoin);
+      } else {
+        await refreshData();
+      }
     } catch (err: any) {
       console.error('Guest Sign In Error:', err);
       setErrorMsg(err.message || 'Failed to create guest session.');

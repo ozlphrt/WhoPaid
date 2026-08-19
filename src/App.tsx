@@ -136,15 +136,19 @@ const AppContent: React.FC<AppContentProps> = () => {
 
   // Handle invitation URL if query params exist (?join=... or ?tripId=...)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const urlJoinId = params.get('join') || params.get('tripId');
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '');
+    
+    const urlJoinId = searchParams.get('join') || searchParams.get('tripId') || hashParams.get('join') || hashParams.get('tripId');
     if (urlJoinId) {
       sessionStorage.setItem('whopaid_pending_join', urlJoinId);
+      localStorage.setItem('whopaid_pending_join', urlJoinId);
     }
 
-    const pendingJoin = urlJoinId || sessionStorage.getItem('whopaid_pending_join');
+    const pendingJoin = urlJoinId || sessionStorage.getItem('whopaid_pending_join') || localStorage.getItem('whopaid_pending_join');
     if (pendingJoin && isAuthenticated) {
       sessionStorage.removeItem('whopaid_pending_join');
+      localStorage.removeItem('whopaid_pending_join');
       joinTrip(pendingJoin).then(() => {
         handleNavigate('trip-home');
       });
