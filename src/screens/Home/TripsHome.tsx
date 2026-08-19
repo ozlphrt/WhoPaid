@@ -22,6 +22,7 @@ export const TripsHome: React.FC<TripsHomeProps> = ({ onSelectTrip, onOpenArchiv
     let isMounted = true;
 
     const loadAllTripBalances = async () => {
+      const allKnownUsers = await db.users.toArray();
       const results: Record<string, { net: number; hasExpenses: boolean }> = {};
       for (const trip of activeTrips) {
         const tripMems = await db.tripMembers.where('tripId').equals(trip.id).toArray();
@@ -30,8 +31,12 @@ export const TripsHome: React.FC<TripsHomeProps> = ({ onSelectTrip, onOpenArchiv
         const tripHouseholds = await db.households.where('tripId').equals(trip.id).toArray();
 
         const activeExps = tripExps.filter(e => !e.isDeleted);
-        const b = calculateParticipantBalances(tripMems, tripExps, tripSettlements, tripHouseholds);
-        const myBal = b.individualBalances.find(ib => ib.userId === currentUser.id);
+        const b = calculateParticipantBalances(tripMems, tripExps, tripSettlements, tripHouseholds, allKnownUsers);
+        const myBal = b.individualBalances.find(ib => 
+          ib.userId === currentUser.id || 
+          (currentUser.email && ib.userId.toLowerCase() === currentUser.email.toLowerCase()) ||
+          (currentUser.name && ib.name.toLowerCase() === currentUser.name.toLowerCase())
+        );
         results[trip.id] = {
           net: myBal ? myBal.net : 0,
           hasExpenses: activeExps.length > 0
@@ -47,7 +52,7 @@ export const TripsHome: React.FC<TripsHomeProps> = ({ onSelectTrip, onOpenArchiv
     return () => {
       isMounted = false;
     };
-  }, [activeTrips, currentUser.id]);
+  }, [activeTrips, currentUser.id, currentUser.email, currentUser.name]);
 
   const formatDateRange = (startStr: string, endStr: string, currency: string) => {
     try {

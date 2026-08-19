@@ -1,17 +1,73 @@
-import { Expense, TripMember, Household, Settlement, ParticipantBalance, HouseholdBalance } from '../types';
+import { Expense, TripMember, Household, Settlement, ParticipantBalance, HouseholdBalance, User } from '../types';
 import { add, sub, mul, div, roundMoney } from './decimal';
+
+export function resolveMemberUserId(
+  rawId: string | undefined | null,
+  members: TripMember[],
+  allUsers: Array<{ id: string; name: string; email?: string }> = []
+): string {
+  if (!rawId || members.length === 0) return rawId || '';
+
+  // 1. Direct match by userId
+  const byUserId = members.find(m => m.userId === rawId);
+  if (byUserId) return byUserId.userId;
+
+  // 2. Direct match by member id
+  const byId = members.find(m => m.id === rawId);
+  if (byId) return byId.userId;
+
+  // 3. Substring match (e.g. member_B4clc3... vs B4clc3...)
+  const byPartial = members.find(m => 
+    (m.id && m.id.includes(rawId)) || 
+    (m.userId && m.userId.includes(rawId)) ||
+    (rawId && m.id && rawId.includes(m.id)) ||
+    (rawId && m.userId && rawId.includes(m.userId))
+  );
+  if (byPartial) return byPartial.userId;
+
+  // 4. Email match
+  const byEmail = members.find(m => m.email && m.email.toLowerCase() === rawId.toLowerCase());
+  if (byEmail) return byEmail.userId;
+
+  // 5. Name match (case-insensitive)
+  const byName = members.find(m => m.name && m.name.toLowerCase() === rawId.toLowerCase());
+  if (byName) return byName.userId;
+
+  // 6. Look up in allUsers (e.g. rawId is Firebase Auth UID, look up user name and find member with that name)
+  if (allUsers && allUsers.length > 0) {
+    const matchedUser = allUsers.find(u => u.id === rawId || (u.email && u.email.toLowerCase() === rawId.toLowerCase()));
+    if (matchedUser) {
+      const memByName = members.find(m => 
+        (matchedUser.name && m.name.toLowerCase() === matchedUser.name.toLowerCase()) ||
+        (matchedUser.email && m.email && m.email.toLowerCase() === matchedUser.email.toLowerCase())
+      );
+      if (memByName) return memByName.userId;
+    }
+  }
+
+  // 7. Slug match (e.g. user_serdarbilecen matching Serdar.bilecen)
+  const cleanRaw = rawId.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const bySlug = members.find(m => {
+    const cleanName = m.name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    return cleanName && (cleanRaw.includes(cleanName) || cleanName.includes(cleanRaw));
+  });
+  if (bySlug) return bySlug.userId;
+
+  return rawId;
+}
 
 export function calculateParticipantBalances(
   members: TripMember[],
   expenses: Expense[],
   settlements: Settlement[],
-  households: Household[] = []
+  households: Household[] = [],
+  allUsers: Array<{ id: string; name: string; email?: string }> = []
 ): {
   individualBalances: ParticipantBalance[];
   householdBalances: HouseholdBalance[];
   totalSpend: number;
 } {
-  // Map of userId -> { paid: Decimal, share: Decimal }
+  // Map of canonical userId -> { paid: Decimal, share: Decimal }
   const paidMap = new Map<string, number>();
   const shareMap = new Map<string, number>();
 
@@ -31,17 +87,18 @@ export function calculateParticipantBalances(
     // 1. Process Payers
     if (exp.payers && exp.payers.length > 0) {
       for (const p of exp.payers) {
-        // Payer share in mainCurrency = (p.amount / exp.originalAmount) * exp.convertedAmount
         const payerFraction = exp.originalAmount > 0 ? div(p.amount, exp.originalAmount) : 0;
         const payerConverted = roundMoney(mul(payerFraction, exp.convertedAmount), 2);
         
-        const curPaid = paidMap.get(p.userId) || 0;
-        paidMap.set(p.userId, add(curPaid, payerConverted));
+        const canonicalPayerId = resolveMemberUserId(p.userId, members, allUsers);
+        const curPaid = paidMap.get(canonicalPayerId) || 0;
+        paidMap.set(canonicalPayerId, add(curPaid, payerConverted));
       }
     } else {
       // Fallback single payer
-      const curPaid = paidMap.get(exp.paidByUserId) || 0;
-      paidMap.set(exp.paidByUserId, add(curPaid, exp.convertedAmount));
+      const canonicalPayerId = resolveMemberUserId(exp.paidByUserId, members, allUsers);
+      const curPaid = paidMap.get(canonicalPayerId) || 0;
+      paidMap.set(canonicalPayerId, add(curPaid, exp.convertedAmount));
     }
 
     // 2. Process Participants / Consumption shares
@@ -56,23 +113,30 @@ export function calculateParticipantBalances(
           partConverted = roundMoney(div(exp.convertedAmount, exp.participants.length), 2);
         }
 
-        const curShare = shareMap.get(part.userId) || 0;
-        shareMap.set(part.userId, add(curShare, partConverted));
+        const canonicalPartId = resolveMemberUserId(part.userId, members, allUsers);
+        const curShare = shareMap.get(canonicalPartId) || 0;
+        shareMap.set(canonicalPartId, add(curShare, partConverted));
+      }
+    } else if (members.length > 0) {
+      // Fallback if participants array was empty: split equally among all members
+      const equalShare = roundMoney(div(exp.convertedAmount, members.length), 2);
+      for (const m of members) {
+        const curShare = shareMap.get(m.userId) || 0;
+        shareMap.set(m.userId, add(curShare, equalShare));
       }
     }
   }
 
   // 3. Process Confirmed Settlements
-  // When Debtor pays Creditor Amount in settlement:
-  // - Debtor's "paid" increases by settlement converted amount (they put money in)
-  // - Creditor's "share" increases by settlement converted amount (they received their payback)
   for (const s of settlements) {
     if (s.status === 'completed') {
-      const debtorPaid = paidMap.get(s.debtorId) || 0;
-      paidMap.set(s.debtorId, add(debtorPaid, s.convertedAmount));
+      const canonicalDebtorId = resolveMemberUserId(s.debtorId, members, allUsers);
+      const debtorPaid = paidMap.get(canonicalDebtorId) || 0;
+      paidMap.set(canonicalDebtorId, add(debtorPaid, s.convertedAmount));
 
-      const creditorShare = shareMap.get(s.creditorId) || 0;
-      shareMap.set(s.creditorId, add(creditorShare, s.convertedAmount));
+      const canonicalCreditorId = resolveMemberUserId(s.creditorId, members, allUsers);
+      const creditorShare = shareMap.get(canonicalCreditorId) || 0;
+      shareMap.set(canonicalCreditorId, add(creditorShare, s.convertedAmount));
     }
   }
 

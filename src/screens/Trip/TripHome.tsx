@@ -34,10 +34,18 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
   const isOwed = hasExpenses && userNetBalance > 0.009;
   const owes = hasExpenses && userNetBalance < -0.009;
 
-  const userBalanceObj = balances.individualBalances.find(b => b.userId === currentUser.id);
+  const userBalanceObj = balances.individualBalances.find(b => 
+    b.userId === currentUser.id || 
+    (currentUser.email && b.userId.toLowerCase() === currentUser.email.toLowerCase()) ||
+    (currentUser.name && b.name.toLowerCase() === currentUser.name.toLowerCase())
+  );
 
   // Immediate pending transfer recommendation for user
-  const myNextTransfer = recommendedTransfers.find(t => t.debtorId === currentUser.id || t.creditorId === currentUser.id);
+  const myNextTransfer = recommendedTransfers.find(t => 
+    t.debtorId === currentUser.id || 
+    t.creditorId === currentUser.id ||
+    (currentUser.name && (t.debtorName?.toLowerCase() === currentUser.name.toLowerCase() || t.creditorName?.toLowerCase() === currentUser.name.toLowerCase()))
+  );
 
   // Group expenses chronologically by date
   const groupedExpenses = activeExpenses.reduce((groups, exp) => {

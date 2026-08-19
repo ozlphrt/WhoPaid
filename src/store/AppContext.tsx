@@ -538,7 +538,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     members,
     expenses,
     settlements,
-    households
+    households,
+    allUsers
   );
 
   const recommendedTransfers = calculateOptimizedSettlements(
@@ -548,8 +549,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     true
   );
 
-  // Current User's Net balance
-  const userBalanceObj = balances.individualBalances.find(b => b.userId === currentUser.id);
+  // Current User's Net balance (match by id, email, or display name)
+  const userBalanceObj = balances.individualBalances.find(b => 
+    b.userId === currentUser.id || 
+    (currentUser.email && b.userId.toLowerCase() === currentUser.email.toLowerCase()) ||
+    (currentUser.name && b.name.toLowerCase() === currentUser.name.toLowerCase())
+  );
   const userNetBalance = userBalanceObj ? userBalanceObj.net : 0;
 
   // Last-used currency for Quick Add
