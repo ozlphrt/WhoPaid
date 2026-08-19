@@ -4,6 +4,8 @@ import { CurrencyCode } from '../../types';
 import { Sparkles, Globe, Users, ArrowRight, ShieldCheck, Check, Loader2 } from 'lucide-react';
 
 import { loginAnonymously } from '../../lib/firebase';
+import { syncUserToCloud } from '../../lib/firestoreSync';
+import { db } from '../../lib/db';
 
 const POPULAR_CURRENCIES: CurrencyCode[] = ['EUR', 'USD', 'TRY', 'GBP', 'CHF', 'CAD', 'AUD', 'JPY'];
 
@@ -72,6 +74,11 @@ export const AuthScreen: React.FC = () => {
         email: guestEmail.trim() || `${cleanName.toLowerCase()}@whopaid.app`,
         defaultCurrency: guestCurrency
       };
+
+      await db.users.put(newUser);
+      if (isFirebaseActive) {
+        await syncUserToCloud(newUser).catch(console.warn);
+      }
 
       setCurrentUser(newUser);
       localStorage.setItem('whopaid_auth_user', JSON.stringify(newUser));

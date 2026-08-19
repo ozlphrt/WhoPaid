@@ -231,18 +231,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Retrieve customized display name and currency if previously saved
         const localExisting = await db.users.get(fbUser.uid);
         const cloudExisting = isFirebaseConfigured() ? await fetchUserFromCloud(fbUser.uid) : null;
+        const savedAuth = localStorage.getItem('whopaid_auth_user');
+        let savedUserObj: User | null = null;
+        try {
+          if (savedAuth) savedUserObj = JSON.parse(savedAuth);
+        } catch {}
 
-        const resolvedName = localExisting?.name || cloudExisting?.name || fbUser.displayName || 'User';
-        const resolvedCurrency = localExisting?.defaultCurrency || cloudExisting?.defaultCurrency || 'EUR';
-        const resolvedAvatar = fbUser.photoURL || localExisting?.avatarUrl || cloudExisting?.avatarUrl;
+        const resolvedName = (savedUserObj && savedUserObj.id === fbUser.uid && savedUserObj.name && savedUserObj.name !== 'User')
+          ? savedUserObj.name
+          : (localExisting?.name && localExisting.name !== 'User')
+          ? localExisting.name
+          : (cloudExisting?.name && cloudExisting.name !== 'User')
+          ? cloudExisting.name
+          : fbUser.displayName || savedUserObj?.name || 'Guest';
+
+        const resolvedCurrency = localExisting?.defaultCurrency || cloudExisting?.defaultCurrency || savedUserObj?.defaultCurrency || 'EUR';
+        const resolvedAvatar = fbUser.photoURL || localExisting?.avatarUrl || cloudExisting?.avatarUrl || savedUserObj?.avatarUrl;
 
         const updatedUser: User = {
           id: fbUser.uid,
           name: resolvedName,
-          email: fbUser.email || localExisting?.email || 'user@whopaid.app',
+          email: fbUser.email || localExisting?.email || savedUserObj?.email || `${resolvedName.toLowerCase()}@whopaid.app`,
           defaultCurrency: resolvedCurrency,
           avatarUrl: resolvedAvatar
         };
+        await db.users.put(updatedUser);
         setCurrentUser(updatedUser);
       }
     });
@@ -883,16 +896,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       const existing = await db.tripMembers.where('tripId').equals(tripId).and(m => m.userId === currentUser.id).first();
-      if (!existing) {
+      if (!existing || existing.name === 'User' || existing.name === 'Member' || existing.name !== currentUser.name) {
         const newMember: TripMember = {
-          id: `member_${currentUser.id}_${tripId}`,
+          id: existing ? existing.id : `member_${currentUser.id}_${tripId}`,
           tripId,
           userId: currentUser.id,
-          name: currentUser.name,
-          email: currentUser.email || `${currentUser.name.toLowerCase()}@whopaid.app`,
-          role: 'member',
+          name: currentUser.name || 'Member',
+          email: currentUser.email || `${(currentUser.name || 'guest').toLowerCase()}@whopaid.app`,
+          role: existing ? existing.role : 'member',
           isActive: true,
-          joinedAt: new Date().toISOString()
+          joinedAt: existing ? existing.joinedAt : new Date().toISOString()
         };
         await db.tripMembers.put(newMember);
         if (isFirebaseConfigured() && isOnline) {
