@@ -95,3 +95,19 @@ a {
 .animate-pop-in {
   animation: popIn 0.2s var(--ease-spring) forwards;
 }
+
+@keyframes floatBreath {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.22);
+  }
+  50% {
+    transform: translateY(-6px) scale(1.035);
+    box-shadow: 0 22px 45px rgba(16, 185, 129, 0.35);
+  }
+}
+
+.animate-float-breath {
+  animation: floatBreath 3.6s ease-in-out infinite;
+}
+

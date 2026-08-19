@@ -85,31 +85,27 @@ export const AuthScreen: React.FC = () => {
     }}>
       
       {/* Top Brand Hero */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginTop: 16 }}>
-        <div style={{
-          width: 68,
-          height: 68,
-          borderRadius: 20,
-          background: 'var(--btn-primary-bg)',
-          color: 'var(--btn-primary-text)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '2rem',
-          boxShadow: '0 12px 30px rgba(0, 0, 0, 0.25)',
-          marginBottom: 16
-        }}>
-          💳
-        </div>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginTop: 12 }}>
+        <img 
+          src={`${import.meta.env.BASE_URL}apple-touch-icon.png`} 
+          alt="WhoPaid" 
+          className="animate-float-breath"
+          style={{
+            width: 76,
+            height: 76,
+            borderRadius: 22,
+            objectFit: 'cover',
+            marginBottom: 16,
+            cursor: 'default'
+          }}
+        />
 
         <h1 style={{
-          fontSize: '1.9rem',
-          fontWeight: 800,
-          letterSpacing: '-0.03em',
+          fontSize: '2.1rem',
+          fontWeight: 900,
+          letterSpacing: '-0.035em',
           margin: '0 0 6px 0',
-          background: 'linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent'
+          color: 'var(--text-primary)'
         }}>
           WhoPaid
         </h1>
@@ -121,7 +117,7 @@ export const AuthScreen: React.FC = () => {
           maxWidth: 320,
           lineHeight: 1.45
         }}>
-          Fast multi-currency group expense splitting & smart minimum-transfer settlements.
+          Travel together. Split group bills without the awkward math.
         </p>
       </div>
 
@@ -135,35 +131,35 @@ export const AuthScreen: React.FC = () => {
           padding: '18px',
           borderRadius: 'var(--radius-xl)',
           border: '1px solid var(--border-subtle)',
-          margin: '24px 0'
+          margin: '20px 0'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(16, 185, 129, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Globe size={18} color="var(--brand-500, #10b981)" />
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(16, 185, 129, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span style={{ fontSize: '1.1rem' }}>⚡</span>
             </div>
             <div>
-              <strong style={{ fontSize: '0.88rem', display: 'block' }}>Real-time Multi-Currency</strong>
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>Auto ECB rates for EUR, TRY, USD, GBP & 30+ currencies</span>
+              <strong style={{ fontSize: '0.88rem', display: 'block', fontWeight: 800 }}>Snap & Split in Seconds</strong>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>Equal, exact, weights, or itemized bills on the go</span>
             </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(59, 130, 246, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Users size={18} color="#3b82f6" />
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(59, 130, 246, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span style={{ fontSize: '1.1rem' }}>🌍</span>
             </div>
             <div>
-              <strong style={{ fontSize: '0.88rem', display: 'block' }}>Couple & Household Balances</strong>
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>Combined debts for couples without manual math</span>
+              <strong style={{ fontSize: '0.88rem', display: 'block', fontWeight: 800 }}>30+ Live Currencies</strong>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>Daily ECB rates for EUR, TRY, USD, GBP & more</span>
             </div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 34, height: 34, borderRadius: 10, background: 'rgba(168, 85, 247, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Sparkles size={18} color="#a855f7" />
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(168, 85, 247, 0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span style={{ fontSize: '1.1rem' }}>🪄</span>
             </div>
             <div>
-              <strong style={{ fontSize: '0.88rem', display: 'block' }}>Smart Min-Transfers Settlement</strong>
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>Greedy algorithm settles all debts in fewest transactions</span>
+              <strong style={{ fontSize: '0.88rem', display: 'block', fontWeight: 800 }}>Minimum-Transfer Magic</strong>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>Settles 20 messy group IOUs in just 2 simple payments</span>
             </div>
           </div>
         </div>
