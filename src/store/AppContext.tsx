@@ -12,6 +12,9 @@ import {
   subscribeToAuthChanges, 
   loginAnonymously, 
   loginWithGoogle as fbLoginGoogle, 
+  loginApple as fbLoginApple,
+  loginMicrosoft as fbLoginMicrosoft,
+  loginFacebook as fbLoginFacebook,
   logoutFirebase as fbLogout,
   initFirebase
 } from '../lib/firebase';
@@ -119,6 +122,9 @@ interface AppContextType {
   firebaseUser: any | null;
   loginAsGuest: () => Promise<void>;
   loginWithGoogleAuth: () => Promise<void>;
+  loginWithAppleAuth: () => Promise<void>;
+  loginWithMicrosoftAuth: () => Promise<void>;
+  loginWithFacebookAuth: () => Promise<void>;
   logoutUser: () => Promise<void>;
   enableNotifications: () => Promise<boolean>;
   isNotificationsEnabled: boolean;
@@ -1257,51 +1263,89 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const handlePostLogin = async (fbUser: any) => {
+    if (!fbUser) return;
+    try {
+      const localExisting = await db.users.get(fbUser.uid);
+      const cloudExisting = isFirebaseConfigured() ? await fetchUserFromCloud(fbUser.uid) : null;
+
+      const resolvedName = localExisting?.name || cloudExisting?.name || fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'User');
+      const resolvedCurrency = localExisting?.defaultCurrency || cloudExisting?.defaultCurrency || 'EUR';
+      const resolvedAvatar = fbUser.photoURL || localExisting?.avatarUrl || cloudExisting?.avatarUrl;
+
+      const u: User = {
+        id: fbUser.uid,
+        name: resolvedName,
+        email: fbUser.email || localExisting?.email || 'user@whopaid.app',
+        defaultCurrency: resolvedCurrency,
+        avatarUrl: resolvedAvatar
+      };
+      await db.users.put(u);
+      if (isFirebaseConfigured()) {
+        await syncUserToCloud(u).catch(console.warn);
+      }
+      setCurrentUser(u);
+      localStorage.setItem('whopaid_auth_user', JSON.stringify(u));
+
+      // Check if user arrived via an invitation link or QR code
+      const searchParams = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '');
+      const pendingJoin = searchParams.get('join') ||
+        searchParams.get('tripId') ||
+        hashParams.get('join') ||
+        hashParams.get('tripId') ||
+        sessionStorage.getItem('whopaid_pending_join') ||
+        localStorage.getItem('whopaid_pending_join');
+
+      if (pendingJoin) {
+        sessionStorage.removeItem('whopaid_pending_join');
+        localStorage.removeItem('whopaid_pending_join');
+        await joinTrip(pendingJoin);
+      } else {
+        await refreshData();
+      }
+    } catch (err: any) {
+      console.error('Post-login sync failed:', err);
+      throw err;
+    }
+  };
+
   const loginWithGoogleAuth = async () => {
     try {
       const fbUser = await fbLoginGoogle();
-      if (fbUser) {
-        const localExisting = await db.users.get(fbUser.uid);
-        const cloudExisting = isFirebaseConfigured() ? await fetchUserFromCloud(fbUser.uid) : null;
-
-        const resolvedName = localExisting?.name || cloudExisting?.name || fbUser.displayName || 'User';
-        const resolvedCurrency = localExisting?.defaultCurrency || cloudExisting?.defaultCurrency || 'EUR';
-        const resolvedAvatar = fbUser.photoURL || localExisting?.avatarUrl || cloudExisting?.avatarUrl;
-
-        const u: User = {
-          id: fbUser.uid,
-          name: resolvedName,
-          email: fbUser.email || localExisting?.email || 'user@whopaid.app',
-          defaultCurrency: resolvedCurrency,
-          avatarUrl: resolvedAvatar
-        };
-        await db.users.put(u);
-        if (isFirebaseConfigured()) {
-          await syncUserToCloud(u).catch(console.warn);
-        }
-        setCurrentUser(u);
-        localStorage.setItem('whopaid_auth_user', JSON.stringify(u));
-
-        // Check if user arrived via an invitation link or QR code
-        const searchParams = new URLSearchParams(window.location.search);
-        const hashParams = new URLSearchParams(window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '');
-        const pendingJoin = searchParams.get('join') ||
-          searchParams.get('tripId') ||
-          hashParams.get('join') ||
-          hashParams.get('tripId') ||
-          sessionStorage.getItem('whopaid_pending_join') ||
-          localStorage.getItem('whopaid_pending_join');
-
-        if (pendingJoin) {
-          sessionStorage.removeItem('whopaid_pending_join');
-          localStorage.removeItem('whopaid_pending_join');
-          await joinTrip(pendingJoin);
-        } else {
-          await refreshData();
-        }
-      }
+      await handlePostLogin(fbUser);
     } catch (err: any) {
       console.error('Google login failed:', err);
+      throw err;
+    }
+  };
+
+  const loginWithAppleAuth = async () => {
+    try {
+      const fbUser = await fbLoginApple();
+      await handlePostLogin(fbUser);
+    } catch (err: any) {
+      console.error('Apple login failed:', err);
+      throw err;
+    }
+  };
+
+  const loginWithMicrosoftAuth = async () => {
+    try {
+      const fbUser = await fbLoginMicrosoft();
+      await handlePostLogin(fbUser);
+    } catch (err: any) {
+      console.error('Microsoft login failed:', err);
+      throw err;
+    }
+  };
+
+  const loginWithFacebookAuth = async () => {
+    try {
+      const fbUser = await fbLoginFacebook();
+      await handlePostLogin(fbUser);
+    } catch (err: any) {
+      console.error('Facebook login failed:', err);
       throw err;
     }
   };
@@ -1409,6 +1453,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         firebaseUser,
         loginAsGuest,
         loginWithGoogleAuth,
+        loginWithAppleAuth,
+        loginWithMicrosoftAuth,
+        loginWithFacebookAuth,
         logoutUser,
         enableNotifications,
         isNotificationsEnabled: isNotificationGranted(),

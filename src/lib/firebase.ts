@@ -14,6 +14,8 @@ import {
   signInWithRedirect,
   getRedirectResult,
   GoogleAuthProvider, 
+  OAuthProvider,
+  FacebookAuthProvider,
   linkWithPopup,
   signOut, 
   onAuthStateChanged, 
@@ -184,7 +186,7 @@ export async function loginWithGoogle(): Promise<FirebaseUser | null> {
 
   const popupPromise = signInWithPopup(auth, provider);
   const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('Google Sign-In request timed out. If you are on an iOS Home Screen app, Google blocks embedded webview popups.')), 25000)
+    setTimeout(() => reject(new Error('Google Sign-In request timed out.')), 25000)
   );
 
   try {
@@ -198,6 +200,53 @@ export async function loginWithGoogle(): Promise<FirebaseUser | null> {
       return null;
     }
     console.error('[Firebase Auth] Google Sign-In Error:', err);
+    throw err;
+  }
+}
+
+export async function loginApple(): Promise<FirebaseUser | null> {
+  const { auth } = getFirebaseInstances();
+  if (!auth) throw new Error('Firebase Auth is not initialized');
+  const provider = new OAuthProvider('apple.com');
+  provider.addScope('email');
+  provider.addScope('name');
+  try {
+    const res = await signInWithPopup(auth, provider);
+    return res.user;
+  } catch (err: any) {
+    if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') return null;
+    console.error('[Firebase Auth] Apple Sign-In Error:', err);
+    throw err;
+  }
+}
+
+export async function loginMicrosoft(): Promise<FirebaseUser | null> {
+  const { auth } = getFirebaseInstances();
+  if (!auth) throw new Error('Firebase Auth is not initialized');
+  const provider = new OAuthProvider('microsoft.com');
+  provider.setCustomParameters({
+    prompt: 'select_account'
+  });
+  try {
+    const res = await signInWithPopup(auth, provider);
+    return res.user;
+  } catch (err: any) {
+    if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') return null;
+    console.error('[Firebase Auth] Microsoft Sign-In Error:', err);
+    throw err;
+  }
+}
+
+export async function loginFacebook(): Promise<FirebaseUser | null> {
+  const { auth } = getFirebaseInstances();
+  if (!auth) throw new Error('Firebase Auth is not initialized');
+  const provider = new FacebookAuthProvider();
+  try {
+    const res = await signInWithPopup(auth, provider);
+    return res.user;
+  } catch (err: any) {
+    if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') return null;
+    console.error('[Firebase Auth] Facebook Sign-In Error:', err);
     throw err;
   }
 }

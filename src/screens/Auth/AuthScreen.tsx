@@ -1,34 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../store/AppContext';
-import { CurrencyCode, Trip, TripMember } from '../../types';
-import { ArrowRight, ShieldCheck, Loader2, Check, UserPlus } from 'lucide-react';
-import { loginAnonymously } from '../../lib/firebase';
-import { syncUserToCloud, fetchTripFromCloud, fetchTripMembersFromCloud } from '../../lib/firestoreSync';
-import { db } from '../../lib/db';
-
-const POPULAR_CURRENCIES: CurrencyCode[] = ['EUR', 'USD', 'TRY', 'GBP', 'CHF', 'CAD', 'AUD', 'JPY'];
+import { Trip } from '../../types';
+import { ShieldCheck, Loader2, Users } from 'lucide-react';
+import { fetchTripFromCloud, fetchTripMembersFromCloud } from '../../lib/firestoreSync';
 
 export const AuthScreen: React.FC = () => {
   const { 
     loginWithGoogleAuth,
-    setCurrentUser, 
-    refreshData,
-    joinTrip,
+    loginWithAppleAuth,
+    loginWithMicrosoftAuth,
+    loginWithFacebookAuth,
     isFirebaseActive 
   } = useApp();
 
-  const [guestName, setGuestName] = useState<string>('');
-  const [guestEmail, setGuestEmail] = useState<string>('');
-  const [guestCurrency, setGuestCurrency] = useState<CurrencyCode>('EUR');
-  const [loading, setLoading] = useState<boolean>(false);
-  const [googleLoading, setGoogleLoading] = useState<boolean>(false);
+  const [activeLoadingProvider, setActiveLoadingProvider] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [pendingTrip, setPendingTrip] = useState<Trip | null>(null);
-  const [existingMembers, setExistingMembers] = useState<{ id: string; name: string; email?: string }[]>([]);
-  const [isCustomName, setIsCustomName] = useState<boolean>(false);
+  const [existingMembers, setExistingMembers] = useState<{ id: string; name: string }[]>([]);
 
-  // Discover pending trip & existing members to allow 1-tap selection without duplicate name errors
+  // Discover pending trip info if arrived via invite link or QR code
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
     const hashParams = new URLSearchParams(window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '');
@@ -39,124 +30,53 @@ export const AuthScreen: React.FC = () => {
       sessionStorage.getItem('whopaid_pending_join') ||
       localStorage.getItem('whopaid_pending_join');
 
-    const loadKnownMembers = async () => {
-      if (!pendingJoin) {
-        setPendingTrip(null);
-        setExistingMembers([]);
-        return;
-      }
-
-      // Fetch cloud trip and its member list for THIS specific trip only
+    const loadTripPreview = async () => {
+      if (!pendingJoin) return;
       try {
         const trip = await fetchTripFromCloud(pendingJoin);
         if (trip) setPendingTrip(trip);
 
         const cloudMembers = await fetchTripMembersFromCloud(pendingJoin);
-        const localMembers = await db.tripMembers.where('tripId').equals(pendingJoin).toArray();
-        
-        const combined = [...cloudMembers, ...localMembers];
-        const uniqueMap = new Map<string, { id: string; name: string; email?: string }>();
-        combined.forEach(m => {
-          if (m.name && m.name.trim() && m.name !== 'User' && m.name !== 'Member' && m.isActive !== false) {
-            uniqueMap.set(m.name.trim().toLowerCase(), { id: m.id, name: m.name.trim(), email: m.email });
+        const uniqueNames = new Set<string>();
+        const membersList: { id: string; name: string }[] = [];
+        cloudMembers.forEach(m => {
+          if (m.name && m.name.trim() && m.name !== 'User' && m.name !== 'Member' && !uniqueNames.has(m.name.toLowerCase())) {
+            uniqueNames.add(m.name.toLowerCase());
+            membersList.push({ id: m.id, name: m.name.trim() });
           }
         });
-        setExistingMembers(Array.from(uniqueMap.values()));
+        setExistingMembers(membersList);
       } catch (err) {
-        console.warn('Error loading trip members for invite:', err);
+        console.warn('Error loading trip preview for invite:', err);
       }
     };
 
-    loadKnownMembers();
+    loadTripPreview();
   }, []);
 
-  const handleSelectExistingMember = (member: { id: string; name: string; email?: string }) => {
-    setGuestName(member.name);
-    if (member.email && !member.email.endsWith('@whopaid.app')) {
-      setGuestEmail(member.email);
-    }
-    setIsCustomName(false);
-  };
-
-  const handleGoogleSignIn = async () => {
-    setGoogleLoading(true);
+  const handleSocialAuth = async (provider: 'google' | 'apple' | 'microsoft' | 'facebook') => {
+    setActiveLoadingProvider(provider);
     setErrorMsg(null);
     try {
-      await loginWithGoogleAuth();
+      if (provider === 'google') await loginWithGoogleAuth();
+      else if (provider === 'apple') await loginWithAppleAuth();
+      else if (provider === 'microsoft') await loginWithMicrosoftAuth();
+      else if (provider === 'facebook') await loginWithFacebookAuth();
     } catch (err: any) {
-      console.error('Google Sign In Error:', err);
+      console.error(`${provider} Sign In Error:`, err);
       if (err.code === 'auth/unauthorized-domain') {
         setErrorMsg('Domain not authorized: Please add "ozlphrt.github.io" to Firebase Console -> Authentication -> Authorized domains.');
       } else if (err.code === 'auth/popup-blocked') {
-        setErrorMsg('Please allow popups in your browser settings and try Google Sign-In again.');
+        setErrorMsg('Please allow popups in your browser settings and try again.');
+      } else if (err.code === 'auth/operation-not-allowed') {
+        setErrorMsg(`${provider.charAt(0).toUpperCase() + provider.slice(1)} sign-in is not enabled in Firebase Console. Please sign in with Google or enable this provider.`);
       } else if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
         setErrorMsg(null);
       } else {
-        setErrorMsg(err.message || 'Google sign-in could not be completed. You can also continue by entering your name below.');
+        setErrorMsg(err.message || `${provider.charAt(0).toUpperCase() + provider.slice(1)} sign-in could not be completed. Please try again.`);
       }
     } finally {
-      setGoogleLoading(false);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!guestName.trim()) {
-      setErrorMsg('Please enter or select your name to continue.');
-      return;
-    }
-
-    setLoading(true);
-    setErrorMsg(null);
-    try {
-      let fbUid: string | null = null;
-      if (isFirebaseActive) {
-        const fbUser = await loginAnonymously().catch(err => {
-          console.warn('Anonymous auth note:', err);
-          return null;
-        });
-        if (fbUser) fbUid = fbUser.uid;
-      }
-
-      const cleanName = guestName.trim();
-      const userId = fbUid || `user_${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '')}_${Date.now().toString(36)}`;
-      const newUser = {
-        id: userId,
-        name: cleanName,
-        email: guestEmail.trim() || `${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '')}@whopaid.app`,
-        defaultCurrency: guestCurrency
-      };
-
-      await db.users.put(newUser);
-      if (isFirebaseActive) {
-        await syncUserToCloud(newUser).catch(console.warn);
-      }
-
-      setCurrentUser(newUser);
-      localStorage.setItem('whopaid_auth_user', JSON.stringify(newUser));
-
-      // Check if user arrived via an invitation link or QR code
-      const searchParams = new URLSearchParams(window.location.search);
-      const hashParams = new URLSearchParams(window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '');
-      const pendingJoin = searchParams.get('join') ||
-        searchParams.get('tripId') ||
-        hashParams.get('join') ||
-        hashParams.get('tripId') ||
-        sessionStorage.getItem('whopaid_pending_join') ||
-        localStorage.getItem('whopaid_pending_join');
-
-      if (pendingJoin) {
-        sessionStorage.removeItem('whopaid_pending_join');
-        localStorage.removeItem('whopaid_pending_join');
-        await joinTrip(pendingJoin);
-      } else {
-        await refreshData();
-      }
-    } catch (err: any) {
-      console.error('Sign In Error:', err);
-      setErrorMsg(err.message || 'Failed to create session. Please try again.');
-    } finally {
-      setLoading(false);
+      setActiveLoadingProvider(null);
     }
   };
 
@@ -166,10 +86,10 @@ export const AuthScreen: React.FC = () => {
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'space-between',
-      padding: 'calc(24px + env(safe-area-inset-top, 0px)) 20px calc(24px + env(safe-area-inset-bottom, 0px))',
+      padding: 'calc(28px + env(safe-area-inset-top, 0px)) 20px calc(24px + env(safe-area-inset-bottom, 0px))',
       background: 'var(--bg-primary)',
       color: 'var(--text-primary)',
-      maxWidth: 480,
+      maxWidth: 440,
       margin: '0 auto'
     }}>
       
@@ -180,19 +100,19 @@ export const AuthScreen: React.FC = () => {
           alt="WhoPaid" 
           className="animate-float-breath"
           style={{
-            width: 68,
-            height: 68,
+            width: 72,
+            height: 72,
             borderRadius: 20,
             objectFit: 'cover',
             marginBottom: 12,
-            cursor: 'default'
+            boxShadow: '0 8px 24px rgba(0,0,0,0.18)'
           }}
         />
 
         <h1 style={{
-          fontSize: '1.95rem',
+          fontSize: '2rem',
           fontWeight: 900,
-          letterSpacing: '-0.035em',
+          letterSpacing: '-0.04em',
           margin: '0 0 4px 0',
           color: 'var(--text-primary)'
         }}>
@@ -200,26 +120,64 @@ export const AuthScreen: React.FC = () => {
         </h1>
 
         <p style={{
-          fontSize: '0.86rem',
+          fontSize: '0.88rem',
           color: 'var(--text-secondary)',
           margin: 0,
           maxWidth: 320,
           lineHeight: 1.4
         }}>
           {pendingTrip 
-            ? `Joining ${pendingTrip.emoji || '✈️'} ${pendingTrip.name}`
+            ? `You've been invited to join ${pendingTrip.emoji || '✈️'} ${pendingTrip.name}`
             : 'Travel together. Split group bills without the awkward math.'}
         </p>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, margin: '18px 0' }}>
+      {/* Middle Content */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, margin: '20px 0' }}>
         
-        {/* Google Sign-in Button */}
-        {isFirebaseActive && (
+        {/* Pending Trip Invite Card (if joining via link) */}
+        {pendingTrip && (
+          <div className="card" style={{
+            padding: '14px 16px',
+            borderRadius: 'var(--radius-xl)',
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            boxShadow: 'var(--shadow-sm)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: '1.5rem' }}>{pendingTrip.emoji || '✈️'}</span>
+              <div>
+                <h3 style={{ fontSize: '1rem', fontWeight: 800, margin: 0 }}>
+                  {pendingTrip.name}
+                </h3>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
+                  Main Currency: {pendingTrip.mainCurrency}
+                </span>
+              </div>
+            </div>
+
+            {existingMembers.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, paddingTop: 6, borderTop: '1px solid var(--border-subtle)' }}>
+                <Users size={13} color="var(--text-tertiary)" />
+                <span style={{ fontSize: '0.74rem', color: 'var(--text-secondary)' }}>
+                  Traveling with: <strong>{existingMembers.map(m => m.name).join(', ')}</strong>
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Social Login Buttons */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          
+          {/* Google */}
           <button
             type="button"
-            onClick={handleGoogleSignIn}
-            disabled={googleLoading || loading}
+            onClick={() => handleSocialAuth('google')}
+            disabled={activeLoadingProvider !== null}
             style={{
               width: '100%',
               padding: '13px 20px',
@@ -235,10 +193,10 @@ export const AuthScreen: React.FC = () => {
               gap: 12,
               cursor: 'pointer',
               boxShadow: '0 3px 10px rgba(0,0,0,0.06)',
-              transition: 'transform 0.15s ease'
+              transition: 'all 0.15s ease'
             }}
           >
-            {googleLoading ? (
+            {activeLoadingProvider === 'google' ? (
               <Loader2 size={18} className="animate-spin" color="#1f2937" />
             ) : (
               <>
@@ -252,218 +210,129 @@ export const AuthScreen: React.FC = () => {
               </>
             )}
           </button>
-        )}
 
-        {/* Divider */}
-        {isFirebaseActive && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            margin: '2px 0'
-          }}>
-            <div style={{ flex: 1, height: 1, background: 'var(--border-subtle)' }} />
-            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              OR ENTER NAME
-            </span>
-            <div style={{ flex: 1, height: 1, background: 'var(--border-subtle)' }} />
-          </div>
-        )}
-
-        {/* Main Onboarding Form */}
-        <form onSubmit={handleSubmit} className="card" style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: 15,
-          padding: '20px',
-          borderRadius: 'var(--radius-xl)',
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border-subtle)',
-          boxShadow: 'var(--shadow-md)'
-        }}>
-          <div>
-            <h2 style={{ fontSize: '1.1rem', fontWeight: 800, margin: '0 0 3px 0' }}>
-              {existingMembers.length > 0 ? 'Who are you in this trip?' : 'Join with your Name'}
-            </h2>
-            <p style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', margin: 0 }}>
-              {existingMembers.length > 0
-                ? 'Select your existing profile or type a new name below.'
-                : 'Enter your name to start tracking and splitting group travel expenses.'}
-            </p>
-          </div>
-
-          {/* Existing Member Pills to avoid duplicate names */}
-          {existingMembers.length > 0 && (
-            <div>
-              <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 7 }}>
-                CHOOSE YOUR PROFILE
-              </label>
-              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-                {existingMembers.map(m => {
-                  const isSelected = guestName.trim().toLowerCase() === m.name.toLowerCase();
-                  return (
-                    <button
-                      key={m.id}
-                      type="button"
-                      onClick={() => handleSelectExistingMember(m)}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: 'var(--radius-full)',
-                        background: isSelected ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
-                        color: isSelected ? 'var(--btn-primary-text)' : 'var(--text-primary)',
-                        fontWeight: 700,
-                        fontSize: '0.82rem',
-                        border: isSelected ? '1px solid var(--btn-primary-border)' : '1px solid var(--border-subtle)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        boxShadow: isSelected ? 'var(--shadow-sm)' : 'none',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <span>{m.name}</span>
-                      {isSelected && <Check size={13} />}
-                    </button>
-                  );
-                })}
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setGuestName('');
-                    setGuestEmail('');
-                    setIsCustomName(true);
-                  }}
-                  style={{
-                    padding: '6px 11px',
-                    borderRadius: 'var(--radius-full)',
-                    background: isCustomName ? 'var(--bg-elevated)' : 'transparent',
-                    color: 'var(--text-tertiary)',
-                    fontWeight: 600,
-                    fontSize: '0.78rem',
-                    border: '1px dashed var(--border-strong)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4
-                  }}
-                >
-                  <UserPlus size={12} />
-                  <span>New person</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Name Input */}
-          <div>
-            <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 5 }}>
-              YOUR NAME *
-            </label>
-            <input
-              type="text"
-              placeholder="e.g. Ozalp, Betül, Alex"
-              value={guestName}
-              onChange={e => {
-                setGuestName(e.target.value);
-                setIsCustomName(true);
-              }}
-              className="input-pill"
-              required
-              autoFocus={existingMembers.length === 0}
-              style={{ fontSize: '0.94rem' }}
-            />
-          </div>
-
-          {/* Email Input (Optional) */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-              <label style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                EMAIL (OPTIONAL)
-              </label>
-              <span style={{ fontSize: '0.66rem', color: 'var(--text-tertiary)' }}>For cross-device sync</span>
-            </div>
-            <input
-              type="email"
-              placeholder="e.g. ozalph@gmail.com"
-              value={guestEmail}
-              onChange={e => setGuestEmail(e.target.value)}
-              className="input-pill"
-              style={{ fontSize: '0.9rem' }}
-            />
-          </div>
-
-          {/* Preferred Currency */}
-          <div>
-            <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 5 }}>
-              DEFAULT CURRENCY
-            </label>
-            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-              {POPULAR_CURRENCIES.map(curr => (
-                <button
-                  key={curr}
-                  type="button"
-                  onClick={() => setGuestCurrency(curr)}
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: 'var(--radius-md)',
-                    background: guestCurrency === curr ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
-                    color: guestCurrency === curr ? 'var(--btn-primary-text)' : 'var(--text-primary)',
-                    fontWeight: 700,
-                    fontSize: '0.78rem',
-                    border: guestCurrency === curr ? '1px solid var(--btn-primary-border)' : '1px solid var(--border-subtle)',
-                    cursor: 'pointer',
-                    boxShadow: guestCurrency === curr ? 'var(--shadow-sm)' : 'none'
-                  }}
-                >
-                  {curr}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {errorMsg && (
-            <div style={{ color: 'var(--negative-text)', fontSize: '0.8rem', fontWeight: 600 }}>
-              {errorMsg}
-            </div>
-          )}
-
-          {/* Primary CTA */}
+          {/* Apple */}
           <button
-            type="submit"
-            disabled={loading || googleLoading}
-            className="btn-primary"
+            type="button"
+            onClick={() => handleSocialAuth('apple')}
+            disabled={activeLoadingProvider !== null}
             style={{
-              marginTop: 4,
-              padding: '13px 18px',
-              borderRadius: 'var(--radius-lg)',
+              width: '100%',
+              padding: '13px 20px',
+              borderRadius: 'var(--radius-xl)',
+              background: '#000000',
+              color: '#ffffff',
+              border: '1px solid #27272a',
+              fontWeight: 700,
               fontSize: '0.92rem',
-              fontWeight: 800,
-              justifyContent: 'center',
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
-              boxShadow: 'var(--shadow-sm)'
+              justifyContent: 'center',
+              gap: 12,
+              cursor: 'pointer',
+              boxShadow: '0 3px 10px rgba(0,0,0,0.1)',
+              transition: 'all 0.15s ease'
             }}
           >
-            {loading ? (
-              <Loader2 size={18} className="animate-spin" />
+            {activeLoadingProvider === 'apple' ? (
+              <Loader2 size={18} className="animate-spin" color="#ffffff" />
             ) : (
               <>
-                <span>{pendingTrip ? `Join ${pendingTrip.name}` : 'Start Splitting'}</span>
-                <ArrowRight size={16} />
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="#ffffff">
+                  <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 5.05c.66-.82 1.11-1.96.99-3.05-1 .04-2.16.66-2.84 1.46-.59.69-1.11 1.83-.97 2.92 1.12.09 2.16-.51 2.82-1.33z"/>
+                </svg>
+                <span>Continue with Apple</span>
               </>
             )}
           </button>
-        </form>
+
+          {/* Microsoft / Hotmail */}
+          <button
+            type="button"
+            onClick={() => handleSocialAuth('microsoft')}
+            disabled={activeLoadingProvider !== null}
+            style={{
+              width: '100%',
+              padding: '13px 20px',
+              borderRadius: 'var(--radius-xl)',
+              background: '#2f2f2f',
+              color: '#ffffff',
+              border: '1px solid #444444',
+              fontWeight: 700,
+              fontSize: '0.92rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 12,
+              cursor: 'pointer',
+              boxShadow: '0 3px 10px rgba(0,0,0,0.1)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            {activeLoadingProvider === 'microsoft' ? (
+              <Loader2 size={18} className="animate-spin" color="#ffffff" />
+            ) : (
+              <>
+                <svg width="18" height="18" viewBox="0 0 21 21">
+                  <path fill="#f25022" d="M1 1h9v9H1z"/>
+                  <path fill="#00a4ef" d="M1 11h9v9H1z"/>
+                  <path fill="#7fba00" d="M11 1h9v9h-9z"/>
+                  <path fill="#ffb900" d="M11 11h9v9h-9z"/>
+                </svg>
+                <span>Continue with Microsoft / Hotmail</span>
+              </>
+            )}
+          </button>
+
+          {/* Facebook */}
+          <button
+            type="button"
+            onClick={() => handleSocialAuth('facebook')}
+            disabled={activeLoadingProvider !== null}
+            style={{
+              width: '100%',
+              padding: '13px 20px',
+              borderRadius: 'var(--radius-xl)',
+              background: '#1877F2',
+              color: '#ffffff',
+              border: '1px solid #166fe5',
+              fontWeight: 700,
+              fontSize: '0.92rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 12,
+              cursor: 'pointer',
+              boxShadow: '0 3px 10px rgba(24,119,242,0.2)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            {activeLoadingProvider === 'facebook' ? (
+              <Loader2 size={18} className="animate-spin" color="#ffffff" />
+            ) : (
+              <>
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="#ffffff">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                </svg>
+                <span>Continue with Facebook</span>
+              </>
+            )}
+          </button>
+
+        </div>
+
+        {errorMsg && (
+          <div style={{ color: 'var(--negative-text)', fontSize: '0.8rem', fontWeight: 600, textAlign: 'center', padding: '0 6px' }}>
+            {errorMsg}
+          </div>
+        )}
       </div>
 
-      {/* Security & Offline Badge */}
+      {/* Security & Cloud Badge */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, textAlign: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-tertiary)', fontSize: '0.74rem' }}>
           <ShieldCheck size={14} color="var(--brand-500, #10b981)" />
-          <span>Encrypted storage • Offline capable • 1-Tap Google or Name</span>
+          <span>OAuth 2.0 Secure • Automatic Cloud Backup</span>
         </div>
         <span style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)' }}>
           WhoPaid • v1.0.0
