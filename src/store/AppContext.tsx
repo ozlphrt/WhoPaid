@@ -1080,6 +1080,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error('Logout failed:', err);
     }
     localStorage.removeItem('whopaid_auth_user');
+    localStorage.removeItem('whopaid_active_trip');
+    localStorage.removeItem('whopaid_last_view');
+    sessionStorage.clear();
     setStoredUser(null);
     setActiveTripId(null);
   };

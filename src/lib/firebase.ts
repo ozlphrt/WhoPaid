@@ -177,20 +177,13 @@ export async function loginWithGoogle(): Promise<FirebaseUser | null> {
   const { auth } = getFirebaseInstances();
   if (!auth) throw new Error('Firebase Auth is not configured.');
 
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({
+    prompt: 'select_account'
+  });
+
   try {
-    if (auth.currentUser && auth.currentUser.isAnonymous) {
-      try {
-        const res = await linkWithPopup(auth.currentUser, googleProvider);
-        return res.user;
-      } catch (linkErr: any) {
-        if (linkErr.code === 'auth/credential-already-in-use') {
-          const res = await signInWithPopup(auth, googleProvider);
-          return res.user;
-        }
-        throw linkErr;
-      }
-    }
-    const res = await signInWithPopup(auth, googleProvider);
+    const res = await signInWithPopup(auth, provider);
     return res.user;
   } catch (err: any) {
     console.error('[Firebase Auth] Google Sign-In Error:', err);
