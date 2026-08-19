@@ -3,15 +3,18 @@ import {
   doc, 
   getDoc,
   getDocs,
+  query,
   setDoc, 
   deleteDoc, 
   onSnapshot, 
   serverTimestamp, 
+  where,
   Unsubscribe 
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { getFirebaseInstances } from './firebase';
 import { Trip, TripMember, Household, Expense, Settlement, Activity } from '../types';
+import { createId } from './id';
 
 /* =========================================================================
    Firestore Sync Operations
@@ -143,6 +146,70 @@ export async function syncTripToCloud(trip: Trip): Promise<void> {
   await setDoc(tripRef, payload, { merge: true });
 }
 
+export async function syncTripInvite(trip: Trip): Promise<void> {
+  const { db } = getFirebaseInstances();
+  if (!db || !trip.id || !trip.inviteToken) return;
+  await setDoc(doc(db, 'tripInvites', trip.inviteToken), {
+    tripId: trip.id,
+    createdBy: trip.ownerId,
+    revoked: false,
+    createdAt: trip.createdAt,
+    updatedAt: new Date().toISOString()
+  }, { merge: true });
+}
+
+export async function revokeTripInvite(inviteToken: string): Promise<void> {
+  const { db } = getFirebaseInstances();
+  if (!db || !inviteToken) return;
+  await setDoc(doc(db, 'tripInvites', inviteToken), {
+    revoked: true,
+    updatedAt: new Date().toISOString()
+  }, { merge: true });
+}
+
+export async function syncUserTripMembership(
+  tripId: string,
+  userId: string,
+  role: 'owner' | 'member',
+  inviteToken?: string
+): Promise<void> {
+  const { db } = getFirebaseInstances();
+  if (!db || !tripId || !userId) return;
+  await setDoc(doc(db, 'users', userId, 'tripMemberships', tripId), cleanForFirestore({
+    tripId,
+    userId,
+    role,
+    inviteToken,
+    joinedAt: new Date().toISOString()
+  }), { merge: true });
+}
+
+/** Accept a bearer invitation without exposing the underlying trip document. */
+export async function joinTripInCloud(inviteToken: string, userId: string): Promise<Trip> {
+  const { db } = getFirebaseInstances();
+  if (!db) throw new Error('Cloud sync is unavailable.');
+  if (!inviteToken || !userId) throw new Error('An invitation and signed-in user are required.');
+
+  const inviteSnap = await getDoc(doc(db, 'tripInvites', inviteToken));
+  if (!inviteSnap.exists()) throw new Error('This invitation is invalid or has expired.');
+  const invite = inviteSnap.data() as { tripId?: string; revoked?: boolean };
+  if (!invite.tripId || invite.revoked) throw new Error('This invitation is no longer active.');
+
+  const tripRef = doc(db, 'trips', invite.tripId);
+  await syncUserTripMembership(invite.tripId, userId, 'member', inviteToken);
+  const tripSnap = await getDoc(tripRef);
+  if (!tripSnap.exists()) throw new Error('The trip is no longer available.');
+  const trip = { id: tripSnap.id, ...tripSnap.data() } as Trip;
+  if (trip.isClosed || trip.isDeleted) throw new Error('This trip is no longer accepting members.');
+  return trip;
+}
+
+export async function removeUserFromTripAccess(tripId: string, userId: string): Promise<void> {
+  const { db } = getFirebaseInstances();
+  if (!db || !tripId || !userId) return;
+  await deleteDoc(doc(db, 'users', userId, 'tripMemberships', tripId));
+}
+
 export async function syncMemberToCloud(tripId: string, member: TripMember): Promise<void> {
   const { db } = getFirebaseInstances();
   if (!db || !tripId || !member?.id) return;
@@ -237,7 +304,7 @@ export async function compressAndUploadReceipt(
 
   try {
     const compressedBlob = await compressImageToWebp(file, 1400, 0.80);
-    const name = fileName || `receipt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.webp`;
+    const name = fileName || `${createId('receipt')}.webp`;
     const storageRef = ref(storage, `trips/${tripId}/receipts/${name}`);
 
     const snapshot = await uploadBytes(storageRef, compressedBlob, {
@@ -266,61 +333,35 @@ export async function fetchTripFromCloud(tripId: string): Promise<Trip | null> {
   return null;
 }
 
-export async function fetchUserTripsFromCloud(userId: string, userEmail?: string, userName?: string): Promise<Trip[]> {
+export async function fetchUserTripsFromCloud(userId: string): Promise<Trip[]> {
   const { db } = getFirebaseInstances();
-  if (!db) return [];
+  if (!db || !userId) return [];
   try {
     const tripsRef = collection(db, 'trips');
-    const allSnap = await getDocs(tripsRef);
-    const resultTrips: Trip[] = [];
+    const resultById = new Map<string, Trip>();
+    const ownedSnap = await getDocs(query(tripsRef, where('ownerId', '==', userId)));
+    ownedSnap.forEach((tripDoc) => {
+      const trip = { id: tripDoc.id, ...tripDoc.data() } as Trip;
+      if (!trip.isDeleted) resultById.set(trip.id, trip);
+    });
 
-    const emailLower = userEmail ? userEmail.toLowerCase().trim() : '';
-    const emailPrefix = emailLower ? emailLower.split('@')[0].trim() : '';
-    const nameLower = userName ? userName.toLowerCase().trim() : '';
-
-    for (const docSnap of allSnap.docs) {
-      const tripData = { id: docSnap.id, ...docSnap.data() } as Trip;
-      if (tripData.isDeleted) continue;
-
-      if (
-        (userId && tripData.ownerId === userId) ||
-        (emailLower && (tripData as any).ownerEmail && (tripData as any).ownerEmail.toLowerCase().trim() === emailLower) ||
-        (nameLower && (tripData as any).ownerName && (tripData as any).ownerName.toLowerCase().trim() === nameLower)
-      ) {
-        resultTrips.push(tripData);
-        continue;
-      }
-
-      // Check if user is member of this trip in cloud
-      try {
-        const memRef = collection(db, 'trips', docSnap.id, 'members');
-        const memSnap = await getDocs(memRef);
-        let isMem = false;
-        memSnap.forEach(mDoc => {
-          const m = mDoc.data() as TripMember;
-          const mEmail = m.email ? m.email.toLowerCase().trim() : '';
-          const mName = m.name ? m.name.toLowerCase().trim() : '';
-          const mUserId = m.userId ? m.userId.trim() : '';
-
-          if (
-            (userId && mUserId === userId) ||
-            (emailLower && mEmail === emailLower) ||
-            (nameLower && mName === nameLower) ||
-            (emailPrefix && mEmail && mEmail.startsWith(emailPrefix)) ||
-            (emailPrefix && mName && mName.includes(emailPrefix)) ||
-            (nameLower && mName && (mName.includes(nameLower) || nameLower.includes(mName)))
-          ) {
-            isMem = true;
-          }
-        });
-        if (isMem) {
-          resultTrips.push(tripData);
-        }
-      } catch (memErr) {
-        console.warn('Error checking membership for trip:', docSnap.id, memErr);
-      }
+    // Older deployed rules do not expose the membership index. Keep owner
+    // trips usable during the staged rules migration instead of discarding
+    // the successful owner query when this read is denied.
+    try {
+      const membershipSnap = await getDocs(collection(db, 'users', userId, 'tripMemberships'));
+      await Promise.all(membershipSnap.docs.map(async membershipDoc => {
+        const tripId = membershipDoc.data().tripId || membershipDoc.id;
+        const tripDoc = await getDoc(doc(db, 'trips', tripId));
+        if (!tripDoc.exists()) return;
+        const trip = { id: tripDoc.id, ...tripDoc.data() } as Trip;
+        if (!trip.isDeleted) resultById.set(trip.id, trip);
+      }));
+    } catch {
+      // Expected until the new membership-aware rules are deployed.
     }
-    return resultTrips;
+
+    return [...resultById.values()];
   } catch (err) {
     console.warn('[Firestore] fetchUserTripsFromCloud error:', err);
     return [];

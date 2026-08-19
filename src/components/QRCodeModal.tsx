@@ -16,7 +16,7 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({ trip, isOpen, onClose 
 
   // Clean base URL handling for GitHub Pages & Localhost
   const baseUrl = `${window.location.origin}${window.location.pathname.replace(/\/$/, '')}`;
-  const inviteUrl = trip ? `${baseUrl}/?join=${trip.id}` : '';
+  const inviteUrl = trip?.inviteToken ? `${baseUrl}/?join=${encodeURIComponent(trip.inviteToken)}` : '';
 
   useEffect(() => {
     if (inviteUrl && isOpen) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Component, ErrorInfo, ReactNode, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, Component, ErrorInfo, ReactNode, Suspense, lazy } from 'react';
 import { AppProvider, useApp } from './store/AppContext';
 import { TopNav } from './components/TopNav';
 import { TripsHome } from './screens/Home/TripsHome';
@@ -9,6 +9,7 @@ import { Settle } from './screens/Trip/Settle';
 import { ProfileScreen } from './screens/Profile/ProfileScreen';
 import { AuthScreen } from './screens/Auth/AuthScreen';
 import { UndoToast } from './components/UndoToast';
+import { db } from './lib/db';
 import './styles/global.css';
 import './styles/components.css';
 
@@ -42,8 +43,14 @@ class GlobalErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySta
     console.error('WhoPaid App caught error:', error, errorInfo);
   }
 
-  handleReset = () => {
-    localStorage.clear();
+  handleReset = async () => {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('whopaid_')) localStorage.removeItem(key);
+    }
+    for (const key of Object.keys(sessionStorage)) {
+      if (key.startsWith('whopaid_')) sessionStorage.removeItem(key);
+    }
+    await db.delete();
     window.location.reload();
   };
 
@@ -94,7 +101,7 @@ class GlobalErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySta
               cursor: 'pointer'
             }}
           >
-            Reset local cache & reload
+            Reset WhoPaid device data & reload
           </button>
         </div>
       );
@@ -108,7 +115,8 @@ import { FloatingBottomDock } from './components/FloatingBottomDock';
 interface AppContentProps {}
 
 const AppContent: React.FC<AppContentProps> = () => {
-  const { activeTrip, setActiveTripId, isInitialized, isAuthenticated, currentUser, joinTrip } = useApp();
+  const { activeTrip, setActiveTripId, isInitialized, isAuthenticated, currentUser, joinTrip, showAlert } = useApp();
+  const joiningTripRef = useRef<string | null>(null);
 
   // Start from 'trips' overview screen, or resume where user left off if an active trip is open (never resume into profile)
   const [currentView, setCurrentView] = useState<AppView>(() => {
@@ -160,15 +168,22 @@ const AppContent: React.FC<AppContentProps> = () => {
     }
 
     const pendingJoin = urlJoinId || sessionStorage.getItem('whopaid_pending_join') || localStorage.getItem('whopaid_pending_join');
-    if (pendingJoin && isAuthenticated) {
-      sessionStorage.removeItem('whopaid_pending_join');
-      localStorage.removeItem('whopaid_pending_join');
-      joinTrip(pendingJoin).then(() => {
-        handleNavigate('trip-home');
-      });
-      window.history.replaceState({}, '', window.location.pathname);
+    if (pendingJoin && isAuthenticated && joiningTripRef.current !== pendingJoin) {
+      joiningTripRef.current = pendingJoin;
+      joinTrip(pendingJoin)
+        .then(() => {
+          sessionStorage.removeItem('whopaid_pending_join');
+          localStorage.removeItem('whopaid_pending_join');
+          setCurrentView('trip-home');
+          localStorage.setItem('whopaid_last_view', 'trip-home');
+          window.history.replaceState({}, '', window.location.pathname);
+        })
+        .catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : 'The trip could not be joined.';
+          showAlert(message, 'Could not join trip', 'warning');
+        });
     }
-  }, [isAuthenticated, joinTrip]);
+  }, [isAuthenticated, joinTrip, showAlert]);
 
   const handleSelectTrip = (tripId: string) => {
     setActiveTripId(tripId);

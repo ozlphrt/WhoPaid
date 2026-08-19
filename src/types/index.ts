@@ -20,6 +20,10 @@ export interface Trip {
   endDate: string;   // YYYY-MM-DD
   mainCurrency: CurrencyCode;
   ownerId: string;
+  /** Legacy compatibility only; authorization uses per-user membership docs. */
+  memberUids?: string[];
+  /** Cryptographically random bearer token used by share links. */
+  inviteToken?: string;
   isClosed: boolean;
   closedAt?: string;
   isDeleted: boolean;
@@ -33,6 +37,10 @@ export interface TripMember {
   id: string;
   tripId: string;
   userId: string;
+  /** Firebase Auth UID when this participant has joined the trip. */
+  authUid?: string;
+  /** Exact historical IDs retained when an invited placeholder is claimed. */
+  legacyUserIds?: string[];
   name: string;
   email: string;
   role: 'owner' | 'member';

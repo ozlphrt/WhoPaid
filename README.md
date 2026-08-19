@@ -53,3 +53,11 @@ npm install
 # Start local dev server
 npm run dev
 ```
+
+## 🔐 Security and testing
+
+Run the unit suite with `npm test`, the Firebase emulator authorization suite
+with `npm run test:rules`, and the production build with `npm run build`.
+
+See [SECURITY.md](./SECURITY.md) for the access model, legacy-trip migration,
+and the separate Firebase Rules deployment checklist.

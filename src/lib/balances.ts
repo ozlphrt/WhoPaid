@@ -16,14 +16,9 @@ export function resolveMemberUserId(
   const byId = members.find(m => m.id === rawId);
   if (byId) return byId.userId;
 
-  // 3. Substring match (e.g. member_B4clc3... vs B4clc3...)
-  const byPartial = members.find(m => 
-    (m.id && m.id.includes(rawId)) || 
-    (m.userId && m.userId.includes(rawId)) ||
-    (rawId && m.id && rawId.includes(m.id)) ||
-    (rawId && m.userId && rawId.includes(m.userId))
-  );
-  if (byPartial) return byPartial.userId;
+  // 3. Exact legacy alias created when an invited placeholder is claimed.
+  const byLegacyId = members.find(m => m.legacyUserIds?.includes(rawId));
+  if (byLegacyId) return byLegacyId.userId;
 
   // 4. Email match
   const byEmail = members.find(m => m.email && m.email.toLowerCase() === rawId.toLowerCase());
@@ -44,14 +39,6 @@ export function resolveMemberUserId(
       if (memByName) return memByName.userId;
     }
   }
-
-  // 7. Slug match (e.g. user_serdarbilecen matching Serdar.bilecen)
-  const cleanRaw = rawId.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const bySlug = members.find(m => {
-    const cleanName = m.name.toLowerCase().replace(/[^a-z0-9]/g, '');
-    return cleanName && (cleanRaw.includes(cleanName) || cleanName.includes(cleanRaw));
-  });
-  if (bySlug) return bySlug.userId;
 
   return rawId;
 }

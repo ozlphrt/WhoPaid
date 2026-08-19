@@ -2,6 +2,7 @@ import { calculateParticipantBalances } from './balances';
 import { calculateOptimizedSettlements } from './settlement';
 import { TripMember, Household, Expense, Settlement } from '../types';
 import { add, sub, mul, div, roundMoney } from './decimal';
+import { describe, expect, it } from 'vitest';
 
 /**
  * Multi-Currency & Household Settlement Simulation Test
@@ -155,3 +156,10 @@ export function runSimulationTestSuite(): {
 
   return { success: true, log };
 }
+
+describe('multi-currency household settlement simulation', () => {
+  it('preserves zero-sum balances and produces settlement transfers', () => {
+    const result = runSimulationTestSuite();
+    expect(result.success, result.log.join('\n')).toBe(true);
+  });
+});

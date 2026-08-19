@@ -1,8 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useApp } from '../../store/AppContext';
-import { Trip } from '../../types';
-import { ShieldCheck, Loader2, Users, Mail, Lock, User as UserIcon, ArrowRight } from 'lucide-react';
-import { fetchTripFromCloud, fetchTripMembersFromCloud } from '../../lib/firestoreSync';
+import { ShieldCheck, Loader2, Mail, Lock, User as UserIcon, ArrowRight } from 'lucide-react';
 
 export const AuthScreen: React.FC = () => {
   const { 
@@ -21,43 +19,16 @@ export const AuthScreen: React.FC = () => {
   const [emailLoading, setEmailLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const [pendingTrip, setPendingTrip] = useState<Trip | null>(null);
-  const [existingMembers, setExistingMembers] = useState<{ id: string; name: string }[]>([]);
-
-  // Discover pending trip info if arrived via invite link or QR code
-  useEffect(() => {
+  const [hasPendingInvite] = useState(() => {
     const searchParams = new URLSearchParams(window.location.search);
     const hashParams = new URLSearchParams(window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '');
-    const pendingJoin = searchParams.get('join') ||
+    return Boolean(searchParams.get('join') ||
       searchParams.get('tripId') ||
       hashParams.get('join') ||
       hashParams.get('tripId') ||
       sessionStorage.getItem('whopaid_pending_join') ||
-      localStorage.getItem('whopaid_pending_join');
-
-    const loadTripPreview = async () => {
-      if (!pendingJoin) return;
-      try {
-        const trip = await fetchTripFromCloud(pendingJoin);
-        if (trip) setPendingTrip(trip);
-
-        const cloudMembers = await fetchTripMembersFromCloud(pendingJoin);
-        const uniqueNames = new Set<string>();
-        const membersList: { id: string; name: string }[] = [];
-        cloudMembers.forEach(m => {
-          if (m.name && m.name.trim() && m.name !== 'User' && m.name !== 'Member' && !uniqueNames.has(m.name.toLowerCase())) {
-            uniqueNames.add(m.name.toLowerCase());
-            membersList.push({ id: m.id, name: m.name.trim() });
-          }
-        });
-        setExistingMembers(membersList);
-      } catch (err) {
-        console.warn('Error loading trip preview for invite:', err);
-      }
-    };
-
-    loadTripPreview();
-  }, []);
+      localStorage.getItem('whopaid_pending_join'));
+  });
 
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
@@ -67,7 +38,7 @@ export const AuthScreen: React.FC = () => {
     } catch (err: any) {
       console.error('Google Sign In Error:', err);
       if (err.code === 'auth/unauthorized-domain') {
-        setErrorMsg('Domain not authorized: Please add "ozlphrt.github.io" to Firebase Console -> Authentication -> Authorized domains.');
+        setErrorMsg(`Domain not authorized: Please add "${window.location.hostname}" to Firebase Console → Authentication → Settings → Authorized domains.`);
       } else if (err.code === 'auth/popup-blocked') {
         setErrorMsg('Please allow popups in your browser settings and try Google Sign-In again.');
       } else if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
@@ -165,8 +136,8 @@ export const AuthScreen: React.FC = () => {
           maxWidth: 320,
           lineHeight: 1.4
         }}>
-          {pendingTrip 
-            ? `You've been invited to join ${pendingTrip.emoji || '✈️'} ${pendingTrip.name}`
+          {hasPendingInvite
+            ? 'Sign in to securely accept your trip invitation.'
             : 'Travel together. Split group bills without the awkward math.'}
         </p>
       </div>
@@ -174,41 +145,6 @@ export const AuthScreen: React.FC = () => {
       {/* Middle Content */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14, margin: '16px 0' }}>
         
-        {/* Pending Trip Invite Card (if joining via link) */}
-        {pendingTrip && (
-          <div className="card" style={{
-            padding: '12px 14px',
-            borderRadius: 'var(--radius-lg)',
-            background: 'var(--bg-surface)',
-            border: '1px solid var(--border-subtle)',
-            boxShadow: 'var(--shadow-sm)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 6
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: '1.4rem' }}>{pendingTrip.emoji || '✈️'}</span>
-              <div>
-                <h3 style={{ fontSize: '0.95rem', fontWeight: 800, margin: 0 }}>
-                  {pendingTrip.name}
-                </h3>
-                <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)' }}>
-                  Main Currency: {pendingTrip.mainCurrency}
-                </span>
-              </div>
-            </div>
-
-            {existingMembers.length > 0 && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, paddingTop: 5, borderTop: '1px solid var(--border-subtle)' }}>
-                <Users size={12} color="var(--text-tertiary)" />
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                  Traveling with: <strong>{existingMembers.map(m => m.name).join(', ')}</strong>
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-
         {/* 1-Tap Google Sign-In */}
         <button
           type="button"
@@ -279,13 +215,14 @@ export const AuthScreen: React.FC = () => {
             background: 'var(--bg-subtle)',
             borderRadius: 'var(--radius-lg)',
             padding: 3
-          }}>
+          }} role="group" aria-label="Authentication mode">
             <button
               type="button"
               onClick={() => {
                 setAuthMode('signin');
                 setErrorMsg(null);
               }}
+              aria-pressed={authMode === 'signin'}
               style={{
                 flex: 1,
                 padding: '7px 0',
@@ -308,6 +245,7 @@ export const AuthScreen: React.FC = () => {
                 setAuthMode('signup');
                 setErrorMsg(null);
               }}
+              aria-pressed={authMode === 'signup'}
               style={{
                 flex: 1,
                 padding: '7px 0',
@@ -331,12 +269,14 @@ export const AuthScreen: React.FC = () => {
             {/* Name Input (Sign Up Only) */}
             {authMode === 'signup' && (
               <div>
-                <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 5 }}>
+                <label htmlFor="auth-name" style={{ display: 'block', fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 5 }}>
                   YOUR FULL NAME *
                 </label>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                   <UserIcon size={16} color="var(--text-tertiary)" style={{ position: 'absolute', left: 14 }} />
                   <input
+                    id="auth-name"
+                    autoComplete="name"
                     type="text"
                     placeholder="e.g. Sarah Connor"
                     value={name}
@@ -351,12 +291,14 @@ export const AuthScreen: React.FC = () => {
 
             {/* Email Input */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 5 }}>
+              <label htmlFor="auth-email" style={{ display: 'block', fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 5 }}>
                 EMAIL ADDRESS *
               </label>
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                 <Mail size={16} color="var(--text-tertiary)" style={{ position: 'absolute', left: 14 }} />
                 <input
+                  id="auth-email"
+                  autoComplete="email"
                   type="email"
                   placeholder="e.g. sarah@hotmail.com, outlook, etc."
                   value={email}
@@ -370,12 +312,14 @@ export const AuthScreen: React.FC = () => {
 
             {/* Password Input */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 5 }}>
+              <label htmlFor="auth-password" style={{ display: 'block', fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 5 }}>
                 PASSWORD *
               </label>
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                 <Lock size={16} color="var(--text-tertiary)" style={{ position: 'absolute', left: 14 }} />
                 <input
+                  id="auth-password"
+                  autoComplete={authMode === 'signin' ? 'current-password' : 'new-password'}
                   type="password"
                   placeholder="At least 6 characters"
                   value={password}
@@ -389,7 +333,7 @@ export const AuthScreen: React.FC = () => {
             </div>
 
             {errorMsg && (
-              <div style={{ color: 'var(--negative-text)', fontSize: '0.78rem', fontWeight: 600, marginTop: 2 }}>
+              <div role="alert" style={{ color: 'var(--negative-text)', fontSize: '0.78rem', fontWeight: 600, marginTop: 2 }}>
                 {errorMsg}
               </div>
             )}
@@ -430,7 +374,7 @@ export const AuthScreen: React.FC = () => {
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, textAlign: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-tertiary)', fontSize: '0.74rem' }}>
           <ShieldCheck size={14} color="var(--brand-500, #10b981)" />
-          <span>Encrypted Auth • Works with any email • Cloud Backup</span>
+          <span>Secure sign-in • Private trip access • Cloud backup</span>
         </div>
         <span style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)' }}>
           WhoPaid • v1.1.0

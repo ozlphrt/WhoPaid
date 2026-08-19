@@ -46,6 +46,15 @@ button {
   user-select: none;
 }
 
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 3px solid var(--brand-500, #10b981);
+  outline-offset: 2px;
+}
+
 input, select, textarea {
   font-family: inherit;
   font-size: 1rem;
@@ -116,3 +125,11 @@ a {
   animation: floatBreath 3.6s ease-in-out infinite;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

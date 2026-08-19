@@ -23,6 +23,7 @@ export const TripSettings: React.FC = () => {
     saveHousehold,
     deleteHousehold,
     transferOwnership,
+    rotateTripInvite,
     showAlert,
     showConfirm
   } = useApp();
@@ -163,6 +164,21 @@ export const TripSettings: React.FC = () => {
     );
   };
 
+  const handleRotateInvite = () => {
+    showConfirm(
+      'Resetting the invitation link immediately disables the old link. Existing members keep access.',
+      async () => {
+        try {
+          await rotateTripInvite(activeTrip.id);
+          showAlert('A new invitation link is ready to share.', 'Invite Reset', 'success');
+        } catch (error) {
+          showAlert(error instanceof Error ? error.message : 'The invitation link could not be reset.', 'Invite Reset Failed', 'warning');
+        }
+      },
+      { title: 'Reset invitation link?', confirmText: 'Reset Link' }
+    );
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 18, padding: '16px 20px 80px' }}>
       
@@ -300,7 +316,7 @@ export const TripSettings: React.FC = () => {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <strong>{m.name}</strong>
-                  {(m.userId === currentUser.id || (currentUser.name && m.name.toLowerCase() === currentUser.name.toLowerCase())) && (
+                  {(m.authUid === currentUser.id || m.userId === currentUser.id || m.legacyUserIds?.includes(currentUser.id)) && (
                     <span style={{ fontSize: '0.68rem', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '1px 6px', borderRadius: 3, fontWeight: 700 }}>
                       You
                     </span>
@@ -317,7 +333,7 @@ export const TripSettings: React.FC = () => {
                   )}
                 </div>
                 <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
-                  {(m.userId === currentUser.id || (currentUser.name && m.name.toLowerCase() === currentUser.name.toLowerCase()))
+                  {(m.authUid === currentUser.id || m.userId === currentUser.id || m.legacyUserIds?.includes(currentUser.id))
                     ? (currentUser.email || m.email)
                     : m.email}
                 </span>
@@ -457,8 +473,8 @@ export const TripSettings: React.FC = () => {
                 className="input-pill"
                 style={{ flex: 1, padding: '7px 10px' }}
               >
-                {members.map(m => (
-                  <option key={m.userId} value={m.userId}>
+                {members.filter(m => m.authUid || m.userId === activeTrip.ownerId).map(m => (
+                  <option key={m.id} value={m.authUid || m.userId}>
                     {m.name} ({m.email})
                   </option>
                 ))}
@@ -472,6 +488,15 @@ export const TripSettings: React.FC = () => {
               </button>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={handleRotateInvite}
+            className="btn-secondary"
+            style={{ padding: '8px 10px', fontSize: '0.78rem', alignSelf: 'flex-start' }}
+          >
+            Reset invitation link
+          </button>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 4 }}>
             <button
