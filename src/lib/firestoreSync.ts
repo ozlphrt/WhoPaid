@@ -2,12 +2,11 @@ import {
   collection, 
   doc, 
   getDoc,
+  getDocs,
   setDoc, 
   deleteDoc, 
   onSnapshot, 
   serverTimestamp, 
-  query, 
-  orderBy, 
   Unsubscribe 
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -73,10 +72,9 @@ export function subscribeToTrip(
       callbacks.onHouseholdsUpdate(list);
     }, callbacks.onError);
 
-    // 4. Expenses subcollection
+    // 4. Expenses subcollection (listen to entire collection for 100% reliability)
     const expensesRef = collection(db, 'trips', tripId, 'expenses');
-    const expensesQuery = query(expensesRef, orderBy('date', 'desc'));
-    const unsubscribeExpenses = onSnapshot(expensesQuery, (snap) => {
+    const unsubscribeExpenses = onSnapshot(expensesRef, (snap) => {
       const list: Expense[] = [];
       snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Expense));
       callbacks.onExpensesUpdate(list);
@@ -92,8 +90,7 @@ export function subscribeToTrip(
 
     // 6. Activities subcollection
     const activitiesRef = collection(db, 'trips', tripId, 'activities');
-    const activitiesQuery = query(activitiesRef, orderBy('createdAt', 'desc'));
-    const unsubscribeActivities = onSnapshot(activitiesQuery, (snap) => {
+    const unsubscribeActivities = onSnapshot(activitiesRef, (snap) => {
       const list: Activity[] = [];
       snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Activity));
       callbacks.onActivitiesUpdate(list);
@@ -237,6 +234,36 @@ export async function fetchTripFromCloud(tripId: string): Promise<Trip | null> {
     console.warn('[Firestore] Failed to fetch trip from cloud:', err);
   }
   return null;
+}
+
+export async function fetchTripExpensesFromCloud(tripId: string): Promise<Expense[]> {
+  const { db } = getFirebaseInstances();
+  if (!db || !tripId) return [];
+  try {
+    const expensesRef = collection(db, 'trips', tripId, 'expenses');
+    const snap = await getDocs(expensesRef);
+    const list: Expense[] = [];
+    snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Expense));
+    return list;
+  } catch (err) {
+    console.warn('[Firestore] Failed to fetch trip expenses from cloud:', err);
+    return [];
+  }
+}
+
+export async function fetchTripMembersFromCloud(tripId: string): Promise<TripMember[]> {
+  const { db } = getFirebaseInstances();
+  if (!db || !tripId) return [];
+  try {
+    const membersRef = collection(db, 'trips', tripId, 'members');
+    const snap = await getDocs(membersRef);
+    const list: TripMember[] = [];
+    snap.forEach((d) => list.push({ id: d.id, ...d.data() } as TripMember));
+    return list;
+  } catch (err) {
+    console.warn('[Firestore] Failed to fetch trip members from cloud:', err);
+    return [];
+  }
 }
 
 export async function syncUserToCloud(user: { id: string; name: string; email: string; defaultCurrency?: string; avatarUrl?: string }): Promise<void> {

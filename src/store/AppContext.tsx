@@ -27,6 +27,8 @@ import {
   syncUserToCloud,
   fetchUserFromCloud,
   fetchTripFromCloud,
+  fetchTripExpensesFromCloud,
+  fetchTripMembersFromCloud,
   ActiveTripListeners
 } from '../lib/firestoreSync';
 import { sendLocalNotification, requestNotificationPermission, isNotificationGranted } from '../lib/notifications';
@@ -161,6 +163,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setActiveTripIdState(id);
     if (id) {
       localStorage.setItem('whopaid_active_trip', id);
+      // Immediately load local expenses
+      db.expenses.where('tripId').equals(id).toArray().then((localExps) => {
+        localExps.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setExpenses(localExps);
+      });
+      // And pull latest cloud expenses if online
+      if (isFirebaseConfigured() && navigator.onLine) {
+        fetchTripExpensesFromCloud(id).then(async (remoteExps) => {
+          if (remoteExps && remoteExps.length > 0) {
+            await db.expenses.bulkPut(remoteExps);
+            const currentLocal = await db.expenses.where('tripId').equals(id).toArray();
+            currentLocal.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            setExpenses(currentLocal);
+          }
+        }).catch(console.warn);
+      }
     } else {
       localStorage.removeItem('whopaid_active_trip');
     }
