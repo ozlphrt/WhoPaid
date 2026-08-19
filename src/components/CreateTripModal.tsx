@@ -152,10 +152,14 @@ export const CreateTripModal: React.FC<CreateTripModalProps> = ({ isOpen, onClos
                 style={{
                   padding: '8px 14px',
                   borderRadius: 'var(--radius-md)',
-                  background: mainCurrency === curr ? 'var(--brand-600)' : 'var(--bg-subtle)',
-                  color: mainCurrency === curr ? '#ffffff' : 'var(--text-primary)',
+                  background: mainCurrency === curr ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
+                  color: mainCurrency === curr ? 'var(--btn-primary-text)' : 'var(--text-primary)',
                   fontWeight: 700,
-                  fontSize: '0.85rem'
+                  fontSize: '0.85rem',
+                  border: mainCurrency === curr ? '1px solid var(--btn-primary-border)' : '1px solid var(--border-subtle)',
+                  cursor: 'pointer',
+                  boxShadow: mainCurrency === curr ? 'var(--shadow-sm)' : 'none',
+                  transition: 'all 0.15s ease'
                 }}
               >
                 {curr}
@@ -173,7 +177,7 @@ export const CreateTripModal: React.FC<CreateTripModalProps> = ({ isOpen, onClos
             <button
               type="button"
               onClick={handleAddEmailField}
-              style={{ fontSize: '0.8rem', color: 'var(--brand-600)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
+              style={{ fontSize: '0.8rem', color: 'var(--accent-primary, #344256)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer' }}
             >
               <Plus size={14} />
               <span>Add another</span>

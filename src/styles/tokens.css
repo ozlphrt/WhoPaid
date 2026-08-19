@@ -32,6 +32,10 @@
   --pill-active-text: #ffffff;
   --pill-active-border: #344256;
 
+  /* Brand Emerald */
+  --brand-500: #10b981;
+  --brand-600: #059669;
+
   /* Financial Status Badges */
   --positive-text: #047857;
   --positive-bg: #ecfdf5;
@@ -105,6 +109,10 @@
   --pill-active-bg: #4c5a6e;
   --pill-active-text: #ffffff;
   --pill-active-border: #64758e;
+
+  /* Brand Emerald */
+  --brand-500: #10b981;
+  --brand-600: #059669;
 
   /* Luminous Status Indicators */
   --positive-text: #34d399;
