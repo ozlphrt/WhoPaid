@@ -187,13 +187,11 @@ export async function loginWithGoogle(): Promise<FirebaseUser | null> {
     prompt: 'select_account'
   });
 
-  const popupPromise = signInWithPopup(auth, provider);
-  const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error('Google Sign-In request timed out.')), 25000)
-  );
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
   try {
-    const res = await Promise.race([popupPromise, timeoutPromise]);
+    const res = await signInWithPopup(auth, provider);
     return res.user;
   } catch (err: any) {
     if (
@@ -201,6 +199,15 @@ export async function loginWithGoogle(): Promise<FirebaseUser | null> {
       err.code === 'auth/cancelled-popup-request'
     ) {
       return null;
+    }
+    // If popup is blocked by browser or running as a PWA, fallback to seamless redirect
+    if (err.code === 'auth/popup-blocked' || isStandalone || isMobile) {
+      try {
+        await signInWithRedirect(auth, provider);
+        return null;
+      } catch (redirectErr) {
+        console.error('[Firebase Auth] Redirect error:', redirectErr);
+      }
     }
     console.error('[Firebase Auth] Google Sign-In Error:', err);
     throw err;
