@@ -157,6 +157,9 @@ export function getFirebaseInstances() {
 ========================================================================= */
 
 const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({
+  prompt: 'select_account'
+});
 
 export async function loginAnonymously(): Promise<FirebaseUser | null> {
   const { auth } = getFirebaseInstances();
@@ -190,11 +193,7 @@ export async function loginWithGoogle(): Promise<FirebaseUser | null> {
     const res = await signInWithPopup(auth, googleProvider);
     return res.user;
   } catch (err: any) {
-    console.warn('[Firebase Auth] Popup failed, falling back to redirect:', err);
-    if (err.code === 'auth/popup-blocked' || err.code === 'auth/popup-closed-by-user' || /mobile|iphone|android|ipad/i.test(navigator.userAgent)) {
-      await signInWithRedirect(auth, googleProvider);
-      return null;
-    }
+    console.error('[Firebase Auth] Google Sign-In Error:', err);
     throw err;
   }
 }

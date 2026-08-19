@@ -32,7 +32,9 @@ export const AuthScreen: React.FC = () => {
       } else if (err.code === 'auth/operation-not-allowed') {
         setErrorMsg('Google Sign-In is not enabled: Please enable Google in Firebase Console -> Authentication -> Sign-in method.');
       } else if (err.code === 'auth/popup-blocked') {
-        setErrorMsg('Popup was blocked by your browser. Redirecting to Google...');
+        setErrorMsg('Please allow popups in your browser settings and tap Sign in with Google again.');
+      } else if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+        setErrorMsg(null);
       } else {
         setErrorMsg(err.message || 'Google sign-in failed. Please try again.');
       }
