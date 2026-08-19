@@ -413,6 +413,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       tripListenersRef.current = listeners;
     }
 
+    // Auto-sync any existing local expenses to cloud that may have been blocked
+    if (isFirebaseConfigured() && isOnline) {
+      db.expenses.where('tripId').equals(activeTripId).toArray().then(async (localExps) => {
+        for (const exp of localExps) {
+          if (!exp.isDeleted) {
+            syncExpenseToCloud(activeTripId, exp).catch(console.warn);
+          }
+        }
+      }).catch(console.warn);
+    }
+
     return () => {
       if (tripListenersRef.current) {
         tripListenersRef.current.unsubscribeTrip();

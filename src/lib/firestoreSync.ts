@@ -112,78 +112,101 @@ export function subscribeToTrip(
 }
 
 /* =========================================================================
-   Write Helpers (Upserts & Deletes)
+   Write Helpers (Upserts & Deletes) with undefined value sanitization
 ========================================================================= */
+
+export function cleanForFirestore<T extends Record<string, any>>(obj: T): Record<string, any> {
+  const clean: Record<string, any> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      if (Array.isArray(value)) {
+        clean[key] = value.map(item => (typeof item === 'object' && item !== null) ? cleanForFirestore(item) : item);
+      } else if (typeof value === 'object' && value !== null) {
+        clean[key] = cleanForFirestore(value);
+      } else {
+        clean[key] = value;
+      }
+    }
+  }
+  return clean;
+}
 
 export async function syncTripToCloud(trip: Trip): Promise<void> {
   const { db } = getFirebaseInstances();
-  if (!db) return;
+  if (!db || !trip?.id) return;
   const tripRef = doc(db, 'trips', trip.id);
-  await setDoc(tripRef, {
+  const payload = cleanForFirestore({
     ...trip,
     clientSyncStatus: 'synced',
     updatedAt: new Date().toISOString()
-  }, { merge: true });
+  });
+  await setDoc(tripRef, payload, { merge: true });
 }
 
 export async function syncMemberToCloud(tripId: string, member: TripMember): Promise<void> {
   const { db } = getFirebaseInstances();
-  if (!db) return;
+  if (!db || !tripId || !member?.id) return;
   const memberRef = doc(db, 'trips', tripId, 'members', member.id);
-  await setDoc(memberRef, member, { merge: true });
+  await setDoc(memberRef, cleanForFirestore(member), { merge: true });
 }
 
 export async function syncHouseholdToCloud(tripId: string, household: Household): Promise<void> {
   const { db } = getFirebaseInstances();
-  if (!db) return;
+  if (!db || !tripId || !household?.id) return;
   const hRef = doc(db, 'trips', tripId, 'households', household.id);
-  await setDoc(hRef, household, { merge: true });
+  await setDoc(hRef, cleanForFirestore(household), { merge: true });
 }
 
 export async function deleteHouseholdFromCloud(tripId: string, householdId: string): Promise<void> {
   const { db } = getFirebaseInstances();
-  if (!db) return;
+  if (!db || !tripId || !householdId) return;
   const hRef = doc(db, 'trips', tripId, 'households', householdId);
   await deleteDoc(hRef);
 }
 
 export async function syncExpenseToCloud(tripId: string, expense: Expense): Promise<void> {
   const { db } = getFirebaseInstances();
-  if (!db) return;
-  const expRef = doc(db, 'trips', tripId, 'expenses', expense.id);
-  await setDoc(expRef, {
-    ...expense,
-    clientSyncStatus: 'synced',
-    updatedAt: new Date().toISOString()
-  }, { merge: true });
+  if (!db || !tripId || !expense?.id) return;
+  try {
+    const expRef = doc(db, 'trips', tripId, 'expenses', expense.id);
+    const payload = cleanForFirestore({
+      ...expense,
+      clientSyncStatus: 'synced',
+      updatedAt: new Date().toISOString()
+    });
+    await setDoc(expRef, payload, { merge: true });
+  } catch (err) {
+    console.error('[Firestore] syncExpenseToCloud failed:', err);
+    throw err;
+  }
 }
 
 export async function deleteExpenseFromCloud(tripId: string, expenseId: string): Promise<void> {
   const { db } = getFirebaseInstances();
-  if (!db) return;
+  if (!db || !tripId || !expenseId) return;
   const expRef = doc(db, 'trips', tripId, 'expenses', expenseId);
   await deleteDoc(expRef);
 }
 
 export async function syncSettlementToCloud(tripId: string, settlement: Settlement): Promise<void> {
   const { db } = getFirebaseInstances();
-  if (!db) return;
+  if (!db || !tripId || !settlement?.id) return;
   const setRef = doc(db, 'trips', tripId, 'settlements', settlement.id);
-  await setDoc(setRef, settlement, { merge: true });
+  await setDoc(setRef, cleanForFirestore(settlement), { merge: true });
 }
 
 export async function deleteSettlementFromCloud(tripId: string, settlementId: string): Promise<void> {
   const { db } = getFirebaseInstances();
-  if (!db) return;
+  if (!db || !tripId || !settlementId) return;
   const setRef = doc(db, 'trips', tripId, 'settlements', settlementId);
   await deleteDoc(setRef);
 }
 
 export async function syncActivityToCloud(tripId: string, activity: Activity): Promise<void> {
   const { db } = getFirebaseInstances();
-  if (!db) return;
+  if (!db || !tripId || !activity?.id) return;
   const actRef = doc(db, 'trips', tripId, 'activities', activity.id);
-  await setDoc(actRef, activity, { merge: true });
+  await setDoc(actRef, cleanForFirestore(activity), { merge: true });
 }
 
 /* =========================================================================
