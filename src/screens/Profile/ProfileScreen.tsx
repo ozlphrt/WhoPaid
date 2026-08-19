@@ -11,6 +11,7 @@ export const ProfileScreen: React.FC = () => {
     setCurrentUser, 
     isFirebaseActive, 
     logoutUser,
+    clearAllData,
     enableNotifications,
     isNotificationsEnabled
   } = useApp();
@@ -299,6 +300,31 @@ export const ProfileScreen: React.FC = () => {
       >
         <LogOut size={16} />
         <span>Sign Out ({currentUser.email || currentUser.name})</span>
+      </button>
+
+      {/* Clear / Reset All Data for testing */}
+      <button
+        type="button"
+        onClick={async () => {
+          if (window.confirm('Are you sure you want to delete all trips and expenses to test from scratch?')) {
+            await clearAllData();
+            alert('All trips and test data have been wiped clean!');
+          }
+        }}
+        style={{
+          width: '100%',
+          padding: '10px 14px',
+          borderRadius: 'var(--radius-lg)',
+          background: 'transparent',
+          color: 'var(--text-tertiary)',
+          border: '1px dashed var(--border-subtle)',
+          fontSize: '0.78rem',
+          fontWeight: 600,
+          cursor: 'pointer',
+          textAlign: 'center'
+        }}
+      >
+        🗑️ Clear All Trips & Data (Start Fresh)
       </button>
 
     </div>

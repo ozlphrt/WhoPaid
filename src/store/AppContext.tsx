@@ -63,6 +63,7 @@ interface AppContextType {
   // Actions
   createTrip: (trip: Omit<Trip, 'id' | 'createdAt' | 'updatedAt'>, memberEmails: string[]) => Promise<string>;
   joinTrip: (tripId: string) => Promise<void>;
+  clearAllData: () => Promise<void>;
   updateTrip: (trip: Trip) => Promise<void>;
   closeTrip: (tripId: string) => Promise<void>;
   reopenTrip: (tripId: string) => Promise<void>;
@@ -211,6 +212,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Local IndexedDB refresh
   const refreshData = useCallback(async () => {
     try {
+      // One-time clean wipe of old mock trips
+      const WIPE_MOCK_KEY = 'whopaid_wipe_mock_trips_v2';
+      if (!localStorage.getItem(WIPE_MOCK_KEY)) {
+        await db.trips.clear();
+        await db.expenses.clear();
+        await db.tripMembers.clear();
+        await db.households.clear();
+        await db.settlements.clear();
+        await db.auditLogs.clear();
+        await db.activities.clear();
+        localStorage.removeItem('whopaid_active_trip');
+        localStorage.setItem(WIPE_MOCK_KEY, 'true');
+      }
+
       await seedInitialDataIfNeeded();
 
       const uList = await db.users.toArray();
@@ -228,8 +243,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const allMembers = await db.tripMembers.toArray();
       for (const m of allMembers) {
         if (
-          (currentUser.email && m.name.toLowerCase() === currentUser.email.toLowerCase()) ||
-          (currentUser.name && m.name.toLowerCase() === currentUser.name.toLowerCase())
+          (currentUser.email && m.email && m.email.toLowerCase() === currentUser.email.toLowerCase()) ||
+          (currentUser.email && m.name && m.name.toLowerCase() === currentUser.email.toLowerCase()) ||
+          (currentUser.name && m.name && m.name.toLowerCase() === currentUser.name.toLowerCase())
         ) {
           memberTripIds.add(m.tripId);
         }
@@ -238,8 +254,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Strictly filter trips: user is owner or invited member
       const userTrips = allTrips.filter(t => 
         t.ownerId === currentUser.id || 
-        memberTripIds.has(t.id) ||
-        (t.ownerId === 'user_ozalp' && currentUser.name?.toLowerCase().includes('ozalp'))
+        memberTripIds.has(t.id)
       );
       setTrips(userTrips);
 
@@ -990,6 +1005,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const clearAllData = async () => {
+    await db.trips.clear();
+    await db.expenses.clear();
+    await db.tripMembers.clear();
+    await db.households.clear();
+    await db.settlements.clear();
+    await db.auditLogs.clear();
+    await db.activities.clear();
+    setActiveTripId(null);
+    localStorage.removeItem('whopaid_active_trip');
+    await refreshData();
+  };
+
   const logoutUser = async () => {
     try {
       await fbLogout();
@@ -1030,6 +1058,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         lastUsedCurrency,
         createTrip,
         joinTrip,
+        clearAllData,
         updateTrip,
         closeTrip,
         reopenTrip,
