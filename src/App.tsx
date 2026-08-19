@@ -110,11 +110,15 @@ interface AppContentProps {}
 const AppContent: React.FC<AppContentProps> = () => {
   const { activeTrip, setActiveTripId, isInitialized, isAuthenticated, currentUser, joinTrip } = useApp();
 
-  // Start from 'trips' overview screen, or resume where user left off if an active trip is open
+  // Start from 'trips' overview screen, or resume where user left off if an active trip is open (never resume into profile)
   const [currentView, setCurrentView] = useState<AppView>(() => {
+    // Clear any stale profile view from previous session
+    if (localStorage.getItem('whopaid_last_view') === 'profile') {
+      localStorage.removeItem('whopaid_last_view');
+    }
     const savedTrip = localStorage.getItem('whopaid_active_trip');
     const savedView = localStorage.getItem('whopaid_last_view') as AppView;
-    if (savedTrip && savedView && savedView !== 'trips') {
+    if (savedTrip && savedView && savedView !== 'trips' && savedView !== 'profile') {
       return savedView;
     }
     return 'trips';
@@ -122,7 +126,9 @@ const AppContent: React.FC<AppContentProps> = () => {
 
   const handleNavigate = (view: AppView) => {
     setCurrentView(view);
-    localStorage.setItem('whopaid_last_view', view);
+    if (view !== 'profile') {
+      localStorage.setItem('whopaid_last_view', view);
+    }
   };
 
   // If no active trip is selected, only reset view if app is fully initialized and no trip is saved in localStorage
