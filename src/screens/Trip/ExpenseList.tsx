@@ -88,6 +88,34 @@ export const ExpenseList: React.FC = () => {
     });
   }, [categorySpendMap]);
 
+  const personPaidMap = useMemo(() => {
+    const map = new Map<string, number>();
+    expenses.forEach(exp => {
+      if (!exp.isDeleted) {
+        if (exp.payers && exp.payers.length > 0) {
+          exp.payers.forEach(p => {
+            const payerConverted = exp.exchangeRate ? p.amount * exp.exchangeRate : p.amount;
+            map.set(p.userId, (map.get(p.userId) || 0) + payerConverted);
+          });
+        } else {
+          map.set(exp.paidByUserId, (map.get(exp.paidByUserId) || 0) + (exp.convertedAmount || exp.originalAmount));
+        }
+      }
+    });
+    return map;
+  }, [expenses]);
+
+  const sortedMembers = useMemo(() => {
+    return [...members].sort((a, b) => {
+      const paidA = personPaidMap.get(a.userId) || 0;
+      const paidB = personPaidMap.get(b.userId) || 0;
+      if (paidB !== paidA) {
+        return paidB - paidA; // highest paid first
+      }
+      return a.name.localeCompare(b.name);
+    });
+  }, [members, personPaidMap]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '16px 20px 80px' }}>
       
@@ -136,7 +164,7 @@ export const ExpenseList: React.FC = () => {
         )}
       </div>
 
-      {/* Filter Chips (People) */}
+      {/* Filter Chips (People - Ordered by Highest to Lowest Paid) */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-tertiary)' }}>
           Paid by Person
@@ -159,8 +187,10 @@ export const ExpenseList: React.FC = () => {
           >
             Everyone
           </button>
-          {members.map(m => {
+          {sortedMembers.map(m => {
             const isSelected = selectedPerson === m.userId;
+            const paid = personPaidMap.get(m.userId) || 0;
+            const displayName = m.userId === currentUser.id ? 'You' : m.name;
             return (
               <button
                 key={m.userId}
@@ -178,7 +208,17 @@ export const ExpenseList: React.FC = () => {
                   cursor: 'pointer'
                 }}
               >
-                {m.userId === currentUser.id ? 'You' : m.name}
+                <span>{displayName}</span>
+                {paid > 0 && (
+                  <span style={{ 
+                    fontSize: '0.7rem', 
+                    opacity: 0.85, 
+                    marginLeft: 4,
+                    fontWeight: 700
+                  }}>
+                    • {formatMoney(paid, activeTrip?.mainCurrency || 'EUR')}
+                  </span>
+                )}
               </button>
             );
           })}
