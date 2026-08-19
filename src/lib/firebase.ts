@@ -187,14 +187,9 @@ export async function loginWithGoogle(): Promise<FirebaseUser | null> {
     return res.user;
   } catch (err: any) {
     if (
-      err.code === 'auth/popup-blocked' ||
+      err.code === 'auth/popup-closed-by-user' ||
       err.code === 'auth/cancelled-popup-request'
     ) {
-      console.log('[Firebase Auth] Popup blocked or cancelled, redirecting...');
-      await signInWithRedirect(auth, provider);
-      return null;
-    }
-    if (err.code === 'auth/popup-closed-by-user') {
       return null;
     }
     console.error('[Firebase Auth] Google Sign-In Error:', err);
