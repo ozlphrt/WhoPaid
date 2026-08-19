@@ -281,17 +281,31 @@ export const ProfileScreen: React.FC = () => {
         </button>
       </form>
 
-      {/* Clean Sign Out Action */}
+      {/* Clean Opaque Sign Out Action with Confirmation Validation */}
       <button
         type="button"
-        onClick={logoutUser}
+        onClick={() => {
+          showConfirm(
+            `Are you sure you want to sign out of ${currentUser.email || currentUser.name}?`,
+            async () => {
+              await logoutUser();
+            },
+            {
+              title: 'Sign Out?',
+              confirmText: 'Sign Out',
+              cancelText: 'Cancel',
+              isDestructive: true
+            }
+          );
+        }}
         style={{
           width: '100%',
           padding: '13px 18px',
           borderRadius: 'var(--radius-xl)',
-          background: 'rgba(239, 68, 68, 0.08)',
+          background: 'var(--bg-surface)',
           color: '#ef4444',
-          border: '1px solid rgba(239, 68, 68, 0.2)',
+          border: '1px solid rgba(239, 68, 68, 0.28)',
+          boxShadow: 'var(--shadow-sm)',
           fontWeight: 700,
           fontSize: '0.88rem',
           display: 'flex',
@@ -299,10 +313,10 @@ export const ProfileScreen: React.FC = () => {
           justifyContent: 'center',
           gap: 8,
           cursor: 'pointer',
-          transition: 'background 0.15s ease'
+          transition: 'all 0.15s ease'
         }}
       >
-        <LogOut size={16} />
+        <LogOut size={16} color="#ef4444" />
         <span>Sign Out ({currentUser.email || currentUser.name})</span>
       </button>
 
