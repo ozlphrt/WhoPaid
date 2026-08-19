@@ -1260,7 +1260,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           defaultCurrency: resolvedCurrency,
           avatarUrl: resolvedAvatar
         };
+        await db.users.put(u);
+        if (isFirebaseConfigured()) {
+          await syncUserToCloud(u).catch(console.warn);
+        }
         setCurrentUser(u);
+        localStorage.setItem('whopaid_auth_user', JSON.stringify(u));
+
+        // Check if user arrived via an invitation link or QR code
+        const searchParams = new URLSearchParams(window.location.search);
+        const hashParams = new URLSearchParams(window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '');
+        const pendingJoin = searchParams.get('join') ||
+          searchParams.get('tripId') ||
+          hashParams.get('join') ||
+          hashParams.get('tripId') ||
+          sessionStorage.getItem('whopaid_pending_join') ||
+          localStorage.getItem('whopaid_pending_join');
+
+        if (pendingJoin) {
+          sessionStorage.removeItem('whopaid_pending_join');
+          localStorage.removeItem('whopaid_pending_join');
+          await joinTrip(pendingJoin);
+        } else {
+          await refreshData();
+        }
       }
     } catch (err: any) {
       console.error('Google login failed:', err);

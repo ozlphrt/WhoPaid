@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../store/AppContext';
 import { CurrencyCode, Trip, TripMember } from '../../types';
-import { ArrowRight, ShieldCheck, Loader2, Check, UserPlus, Sparkles } from 'lucide-react';
+import { ArrowRight, ShieldCheck, Loader2, Check, UserPlus } from 'lucide-react';
 import { loginAnonymously } from '../../lib/firebase';
 import { syncUserToCloud, fetchTripFromCloud, fetchTripMembersFromCloud } from '../../lib/firestoreSync';
 import { db } from '../../lib/db';
@@ -10,6 +10,7 @@ const POPULAR_CURRENCIES: CurrencyCode[] = ['EUR', 'USD', 'TRY', 'GBP', 'CHF', '
 
 export const AuthScreen: React.FC = () => {
   const { 
+    loginWithGoogleAuth,
     setCurrentUser, 
     refreshData,
     joinTrip,
@@ -20,6 +21,7 @@ export const AuthScreen: React.FC = () => {
   const [guestEmail, setGuestEmail] = useState<string>('');
   const [guestCurrency, setGuestCurrency] = useState<CurrencyCode>('EUR');
   const [loading, setLoading] = useState<boolean>(false);
+  const [googleLoading, setGoogleLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [pendingTrip, setPendingTrip] = useState<Trip | null>(null);
@@ -74,6 +76,27 @@ export const AuthScreen: React.FC = () => {
       setGuestEmail(member.email);
     }
     setIsCustomName(false);
+  };
+
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    setErrorMsg(null);
+    try {
+      await loginWithGoogleAuth();
+    } catch (err: any) {
+      console.error('Google Sign In Error:', err);
+      if (err.code === 'auth/unauthorized-domain') {
+        setErrorMsg('Domain not authorized: Please add "ozlphrt.github.io" to Firebase Console -> Authentication -> Authorized domains.');
+      } else if (err.code === 'auth/popup-blocked') {
+        setErrorMsg('Please allow popups in your browser settings and try Google Sign-In again.');
+      } else if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
+        setErrorMsg(null);
+      } else {
+        setErrorMsg(err.message || 'Google sign-in could not be completed. You can also continue by entering your name below.');
+      }
+    } finally {
+      setGoogleLoading(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -143,7 +166,7 @@ export const AuthScreen: React.FC = () => {
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'space-between',
-      padding: 'calc(28px + env(safe-area-inset-top, 0px)) 20px calc(24px + env(safe-area-inset-bottom, 0px))',
+      padding: 'calc(24px + env(safe-area-inset-top, 0px)) 20px calc(24px + env(safe-area-inset-bottom, 0px))',
       background: 'var(--bg-primary)',
       color: 'var(--text-primary)',
       maxWidth: 480,
@@ -151,23 +174,23 @@ export const AuthScreen: React.FC = () => {
     }}>
       
       {/* Top Brand Hero */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginTop: 12 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginTop: 8 }}>
         <img 
           src={`${import.meta.env.BASE_URL}apple-touch-icon.png`} 
           alt="WhoPaid" 
           className="animate-float-breath"
           style={{
-            width: 72,
-            height: 72,
-            borderRadius: 22,
+            width: 68,
+            height: 68,
+            borderRadius: 20,
             objectFit: 'cover',
-            marginBottom: 14,
+            marginBottom: 12,
             cursor: 'default'
           }}
         />
 
         <h1 style={{
-          fontSize: '2rem',
+          fontSize: '1.95rem',
           fontWeight: 900,
           letterSpacing: '-0.035em',
           margin: '0 0 4px 0',
@@ -177,7 +200,7 @@ export const AuthScreen: React.FC = () => {
         </h1>
 
         <p style={{
-          fontSize: '0.88rem',
+          fontSize: '0.86rem',
           color: 'var(--text-secondary)',
           margin: 0,
           maxWidth: 320,
@@ -189,202 +212,260 @@ export const AuthScreen: React.FC = () => {
         </p>
       </div>
 
-      {/* Main Onboarding Form */}
-      <form onSubmit={handleSubmit} className="card" style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 16,
-        margin: '20px 0',
-        padding: '22px',
-        borderRadius: 'var(--radius-xl)',
-        background: 'var(--bg-surface)',
-        border: '1px solid var(--border-subtle)',
-        boxShadow: 'var(--shadow-md)'
-      }}>
-        <div>
-          <h2 style={{ fontSize: '1.15rem', fontWeight: 800, margin: '0 0 4px 0' }}>
-            {existingMembers.length > 0 ? 'Who are you in this trip?' : 'Welcome to WhoPaid'}
-          </h2>
-          <p style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', margin: 0 }}>
-            {existingMembers.length > 0
-              ? 'Select your existing profile or type a new name below.'
-              : 'Enter your name to start tracking and splitting group travel expenses.'}
-          </p>
-        </div>
-
-        {/* Existing Member Pills to avoid duplicate names */}
-        {existingMembers.length > 0 && (
-          <div>
-            <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 8 }}>
-              CHOOSE YOUR PROFILE
-            </label>
-            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-              {existingMembers.map(m => {
-                const isSelected = guestName.trim().toLowerCase() === m.name.toLowerCase();
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => handleSelectExistingMember(m)}
-                    style={{
-                      padding: '7px 13px',
-                      borderRadius: 'var(--radius-full)',
-                      background: isSelected ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
-                      color: isSelected ? 'var(--btn-primary-text)' : 'var(--text-primary)',
-                      fontWeight: 700,
-                      fontSize: '0.85rem',
-                      border: isSelected ? '1px solid var(--btn-primary-border)' : '1px solid var(--border-subtle)',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      boxShadow: isSelected ? 'var(--shadow-sm)' : 'none',
-                      transition: 'all 0.15s ease'
-                    }}
-                  >
-                    <span>{m.name}</span>
-                    {isSelected && <Check size={14} />}
-                  </button>
-                );
-              })}
-
-              <button
-                type="button"
-                onClick={() => {
-                  setGuestName('');
-                  setGuestEmail('');
-                  setIsCustomName(true);
-                }}
-                style={{
-                  padding: '7px 12px',
-                  borderRadius: 'var(--radius-full)',
-                  background: isCustomName ? 'var(--bg-elevated)' : 'transparent',
-                  color: 'var(--text-tertiary)',
-                  fontWeight: 600,
-                  fontSize: '0.8rem',
-                  border: '1px dashed var(--border-strong)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4
-                }}
-              >
-                <UserPlus size={13} />
-                <span>New person</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Name Input */}
-        <div>
-          <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
-            YOUR NAME *
-          </label>
-          <input
-            type="text"
-            placeholder="e.g. Ozalp, Betül, Alex"
-            value={guestName}
-            onChange={e => {
-              setGuestName(e.target.value);
-              setIsCustomName(true);
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14, margin: '18px 0' }}>
+        
+        {/* Google Sign-in Button */}
+        {isFirebaseActive && (
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={googleLoading || loading}
+            style={{
+              width: '100%',
+              padding: '13px 20px',
+              borderRadius: 'var(--radius-xl)',
+              background: '#ffffff',
+              color: '#1f2937',
+              border: '1px solid #e5e7eb',
+              fontWeight: 700,
+              fontSize: '0.92rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 12,
+              cursor: 'pointer',
+              boxShadow: '0 3px 10px rgba(0,0,0,0.06)',
+              transition: 'transform 0.15s ease'
             }}
-            className="input-pill"
-            required
-            autoFocus={existingMembers.length === 0}
-            style={{ fontSize: '0.98rem' }}
-          />
-        </div>
-
-        {/* Email Input (Optional) */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-            <label style={{ fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              EMAIL (OPTIONAL)
-            </label>
-            <span style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)' }}>For cross-device sync</span>
-          </div>
-          <input
-            type="email"
-            placeholder="e.g. ozalph@gmail.com"
-            value={guestEmail}
-            onChange={e => setGuestEmail(e.target.value)}
-            className="input-pill"
-            style={{ fontSize: '0.92rem' }}
-          />
-        </div>
-
-        {/* Preferred Currency */}
-        <div>
-          <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
-            DEFAULT CURRENCY
-          </label>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {POPULAR_CURRENCIES.map(curr => (
-              <button
-                key={curr}
-                type="button"
-                onClick={() => setGuestCurrency(curr)}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: 'var(--radius-md)',
-                  background: guestCurrency === curr ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
-                  color: guestCurrency === curr ? 'var(--btn-primary-text)' : 'var(--text-primary)',
-                  fontWeight: 700,
-                  fontSize: '0.82rem',
-                  border: guestCurrency === curr ? '1px solid var(--btn-primary-border)' : '1px solid var(--border-subtle)',
-                  cursor: 'pointer',
-                  boxShadow: guestCurrency === curr ? 'var(--shadow-sm)' : 'none'
-                }}
-              >
-                {curr}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {errorMsg && (
-          <div style={{ color: 'var(--negative-text)', fontSize: '0.82rem', fontWeight: 600 }}>
-            {errorMsg}
-          </div>
+          >
+            {googleLoading ? (
+              <Loader2 size={18} className="animate-spin" color="#1f2937" />
+            ) : (
+              <>
+                <svg width="19" height="19" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"/>
+                  <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"/>
+                  <path fill="#FBBC05" d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 9.97 0 12s.45 3.82 1.25 5.42l4.03-3.15z"/>
+                  <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"/>
+                </svg>
+                <span>Continue with Google</span>
+              </>
+            )}
+          </button>
         )}
 
-        {/* Primary CTA */}
-        <button
-          type="submit"
-          disabled={loading}
-          className="btn-primary"
-          style={{
-            marginTop: 6,
-            padding: '14px 20px',
-            borderRadius: 'var(--radius-lg)',
-            fontSize: '0.95rem',
-            fontWeight: 800,
-            justifyContent: 'center',
+        {/* Divider */}
+        {isFirebaseActive && (
+          <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
-            boxShadow: 'var(--shadow-sm)'
-          }}
-        >
-          {loading ? (
-            <Loader2 size={18} className="animate-spin" />
-          ) : (
-            <>
-              <span>{pendingTrip ? `Join ${pendingTrip.name}` : 'Get Started'}</span>
-              <ArrowRight size={16} />
-            </>
+            gap: 12,
+            margin: '2px 0'
+          }}>
+            <div style={{ flex: 1, height: 1, background: 'var(--border-subtle)' }} />
+            <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              OR ENTER NAME
+            </span>
+            <div style={{ flex: 1, height: 1, background: 'var(--border-subtle)' }} />
+          </div>
+        )}
+
+        {/* Main Onboarding Form */}
+        <form onSubmit={handleSubmit} className="card" style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 15,
+          padding: '20px',
+          borderRadius: 'var(--radius-xl)',
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-subtle)',
+          boxShadow: 'var(--shadow-md)'
+        }}>
+          <div>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 800, margin: '0 0 3px 0' }}>
+              {existingMembers.length > 0 ? 'Who are you in this trip?' : 'Join with your Name'}
+            </h2>
+            <p style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', margin: 0 }}>
+              {existingMembers.length > 0
+                ? 'Select your existing profile or type a new name below.'
+                : 'Enter your name to start tracking and splitting group travel expenses.'}
+            </p>
+          </div>
+
+          {/* Existing Member Pills to avoid duplicate names */}
+          {existingMembers.length > 0 && (
+            <div>
+              <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 7 }}>
+                CHOOSE YOUR PROFILE
+              </label>
+              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                {existingMembers.map(m => {
+                  const isSelected = guestName.trim().toLowerCase() === m.name.toLowerCase();
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => handleSelectExistingMember(m)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 'var(--radius-full)',
+                        background: isSelected ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
+                        color: isSelected ? 'var(--btn-primary-text)' : 'var(--text-primary)',
+                        fontWeight: 700,
+                        fontSize: '0.82rem',
+                        border: isSelected ? '1px solid var(--btn-primary-border)' : '1px solid var(--border-subtle)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        boxShadow: isSelected ? 'var(--shadow-sm)' : 'none',
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <span>{m.name}</span>
+                      {isSelected && <Check size={13} />}
+                    </button>
+                  );
+                })}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGuestName('');
+                    setGuestEmail('');
+                    setIsCustomName(true);
+                  }}
+                  style={{
+                    padding: '6px 11px',
+                    borderRadius: 'var(--radius-full)',
+                    background: isCustomName ? 'var(--bg-elevated)' : 'transparent',
+                    color: 'var(--text-tertiary)',
+                    fontWeight: 600,
+                    fontSize: '0.78rem',
+                    border: '1px dashed var(--border-strong)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4
+                  }}
+                >
+                  <UserPlus size={12} />
+                  <span>New person</span>
+                </button>
+              </div>
+            </div>
           )}
-        </button>
-      </form>
+
+          {/* Name Input */}
+          <div>
+            <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 5 }}>
+              YOUR NAME *
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. Ozalp, Betül, Alex"
+              value={guestName}
+              onChange={e => {
+                setGuestName(e.target.value);
+                setIsCustomName(true);
+              }}
+              className="input-pill"
+              required
+              autoFocus={existingMembers.length === 0}
+              style={{ fontSize: '0.94rem' }}
+            />
+          </div>
+
+          {/* Email Input (Optional) */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+              <label style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                EMAIL (OPTIONAL)
+              </label>
+              <span style={{ fontSize: '0.66rem', color: 'var(--text-tertiary)' }}>For cross-device sync</span>
+            </div>
+            <input
+              type="email"
+              placeholder="e.g. ozalph@gmail.com"
+              value={guestEmail}
+              onChange={e => setGuestEmail(e.target.value)}
+              className="input-pill"
+              style={{ fontSize: '0.9rem' }}
+            />
+          </div>
+
+          {/* Preferred Currency */}
+          <div>
+            <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 5 }}>
+              DEFAULT CURRENCY
+            </label>
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+              {POPULAR_CURRENCIES.map(curr => (
+                <button
+                  key={curr}
+                  type="button"
+                  onClick={() => setGuestCurrency(curr)}
+                  style={{
+                    padding: '5px 10px',
+                    borderRadius: 'var(--radius-md)',
+                    background: guestCurrency === curr ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
+                    color: guestCurrency === curr ? 'var(--btn-primary-text)' : 'var(--text-primary)',
+                    fontWeight: 700,
+                    fontSize: '0.78rem',
+                    border: guestCurrency === curr ? '1px solid var(--btn-primary-border)' : '1px solid var(--border-subtle)',
+                    cursor: 'pointer',
+                    boxShadow: guestCurrency === curr ? 'var(--shadow-sm)' : 'none'
+                  }}
+                >
+                  {curr}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {errorMsg && (
+            <div style={{ color: 'var(--negative-text)', fontSize: '0.8rem', fontWeight: 600 }}>
+              {errorMsg}
+            </div>
+          )}
+
+          {/* Primary CTA */}
+          <button
+            type="submit"
+            disabled={loading || googleLoading}
+            className="btn-primary"
+            style={{
+              marginTop: 4,
+              padding: '13px 18px',
+              borderRadius: 'var(--radius-lg)',
+              fontSize: '0.92rem',
+              fontWeight: 800,
+              justifyContent: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              boxShadow: 'var(--shadow-sm)'
+            }}
+          >
+            {loading ? (
+              <Loader2 size={18} className="animate-spin" />
+            ) : (
+              <>
+                <span>{pendingTrip ? `Join ${pendingTrip.name}` : 'Start Splitting'}</span>
+                <ArrowRight size={16} />
+              </>
+            )}
+          </button>
+        </form>
+      </div>
 
       {/* Security & Offline Badge */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textAlign: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-tertiary)', fontSize: '0.76rem' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, textAlign: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-tertiary)', fontSize: '0.74rem' }}>
           <ShieldCheck size={14} color="var(--brand-500, #10b981)" />
-          <span>Instant access • No passwords • 100% offline capable</span>
+          <span>Encrypted storage • Offline capable • 1-Tap Google or Name</span>
         </div>
-        <span style={{ fontSize: '0.7rem', color: 'var(--text-tertiary)' }}>
+        <span style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)' }}>
           WhoPaid • v1.0.0
         </span>
       </div>
