@@ -8,8 +8,8 @@ function cleanPdfText(text: string | undefined | null): string {
   return text
     // Replace Unicode minus, en-dash, em-dash with standard ASCII hyphen
     .replace(/[\u2212\u2013\u2014]/g, '-')
-    // Strip emojis and supplementary Unicode symbols that corrupt standard PDF fonts
-    .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2300}-\u{23FF}\u{2B50}\u{FE0F}]/gu, '')
+    // Strip emojis and non-standard symbols across all Unicode blocks
+    .replace(/([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF]|[\u{1F000}-\u{1FFFF}])/gu, '')
     .trim();
 }
 

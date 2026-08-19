@@ -44,9 +44,9 @@ export function formatMoney(amount: number, currency: string = 'EUR', showSign: 
 
   if (showSign) {
     if (rounded > 0.005) return `+${formatted}`;
-    if (rounded < -0.005) return `−${formatted}`;
+    if (rounded < -0.005) return `-${formatted}`;
   }
-  return rounded < -0.005 ? `−${formatted}` : formatted;
+  return rounded < -0.005 ? `-${formatted}` : formatted;
 }
 
 export function getCurrencySymbol(currency: string): string {
