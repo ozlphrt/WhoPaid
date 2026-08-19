@@ -188,37 +188,61 @@ export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
             </button>
           )}
 
-          {/* User Profile Avatar */}
+          {/* User Profile Pill with Full Name */}
           <button
             onClick={() => onNavigate('profile')}
             style={{
-              width: 32,
               height: 32,
+              padding: '0 10px 0 6px',
               borderRadius: 'var(--radius-full)',
-              background: 'var(--brand-600, #10b981)',
-              border: '2px solid var(--border-subtle)',
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border-subtle)',
+              color: 'var(--text-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+              boxShadow: 'var(--shadow-sm)',
+              transition: 'all 0.15s ease'
+            }}
+            title="Profile & Settings"
+            aria-label="Profile"
+          >
+            <div style={{
+              width: 20,
+              height: 20,
+              borderRadius: 'var(--radius-full)',
+              background: '#10b981',
               color: '#ffffff',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               fontWeight: 800,
-              fontSize: '0.8rem',
+              fontSize: '0.68rem',
               overflow: 'hidden',
-              cursor: 'pointer',
-              padding: 0
-            }}
-            title="Profile & Account"
-            aria-label="Profile"
-          >
-            {currentUser.avatarUrl ? (
-              <img 
-                src={currentUser.avatarUrl} 
-                alt={currentUser.name} 
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-              />
-            ) : (
-              currentUser.name.charAt(0).toUpperCase()
-            )}
+              flexShrink: 0
+            }}>
+              {currentUser.avatarUrl ? (
+                <img 
+                  src={currentUser.avatarUrl} 
+                  alt={currentUser.name} 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                />
+              ) : (
+                currentUser.name.charAt(0).toUpperCase()
+              )}
+            </div>
+            <span style={{
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              maxWidth: 90,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              color: 'var(--text-primary)'
+            }}>
+              {currentUser.name}
+            </span>
           </button>
         </div>
       </header>
