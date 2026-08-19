@@ -1,7 +1,22 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Trip, TripMember, Expense, Settlement, ParticipantBalance, RecommendedTransfer } from '../types';
+import { Trip, TripMember, Expense, ParticipantBalance, RecommendedTransfer } from '../types';
 import { formatMoney } from './decimal';
+
+function cleanPdfText(text: string | undefined | null): string {
+  if (!text) return '';
+  return text
+    // Replace Unicode minus, en-dash, em-dash with standard ASCII hyphen
+    .replace(/[\u2212\u2013\u2014]/g, '-')
+    // Strip emojis and supplementary Unicode symbols that corrupt standard PDF fonts
+    .replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{2300}-\u{23FF}\u{2B50}\u{FE0F}]/gu, '')
+    .trim();
+}
+
+function formatMoneyPdf(amount: number, currency: string = 'EUR', showSign: boolean = false): string {
+  const formatted = formatMoney(amount, currency, showSign);
+  return cleanPdfText(formatted);
+}
 
 export function exportTripCSV(
   trip: Trip,
@@ -65,16 +80,18 @@ export function exportTripPDF(
   const doc = new jsPDF();
   const memberMap = new Map(members.map(m => [m.userId, m.name]));
 
+  const cleanTripName = cleanPdfText(trip.name) || 'Trip Report';
+
   // Header Banner
   doc.setFillColor(13, 148, 136); // Teal #0d9488
   doc.rect(0, 0, 210, 28, 'F');
   
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(18);
-  doc.text(`WhoPaid  |  ${trip.emoji} ${trip.name}`, 14, 18);
+  doc.text(`WhoPaid  |  ${cleanTripName}`, 14, 18);
 
   doc.setFontSize(10);
-  doc.text(`Dates: ${trip.startDate} - ${trip.endDate}   |   Main Currency: ${trip.mainCurrency}`, 14, 25);
+  doc.text(`Dates: ${trip.startDate || 'N/A'} - ${trip.endDate || 'N/A'}   |   Main Currency: ${trip.mainCurrency}`, 14, 25);
 
   let currentY = 36;
 
@@ -85,7 +102,7 @@ export function exportTripPDF(
   currentY += 6;
 
   doc.setFontSize(10);
-  doc.text(`Total Group Spend: ${formatMoney(totalSpend, trip.mainCurrency)}`, 14, currentY);
+  doc.text(`Total Group Spend: ${formatMoneyPdf(totalSpend, trip.mainCurrency)}`, 14, currentY);
   currentY += 5;
   doc.text(`Participants: ${members.length} members`, 14, currentY);
   currentY += 5;
@@ -98,8 +115,8 @@ export function exportTripPDF(
   currentY += 4;
 
   const categoryRows = categorySpend.map(c => [
-    c.category,
-    formatMoney(c.amount, trip.mainCurrency),
+    cleanPdfText(c.category),
+    formatMoneyPdf(c.amount, trip.mainCurrency),
     `${c.percentage.toFixed(1)}%`
   ]);
 
@@ -121,10 +138,10 @@ export function exportTripPDF(
   currentY += 4;
 
   const balanceRows = balances.map(b => [
-    b.householdName ? `${b.name} (${b.householdName})` : b.name,
-    formatMoney(b.paid, trip.mainCurrency),
-    formatMoney(b.share, trip.mainCurrency),
-    formatMoney(b.net, trip.mainCurrency, true)
+    cleanPdfText(b.householdName ? `${b.name} (${b.householdName})` : b.name),
+    formatMoneyPdf(b.paid, trip.mainCurrency),
+    formatMoneyPdf(b.share, trip.mainCurrency),
+    formatMoneyPdf(b.net, trip.mainCurrency, true)
   ]);
 
   autoTable(doc, {
@@ -151,10 +168,10 @@ export function exportTripPDF(
     currentY += 4;
 
     const transferRows = transfers.map(t => [
-      t.debtorHouseholdName ? `${t.debtorName} (${t.debtorHouseholdName})` : t.debtorName,
+      cleanPdfText(t.debtorHouseholdName ? `${t.debtorName} (${t.debtorHouseholdName})` : t.debtorName),
       'pays',
-      t.creditorHouseholdName ? `${t.creditorName} (${t.creditorHouseholdName})` : t.creditorName,
-      formatMoney(t.amount, t.currency)
+      cleanPdfText(t.creditorHouseholdName ? `${t.creditorName} (${t.creditorHouseholdName})` : t.creditorName),
+      formatMoneyPdf(t.amount, t.currency)
     ]);
 
     autoTable(doc, {
@@ -181,11 +198,11 @@ export function exportTripPDF(
   const activeExpenses = expenses.filter(e => !e.isDeleted);
   const expenseRows = activeExpenses.map(exp => [
     exp.date ? exp.date.split('T')[0] : '',
-    exp.description,
-    exp.category,
-    memberMap.get(exp.paidByUserId) || exp.paidByUserId,
+    cleanPdfText(exp.description),
+    cleanPdfText(exp.category),
+    cleanPdfText(memberMap.get(exp.paidByUserId) || exp.paidByUserId),
     `${exp.originalAmount.toFixed(2)} ${exp.originalCurrency}`,
-    formatMoney(exp.convertedAmount, trip.mainCurrency)
+    formatMoneyPdf(exp.convertedAmount, trip.mainCurrency)
   ]);
 
   autoTable(doc, {
@@ -198,5 +215,5 @@ export function exportTripPDF(
     margin: { left: 14, right: 14 }
   });
 
-  doc.save(`${trip.name.replace(/\s+/g, '_')}_Report.pdf`);
+  doc.save(`${cleanTripName.replace(/\s+/g, '_')}_Report.pdf`);
 }
