@@ -83,15 +83,15 @@
   --duration-fast: 150ms;
 }
 
-/* 2. Light Mode (Warm Sand Canvas + Pure White Elevated Cards + Muted Slate Navy CTA) */
+/* 2. Light Mode (Softer Muted Warm Sand/Linen Canvas + Calm Cream Elevated Cards) */
 [data-theme="light"] {
-  --bg-primary: #e8e4db;
-  --bg-surface: #ffffff;
-  --bg-subtle: #f2eee6;
-  --bg-elevated: #ffffff;
-  --bg-hover: #ece7dc;
+  --bg-primary: #ded8cb;
+  --bg-surface: #f6f3eb;
+  --bg-subtle: #eae4d7;
+  --bg-elevated: #faf8f3;
+  --bg-hover: #e4ddd0;
   
-  --grid-line: rgba(0, 0, 0, 0.07);
+  --grid-line: rgba(0, 0, 0, 0.08);
   
   --text-primary: #0f172a;
   --text-secondary: #475569;
@@ -121,33 +121,33 @@
 
   /* Financial Status Badges */
   --positive-text: #047857;
-  --positive-bg: #ecfdf5;
-  --positive-border: #a7f3d0;
+  --positive-bg: #e6f7ef;
+  --positive-border: #9ae6c4;
 
   --negative-text: #e11d48;
-  --negative-bg: #fff1f2;
-  --negative-border: #fecdd3;
+  --negative-bg: #fde8eb;
+  --negative-border: #f9bcc5;
 
   --warning-text: #d97706;
-  --warning-bg: #fffbeb;
-  --warning-border: #fde68a;
+  --warning-bg: #fdf3d8;
+  --warning-border: #f9dc75;
 
   --info-text: #334155;
-  --info-bg: #f1f5f9;
+  --info-bg: #e2e8f0;
 
   /* Crisp Hairline Borders */
-  --border-subtle: #d6cfbf;
-  --border-strong: #bcb4a3;
-  --border-glass: rgba(255, 255, 255, 0.8);
+  --border-subtle: #cdc5b3;
+  --border-strong: #b2a894;
+  --border-glass: rgba(255, 255, 255, 0.7);
 
   /* Deep Multi-Layer Ambient Drop Shadows with Warm Tactile Depth */
-  --shadow-sm: 0 2px 4px rgba(28, 25, 23, 0.05), 0 1px 2px rgba(28, 25, 23, 0.04);
-  --shadow-card: 0 4px 12px -1px rgba(28, 25, 23, 0.08), 0 1px 3px 0 rgba(28, 25, 23, 0.05), 0 12px 24px -6px rgba(28, 25, 23, 0.06);
-  --shadow-md: 0 8px 20px -3px rgba(28, 25, 23, 0.11), 0 3px 8px -1px rgba(28, 25, 23, 0.06);
-  --shadow-lg: 0 16px 36px -4px rgba(28, 25, 23, 0.15), 0 6px 14px -2px rgba(28, 25, 23, 0.08);
-  --shadow-dock: 0 22px 50px -6px rgba(28, 25, 23, 0.2), 0 8px 18px rgba(28, 25, 23, 0.09);
+  --shadow-sm: 0 2px 4px rgba(28, 25, 23, 0.06), 0 1px 2px rgba(28, 25, 23, 0.04);
+  --shadow-card: 0 4px 12px -1px rgba(28, 25, 23, 0.09), 0 1px 3px 0 rgba(28, 25, 23, 0.06), 0 12px 24px -6px rgba(28, 25, 23, 0.07);
+  --shadow-md: 0 8px 20px -3px rgba(28, 25, 23, 0.12), 0 3px 8px -1px rgba(28, 25, 23, 0.07);
+  --shadow-lg: 0 16px 36px -4px rgba(28, 25, 23, 0.16), 0 6px 14px -2px rgba(28, 25, 23, 0.09);
+  --shadow-dock: 0 22px 50px -6px rgba(28, 25, 23, 0.22), 0 8px 18px rgba(28, 25, 23, 0.1);
 
   /* Hero Balance Card */
-  --hero-card-bg: linear-gradient(145deg, #ffffff 0%, #faf8f5 100%);
-  --hero-card-border: #d4cec1;
+  --hero-card-bg: linear-gradient(145deg, #f6f3eb 0%, #ede8dc 100%);
+  --hero-card-border: #cac1ad;
 }
