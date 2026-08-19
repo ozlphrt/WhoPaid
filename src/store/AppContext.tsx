@@ -271,9 +271,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Local IndexedDB refresh
   const refreshData = useCallback(async () => {
     try {
-      // One-time clean wipe of old mock trips
-      const WIPE_MOCK_KEY = 'whopaid_wipe_mock_trips_v2';
-      if (!localStorage.getItem(WIPE_MOCK_KEY)) {
+      // One-time automated clean wipe of all test trips locally and from cloud
+      const WIPE_TEST_KEY = 'whopaid_wipe_test_trips_v4';
+      if (!localStorage.getItem(WIPE_TEST_KEY)) {
+        const allTrips = await db.trips.toArray();
+        const now = new Date().toISOString();
+        for (const t of allTrips) {
+          const deleted = { ...t, isDeleted: true, deletedAt: now, updatedAt: now };
+          await db.trips.put(deleted);
+          if (isFirebaseConfigured() && navigator.onLine) {
+            syncTripToCloud(deleted).catch(console.warn);
+          }
+        }
         await db.trips.clear();
         await db.expenses.clear();
         await db.tripMembers.clear();
@@ -281,7 +290,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await db.settlements.clear();
         await db.activities.clear();
         localStorage.removeItem('whopaid_active_trip');
-        localStorage.setItem(WIPE_MOCK_KEY, 'true');
+        localStorage.removeItem('whopaid_last_view');
+        localStorage.setItem(WIPE_TEST_KEY, 'true');
       }
 
       await seedInitialDataIfNeeded();
