@@ -2,86 +2,8 @@
    WhoPaid — Pure Luxury Tokens (High Contrast Surface Separation & Muted Slate)
    ========================================================================== */
 
-/* 1. Light Mode (Warm Sand Canvas + Pure White Elevated Cards + Muted Slate Navy CTA) */
-:root, [data-theme="light"] {
-  --bg-primary: #e8e4db;
-  --bg-surface: #ffffff;
-  --bg-subtle: #f2eee6;
-  --bg-elevated: #ffffff;
-  --bg-hover: #ece7dc;
-  
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-tertiary: #64748b;
-  --text-inverse: #ffffff;
-
-  /* Darker, Less Saturated Muted Slate Navy Accent */
-  --accent-primary: #344256;
-  --accent-primary-hover: #283344;
-  --accent-primary-subtle: rgba(52, 66, 86, 0.09);
-  --accent-primary-border: #94a3b8;
-
-  --btn-primary-bg: #344256;
-  --btn-primary-hover: #283344;
-  --btn-primary-active: #1e2633;
-  --btn-primary-text: #ffffff;
-  --btn-primary-border: #344256;
-
-  /* Active Pill Highlights */
-  --pill-active-bg: #344256;
-  --pill-active-text: #ffffff;
-  --pill-active-border: #344256;
-
-  /* Brand Emerald */
-  --brand-500: #10b981;
-  --brand-600: #059669;
-
-  /* Financial Status Badges */
-  --positive-text: #047857;
-  --positive-bg: #ecfdf5;
-  --positive-border: #a7f3d0;
-
-  --negative-text: #e11d48;
-  --negative-bg: #fff1f2;
-  --negative-border: #fecdd3;
-
-  --warning-text: #d97706;
-  --warning-bg: #fffbeb;
-  --warning-border: #fde68a;
-
-  --info-text: #334155;
-  --info-bg: #f1f5f9;
-
-  /* Crisp Hairline Borders */
-  --border-subtle: #d6cfbf;
-  --border-strong: #bcb4a3;
-  --border-glass: rgba(255, 255, 255, 0.8);
-
-  /* Deep Multi-Layer Ambient Drop Shadows */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 4px 14px -2px rgba(0, 0, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
-  --shadow-lg: 0 12px 30px -4px rgba(0, 0, 0, 0.12), 0 4px 12px -2px rgba(0, 0, 0, 0.06);
-  --shadow-dock: 0 20px 48px -6px rgba(0, 0, 0, 0.16), 0 8px 16px rgba(0, 0, 0, 0.06);
-
-  /* Hero Balance Card */
-  --hero-card-bg: linear-gradient(145deg, #ffffff 0%, #faf8f5 100%);
-  --hero-card-border: #d4cec1;
-
-  --font-main: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
-
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
-  --radius-full: 9999px;
-
-  --ease-luxury: cubic-bezier(0.16, 1, 0.3, 1);
-  --duration-fast: 150ms;
-}
-
-/* 2. Dark Mode (Distinct Surface Contrast: Deep Obsidian Canvas + Lighter Titanium Slate Cards) */
-[data-theme="dark"] {
+/* 1. Dark Mode (Default: Deep Obsidian Canvas + Lighter Titanium Slate Cards) */
+:root, [data-theme="dark"] {
   --bg-primary: #121316;
   --bg-surface: #24262c;
   --bg-subtle: #30333b;
@@ -144,4 +66,82 @@
   /* Hero Balance Card */
   --hero-card-bg: linear-gradient(145deg, #2b2e35 0%, #202227 100%);
   --hero-card-border: #424650;
+
+  --font-main: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  --ease-luxury: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-fast: 150ms;
+}
+
+/* 2. Light Mode (Warm Sand Canvas + Pure White Elevated Cards + Muted Slate Navy CTA) */
+[data-theme="light"] {
+  --bg-primary: #e8e4db;
+  --bg-surface: #ffffff;
+  --bg-subtle: #f2eee6;
+  --bg-elevated: #ffffff;
+  --bg-hover: #ece7dc;
+  
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #64748b;
+  --text-inverse: #ffffff;
+
+  /* Darker, Less Saturated Muted Slate Navy Accent */
+  --accent-primary: #344256;
+  --accent-primary-hover: #283344;
+  --accent-primary-subtle: rgba(52, 66, 86, 0.09);
+  --accent-primary-border: #94a3b8;
+
+  --btn-primary-bg: #344256;
+  --btn-primary-hover: #283344;
+  --btn-primary-active: #1e2633;
+  --btn-primary-text: #ffffff;
+  --btn-primary-border: #344256;
+
+  /* Active Pill Highlights */
+  --pill-active-bg: #344256;
+  --pill-active-text: #ffffff;
+  --pill-active-border: #344256;
+
+  /* Brand Emerald */
+  --brand-500: #10b981;
+  --brand-600: #059669;
+
+  /* Financial Status Badges */
+  --positive-text: #047857;
+  --positive-bg: #ecfdf5;
+  --positive-border: #a7f3d0;
+
+  --negative-text: #e11d48;
+  --negative-bg: #fff1f2;
+  --negative-border: #fecdd3;
+
+  --warning-text: #d97706;
+  --warning-bg: #fffbeb;
+  --warning-border: #fde68a;
+
+  --info-text: #334155;
+  --info-bg: #f1f5f9;
+
+  /* Crisp Hairline Borders */
+  --border-subtle: #d6cfbf;
+  --border-strong: #bcb4a3;
+  --border-glass: rgba(255, 255, 255, 0.8);
+
+  /* Deep Multi-Layer Ambient Drop Shadows */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 14px -2px rgba(0, 0, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 12px 30px -4px rgba(0, 0, 0, 0.12), 0 4px 12px -2px rgba(0, 0, 0, 0.06);
+  --shadow-dock: 0 20px 48px -6px rgba(0, 0, 0, 0.16), 0 8px 16px rgba(0, 0, 0, 0.06);
+
+  /* Hero Balance Card */
+  --hero-card-bg: linear-gradient(145deg, #ffffff 0%, #faf8f5 100%);
+  --hero-card-border: #d4cec1;
 }

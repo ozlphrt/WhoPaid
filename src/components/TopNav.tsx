@@ -14,9 +14,9 @@ export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
   const { activeTrip, currentUser, isOnline, expenses } = useApp();
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   
-  // Theme state: defaults to light, with one-tap toggle to dark
+  // Theme state: defaults to dark, with one-tap toggle to light
   const [currentTheme, setCurrentTheme] = useState<ThemeMode>(() => {
-    return (localStorage.getItem('whopaid_theme') as ThemeMode) || 'light';
+    return (localStorage.getItem('whopaid_theme') as ThemeMode) || 'dark';
   });
 
   useEffect(() => {
