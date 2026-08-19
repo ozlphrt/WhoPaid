@@ -38,48 +38,30 @@ export const AuthScreen: React.FC = () => {
       localStorage.getItem('whopaid_pending_join');
 
     const loadKnownMembers = async () => {
-      if (pendingJoin) {
-        // Fetch cloud trip and its member list
-        try {
-          const trip = await fetchTripFromCloud(pendingJoin);
-          if (trip) setPendingTrip(trip);
-          const members = await fetchTripMembersFromCloud(pendingJoin);
-          if (members.length > 0) {
-            const uniqueMap = new Map<string, { id: string; name: string; email?: string }>();
-            members.forEach(m => {
-              if (m.name && m.name.trim()) {
-                uniqueMap.set(m.name.trim().toLowerCase(), { id: m.id, name: m.name.trim(), email: m.email });
-              }
-            });
-            setExistingMembers(Array.from(uniqueMap.values()));
-            return;
-          }
-        } catch (err) {
-          console.warn('Error loading pending trip members:', err);
-        }
+      if (!pendingJoin) {
+        setPendingTrip(null);
+        setExistingMembers([]);
+        return;
       }
 
-      // Fallback: check locally known members across trips on this device
+      // Fetch cloud trip and its member list for THIS specific trip only
       try {
-        const localMembers = await db.tripMembers.toArray();
-        const localUsers = await db.users.toArray();
-        const uniqueMap = new Map<string, { id: string; name: string; email?: string }>();
+        const trip = await fetchTripFromCloud(pendingJoin);
+        if (trip) setPendingTrip(trip);
 
-        localMembers.forEach(m => {
-          if (m.name && m.name.trim() && m.name !== 'User' && m.name !== 'Member') {
+        const cloudMembers = await fetchTripMembersFromCloud(pendingJoin);
+        const localMembers = await db.tripMembers.where('tripId').equals(pendingJoin).toArray();
+        
+        const combined = [...cloudMembers, ...localMembers];
+        const uniqueMap = new Map<string, { id: string; name: string; email?: string }>();
+        combined.forEach(m => {
+          if (m.name && m.name.trim() && m.name !== 'User' && m.name !== 'Member' && m.isActive !== false) {
             uniqueMap.set(m.name.trim().toLowerCase(), { id: m.id, name: m.name.trim(), email: m.email });
           }
         });
-
-        localUsers.forEach(u => {
-          if (u.name && u.name.trim() && u.name !== 'User' && u.name !== 'Guest') {
-            uniqueMap.set(u.name.trim().toLowerCase(), { id: u.id, name: u.name.trim(), email: u.email });
-          }
-        });
-
         setExistingMembers(Array.from(uniqueMap.values()));
       } catch (err) {
-        console.warn('Error loading local members:', err);
+        console.warn('Error loading trip members for invite:', err);
       }
     };
 
