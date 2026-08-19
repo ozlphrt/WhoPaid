@@ -67,6 +67,27 @@ export const ExpenseList: React.FC = () => {
     });
   }, [expenses, searchQuery, selectedCategory, selectedPerson, memberMap]);
 
+  const categorySpendMap = useMemo(() => {
+    const map = new Map<string, number>();
+    expenses.forEach(exp => {
+      if (!exp.isDeleted) {
+        map.set(exp.category, (map.get(exp.category) || 0) + (exp.convertedAmount || 0));
+      }
+    });
+    return map;
+  }, [expenses]);
+
+  const sortedCategories = useMemo(() => {
+    return [...CATEGORIES].sort((a, b) => {
+      const spendA = categorySpendMap.get(a.id) || 0;
+      const spendB = categorySpendMap.get(b.id) || 0;
+      if (spendB !== spendA) {
+        return spendB - spendA; // highest spend first
+      }
+      return a.label.localeCompare(b.label);
+    });
+  }, [categorySpendMap]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '16px 20px 80px' }}>
       
@@ -164,7 +185,7 @@ export const ExpenseList: React.FC = () => {
         </div>
       </div>
 
-      {/* Filter Chips (Categories) */}
+      {/* Filter Chips (Categories - Ordered by Highest to Lowest Spend) */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         <span style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-tertiary)' }}>
           Filter by Category
@@ -187,8 +208,9 @@ export const ExpenseList: React.FC = () => {
           >
             All Categories
           </button>
-          {CATEGORIES.map(c => {
+          {sortedCategories.map(c => {
             const isSelected = selectedCategory === c.id;
+            const spend = categorySpendMap.get(c.id) || 0;
             return (
               <button
                 key={c.id}
@@ -206,7 +228,17 @@ export const ExpenseList: React.FC = () => {
                   cursor: 'pointer'
                 }}
               >
-                {c.label}
+                <span>{c.emoji} {c.label}</span>
+                {spend > 0 && (
+                  <span style={{ 
+                    fontSize: '0.7rem', 
+                    opacity: 0.85, 
+                    marginLeft: 4,
+                    fontWeight: 700
+                  }}>
+                    • {formatMoney(spend, activeTrip?.mainCurrency || 'EUR')}
+                  </span>
+                )}
               </button>
             );
           })}
