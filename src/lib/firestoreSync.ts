@@ -301,10 +301,7 @@ export async function fetchUserTripsFromCloud(userId: string, userEmail?: string
           if (
             (userId && mUserId === userId) ||
             (emailLower && mEmail === emailLower) ||
-            (emailPrefix && mEmail.startsWith(emailPrefix)) ||
-            (nameLower && mName === nameLower) ||
-            (emailPrefix && mName === emailPrefix) ||
-            (emailPrefix && mName.toLowerCase().includes(emailPrefix))
+            (nameLower && mName === nameLower)
           ) {
             isMem = true;
           }

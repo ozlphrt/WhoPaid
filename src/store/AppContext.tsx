@@ -327,26 +327,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const allTrips = await db.trips.toArray();
       const allMyMemberships = await db.tripMembers.where('userId').equals(currentUser.id).toArray();
-      const memberTripIds = new Set(allMyMemberships.map(m => m.tripId));
-
       const allMembers = await db.tripMembers.toArray();
+      const memberTripIds = new Set<string>();
       for (const m of allMembers) {
         if (
+          m.userId === currentUser.id ||
           (currentUser.email && m.email && m.email.toLowerCase() === currentUser.email.toLowerCase()) ||
-          (currentUser.email && m.name && m.name.toLowerCase() === currentUser.email.toLowerCase()) ||
           (currentUser.name && m.name && m.name.toLowerCase() === currentUser.name.toLowerCase())
         ) {
           memberTripIds.add(m.tripId);
         }
       }
 
-      // Filter active non-deleted trips
+      // Filter active non-deleted trips for THIS user only
       const userTrips = allTrips.filter(t => 
         !t.isDeleted && (
-          !currentUser.id ||
           t.ownerId === currentUser.id || 
-          memberTripIds.has(t.id) ||
-          allTrips.length <= 10 // Fallback to ensure users don't lose local trips
+          memberTripIds.has(t.id)
         )
       );
       setTrips(userTrips);
@@ -409,7 +406,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             }
 
             const freshTrips = await db.trips.toArray();
-            setTrips(freshTrips.filter(t => !t.isDeleted));
+            const freshMembers = await db.tripMembers.toArray();
+            const freshMemberTripIds = new Set<string>();
+            for (const m of freshMembers) {
+              if (
+                m.userId === currentUser.id ||
+                (currentUser.email && m.email && m.email.toLowerCase() === currentUser.email.toLowerCase()) ||
+                (currentUser.name && m.name && m.name.toLowerCase() === currentUser.name.toLowerCase())
+              ) {
+                freshMemberTripIds.add(m.tripId);
+              }
+            }
+            setTrips(freshTrips.filter(t => !t.isDeleted && (t.ownerId === currentUser.id || freshMemberTripIds.has(t.id))));
           }
         }).catch(console.warn).finally(() => {
           isSyncingTripsRef.current = false;
