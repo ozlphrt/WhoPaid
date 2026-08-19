@@ -186,7 +186,8 @@ export async function loginWithGoogle(): Promise<FirebaseUser | null> {
 
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({
-    prompt: 'select_account'
+    prompt: 'select_account consent',
+    auth_type: 'reauthenticate'
   });
 
   try {
