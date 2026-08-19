@@ -103,7 +103,12 @@ export function resolveMemberName(
   }
 
   // 2. Direct match by userId or member id
-  const byId = members.find(m => m.userId === userId || m.id === userId);
+  const byId = members.find(m => 
+    m.userId === userId || 
+    m.id === userId || 
+    (m.id && m.id.includes(userId)) || 
+    (m.userId && m.userId.includes(userId))
+  );
   if (byId?.name) return byId.name;
 
   // 3. Match by email
@@ -124,6 +129,13 @@ export function resolveMemberName(
   if (userId.startsWith('user_') || userId.startsWith('member_')) {
     const raw = userId.replace(/^(user_|member_)/, '').split('_')[0];
     return raw.charAt(0).toUpperCase() + raw.slice(1);
+  }
+
+  // 7. If it's a raw long alphanumeric hash / UID (length > 15 without spaces)
+  if (userId.length > 15 && !userId.includes(' ')) {
+    const namedMember = members.find(m => m.name && m.name !== 'User' && m.name !== 'Member');
+    if (namedMember?.name) return namedMember.name;
+    return 'Guest';
   }
 
   return userId.charAt(0).toUpperCase() + userId.slice(1);
