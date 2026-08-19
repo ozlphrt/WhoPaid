@@ -58,7 +58,8 @@ export function exportTripCSV(
     ...rows.map(r => r.join(','))
   ].join('\r\n');
 
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  // Prepend UTF-8 BOM (\uFEFF) so Excel / Windows properly decodes Turkish & international characters (ç, ğ, ı, ö, ş, ü)
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.setAttribute('href', url);
