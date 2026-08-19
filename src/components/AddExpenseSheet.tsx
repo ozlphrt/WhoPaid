@@ -132,25 +132,27 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     if (editExpenseId) {
       const exp = expenses.find(e => e.id === editExpenseId);
       if (exp) {
-        setAmountStr(exp.originalAmount.toString());
-        setDescription(exp.description);
-        setCategory(exp.category);
-        setCurrency(exp.originalCurrency);
-        setDate(exp.date.slice(0, 16));
+        setAmountStr(exp.originalAmount != null ? exp.originalAmount.toString() : '');
+        setDescription(exp.description || '');
+        setCategory(exp.category || 'Food');
+        setCurrency(exp.originalCurrency || lastUsedCurrency);
+        setDate(exp.date ? exp.date.slice(0, 16) : new Date().toISOString().slice(0, 16));
         setNote(exp.note || '');
         setReceiptUrl(exp.receiptUrl);
-        setPaidByUserId(exp.paidByUserId);
-        setIsMultiPayer(exp.payers && exp.payers.length > 1);
-        setPayers(exp.payers || [{ userId: exp.paidByUserId, amount: exp.originalAmount }]);
-        setIncludedUserIds(exp.participants.map(p => p.userId));
+        setPaidByUserId(exp.paidByUserId || currentUser.id);
+        setIsMultiPayer(Boolean(exp.payers && exp.payers.length > 1));
+        setPayers(exp.payers || [{ userId: exp.paidByUserId || currentUser.id, amount: exp.originalAmount || 0 }]);
+        setIncludedUserIds(exp.participants ? exp.participants.map(p => p.userId) : activeMembers.map(m => m.userId));
         setSplitMode(exp.splitMode || 'equal');
-        setIsManualFx(exp.isManualExchangeRate);
-        setManualFxRate(exp.exchangeRate.toString());
+        setIsManualFx(Boolean(exp.isManualExchangeRate));
+        setManualFxRate(exp.exchangeRate != null ? exp.exchangeRate.toString() : '1.00');
 
         const shares: Record<string, string> = {};
-        exp.participants.forEach(p => {
-          shares[p.userId] = p.amount.toString();
-        });
+        if (exp.participants) {
+          exp.participants.forEach(p => {
+            shares[p.userId] = p.amount != null ? p.amount.toString() : '0';
+          });
+        }
         setCustomShares(shares);
         return;
       }
