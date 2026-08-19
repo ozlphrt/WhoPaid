@@ -268,7 +268,7 @@ export async function fetchTripFromCloud(tripId: string): Promise<Trip | null> {
 
 export async function fetchUserTripsFromCloud(userId: string, userEmail?: string, userName?: string): Promise<Trip[]> {
   const { db } = getFirebaseInstances();
-  if (!db || !userId) return [];
+  if (!db) return [];
   try {
     const tripsRef = collection(db, 'trips');
     const allSnap = await getDocs(tripsRef);
@@ -282,7 +282,7 @@ export async function fetchUserTripsFromCloud(userId: string, userEmail?: string
       const tripData = { id: docSnap.id, ...docSnap.data() } as Trip;
       if (tripData.isDeleted) continue;
 
-      if (tripData.ownerId === userId) {
+      if (userId && tripData.ownerId === userId) {
         resultTrips.push(tripData);
         continue;
       }
@@ -296,13 +296,15 @@ export async function fetchUserTripsFromCloud(userId: string, userEmail?: string
           const m = mDoc.data() as TripMember;
           const mEmail = m.email ? m.email.toLowerCase().trim() : '';
           const mName = m.name ? m.name.toLowerCase().trim() : '';
+          const mUserId = m.userId ? m.userId.trim() : '';
 
           if (
-            m.userId === userId ||
+            (userId && mUserId === userId) ||
             (emailLower && mEmail === emailLower) ||
             (emailPrefix && mEmail.startsWith(emailPrefix)) ||
             (nameLower && mName === nameLower) ||
-            (emailPrefix && mName === emailPrefix)
+            (emailPrefix && mName === emailPrefix) ||
+            (emailPrefix && mName.toLowerCase().includes(emailPrefix))
           ) {
             isMem = true;
           }
@@ -347,6 +349,36 @@ export async function fetchTripMembersFromCloud(tripId: string): Promise<TripMem
     return list;
   } catch (err) {
     console.warn('[Firestore] Failed to fetch trip members from cloud:', err);
+    return [];
+  }
+}
+
+export async function fetchTripHouseholdsFromCloud(tripId: string): Promise<Household[]> {
+  const { db } = getFirebaseInstances();
+  if (!db || !tripId) return [];
+  try {
+    const hRef = collection(db, 'trips', tripId, 'households');
+    const snap = await getDocs(hRef);
+    const list: Household[] = [];
+    snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Household));
+    return list;
+  } catch (err) {
+    console.warn('[Firestore] Failed to fetch trip households from cloud:', err);
+    return [];
+  }
+}
+
+export async function fetchTripSettlementsFromCloud(tripId: string): Promise<Settlement[]> {
+  const { db } = getFirebaseInstances();
+  if (!db || !tripId) return [];
+  try {
+    const sRef = collection(db, 'trips', tripId, 'settlements');
+    const snap = await getDocs(sRef);
+    const list: Settlement[] = [];
+    snap.forEach((d) => list.push({ id: d.id, ...d.data() } as Settlement));
+    return list;
+  } catch (err) {
+    console.warn('[Firestore] Failed to fetch trip settlements from cloud:', err);
     return [];
   }
 }

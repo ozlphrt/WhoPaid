@@ -312,32 +312,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
 
-  // Local IndexedDB refresh
+  // Local IndexedDB & Cloud refresh
   const refreshData = useCallback(async () => {
     try {
-      // One-time automated clean wipe of all test trips locally and from cloud
-      const WIPE_TEST_KEY = 'whopaid_wipe_test_trips_v4';
-      if (!localStorage.getItem(WIPE_TEST_KEY)) {
-        const allTrips = await db.trips.toArray();
-        const now = new Date().toISOString();
-        for (const t of allTrips) {
-          const deleted = { ...t, isDeleted: true, deletedAt: now, updatedAt: now };
-          await db.trips.put(deleted);
-          if (isFirebaseConfigured() && navigator.onLine) {
-            syncTripToCloud(deleted).catch(console.warn);
-          }
-        }
-        await db.trips.clear();
-        await db.expenses.clear();
-        await db.tripMembers.clear();
-        await db.households.clear();
-        await db.settlements.clear();
-        await db.activities.clear();
-        localStorage.removeItem('whopaid_active_trip');
-        localStorage.removeItem('whopaid_last_view');
-        localStorage.setItem(WIPE_TEST_KEY, 'true');
-      }
-
       await seedInitialDataIfNeeded();
 
       const uList = await db.users.toArray();
@@ -363,10 +340,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
 
-      // Strictly filter trips: user is owner or invited member
+      // Filter active non-deleted trips
       const userTrips = allTrips.filter(t => 
-        t.ownerId === currentUser.id || 
-        memberTripIds.has(t.id)
+        !t.isDeleted && (
+          !currentUser.id ||
+          t.ownerId === currentUser.id || 
+          memberTripIds.has(t.id) ||
+          allTrips.length <= 10 // Fallback to ensure users don't lose local trips
+        )
       );
       setTrips(userTrips);
 
@@ -393,9 +374,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setNotifications(tripNotifs);
       }
 
-      // Sync trips and expenses from cloud across all devices once
-      if (isFirebaseConfigured() && navigator.onLine && currentUser.id && !isSyncingTripsRef.current) {
+      // Full 2-Way Sync: Upload local trips and download cloud trips
+      if (isFirebaseConfigured() && navigator.onLine && !isSyncingTripsRef.current) {
         isSyncingTripsRef.current = true;
+        
+        // 1. Upload any local active trips to cloud if present
+        for (const localTrip of allTrips) {
+          if (!localTrip.isDeleted) {
+            syncTripToCloud(localTrip).catch(console.warn);
+            const lMembers = await db.tripMembers.where('tripId').equals(localTrip.id).toArray();
+            for (const lm of lMembers) {
+              syncMemberToCloud(localTrip.id, lm).catch(console.warn);
+            }
+            const lExpenses = await db.expenses.where('tripId').equals(localTrip.id).toArray();
+            for (const le of lExpenses) {
+              syncExpenseToCloud(localTrip.id, le).catch(console.warn);
+            }
+          }
+        }
+
+        // 2. Fetch all user trips from cloud
         fetchUserTripsFromCloud(currentUser.id, currentUser.email, currentUser.name).then(async (remoteTrips) => {
           if (remoteTrips && remoteTrips.length > 0) {
             for (const rTrip of remoteTrips) {
