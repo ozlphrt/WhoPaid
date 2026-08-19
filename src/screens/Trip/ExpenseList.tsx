@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../store/AppContext';
 import { CATEGORIES } from '../../lib/category';
-import { formatMoney, getCurrencySymbol } from '../../lib/decimal';
+import { formatMoney, getCurrencySymbol, resolveMemberName } from '../../lib/decimal';
 import { Search, Plus, AlertCircle, X } from 'lucide-react';
 import { ExpenseDetailModal } from '../../components/ExpenseDetailModal';
 import { AddExpenseSheet } from '../../components/AddExpenseSheet';
@@ -230,9 +230,10 @@ export const ExpenseList: React.FC = () => {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
           {filteredExpenses.map(exp => {
+            const isSelfPayer = exp.paidByUserId === currentUser.id || exp.paidByUserId === currentUser.email;
             const payerName = exp.payers && exp.payers.length > 1
               ? `${exp.payers.length} people`
-              : (exp.paidByUserId === currentUser.id ? 'You' : memberMap.get(exp.paidByUserId) || 'Someone');
+              : (isSelfPayer ? 'You' : resolveMemberName(exp.paidByUserId, members, currentUser));
 
             const dateStr = new Date(exp.date).toLocaleDateString('en-US', {
               month: 'short',

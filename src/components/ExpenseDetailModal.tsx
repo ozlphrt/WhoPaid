@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../store/AppContext';
 import { BottomSheet } from './BottomSheet';
 import { CategoryIcon } from './CategoryIcon';
-import { formatMoney, getCurrencySymbol } from '../lib/decimal';
+import { formatMoney, getCurrencySymbol, resolveMemberName } from '../lib/decimal';
 import { formatHumanExchangeRate } from '../lib/fx';
 import { Calendar, Clock, Edit2, Trash2, Flag, AlertCircle, Info, ChevronRight, X } from 'lucide-react';
 import { Expense } from '../types';
@@ -127,8 +127,8 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
             </span>
             <strong style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
               {exp.payers && exp.payers.length > 1 
-                ? exp.payers.map(p => `${memberMap.get(p.userId) || 'Someone'} (${getCurrencySymbol(exp.originalCurrency)}${p.amount.toFixed(2)})`).join(', ')
-                : (memberMap.get(exp.paidByUserId) || 'Someone')}
+                ? exp.payers.map(p => `${resolveMemberName(p.userId, members, currentUser)} (${getCurrencySymbol(exp.originalCurrency)}${p.amount.toFixed(2)})`).join(', ')
+                : resolveMemberName(exp.paidByUserId, members, currentUser)}
             </strong>
           </div>
 
@@ -137,7 +137,7 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
               ADDED BY
             </span>
             <strong style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-              {memberMap.get(exp.addedByUserId) || 'Someone'}
+              {resolveMemberName(exp.addedByUserId, members, currentUser)}
             </strong>
           </div>
 
@@ -189,7 +189,7 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                 }}
               >
                 <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                  {memberMap.get(part.userId) || 'Member'} {part.userId === currentUser.id && '(You)'}
+                  {resolveMemberName(part.userId, members, currentUser)} {(part.userId === currentUser.id || part.userId === currentUser.email) && '(You)'}
                 </span>
                 <span style={{ fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
                   {getCurrencySymbol(exp.originalCurrency)}{part.amount.toFixed(2)}
