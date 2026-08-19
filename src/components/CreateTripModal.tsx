@@ -13,7 +13,7 @@ interface CreateTripModalProps {
 const COMMON_MAIN_CURRENCIES: CurrencyCode[] = ['EUR', 'USD', 'GBP', 'TRY', 'JPY', 'CHF', 'CAD', 'AUD'];
 
 export const CreateTripModal: React.FC<CreateTripModalProps> = ({ isOpen, onClose }) => {
-  const { currentUser, createTrip } = useApp();
+  const { currentUser, createTrip, showAlert } = useApp();
 
   const [name, setName] = useState<string>('');
   const [emoji, setEmoji] = useState<string>('✈️');
@@ -29,8 +29,8 @@ export const CreateTripModal: React.FC<CreateTripModalProps> = ({ isOpen, onClos
 
   const handleNameChange = (val: string) => {
     setName(val);
-    const suggested = suggestTripEmoji(val);
-    setEmoji(suggested);
+    const autoEmoji = suggestTripEmoji(val);
+    setEmoji(autoEmoji);
   };
 
   const handleAddEmailField = () => {
@@ -48,7 +48,7 @@ export const CreateTripModal: React.FC<CreateTripModalProps> = ({ isOpen, onClos
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      alert('Please enter a trip name');
+      showAlert('Please enter a trip name to continue.', 'Missing Trip Name', 'warning');
       return;
     }
 

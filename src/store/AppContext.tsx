@@ -6,6 +6,7 @@ import { calculateOptimizedSettlements } from '../lib/settlement';
 import { fetchHistoricalExchangeRate, convertAmount } from '../lib/fx';
 import { add, sub, roundMoney } from '../lib/decimal';
 import { checkForDuplicateExpense } from '../lib/duplicate';
+import { GlobalDialog, DialogOptions } from '../components/GlobalDialog';
 import { 
   isFirebaseConfigured, 
   subscribeToAuthChanges, 
@@ -121,6 +122,8 @@ interface AppContextType {
   isNotificationsEnabled: boolean;
   isInitialized: boolean;
   refreshData: () => Promise<void>;
+  showAlert: (message: string, title?: string, type?: 'info' | 'success' | 'warning' | 'danger') => void;
+  showConfirm: (message: string, onConfirm: () => void | Promise<void>, options?: { title?: string; confirmText?: string; cancelText?: string; isDestructive?: boolean }) => void;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -214,6 +217,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const tripListenersRef = useRef<ActiveTripListeners | null>(null);
   const isSyncingTripsRef = useRef<boolean>(false);
+
+  // In-App Global Modal Dialog State
+  const [dialogState, setDialogState] = useState<DialogOptions | null>(null);
+
+  const showAlert = useCallback((message: string, title?: string, type: 'info' | 'success' | 'warning' | 'danger' = 'info') => {
+    setDialogState({
+      message,
+      title,
+      type,
+      confirmText: 'OK'
+    });
+  }, []);
+
+  const showConfirm = useCallback((message: string, onConfirm: () => void | Promise<void>, options?: { title?: string; confirmText?: string; cancelText?: string; isDestructive?: boolean }) => {
+    setDialogState({
+      message,
+      title: options?.title || 'Confirm Action',
+      type: options?.isDestructive ? 'danger' : 'confirm',
+      confirmText: options?.confirmText || 'Confirm',
+      cancelText: options?.cancelText || 'Cancel',
+      isDestructive: options?.isDestructive,
+      onConfirm
+    });
+  }, []);
 
   // Online / Offline listeners
   useEffect(() => {
@@ -1275,10 +1302,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         enableNotifications,
         isNotificationsEnabled: isNotificationGranted(),
         isInitialized,
-        refreshData
+        refreshData,
+        showAlert,
+        showConfirm
       }}
     >
       {children}
+      <GlobalDialog 
+        isOpen={dialogState !== null} 
+        options={dialogState} 
+        onClose={() => setDialogState(null)} 
+      />
     </AppContext.Provider>
   );
 };

@@ -56,7 +56,8 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     addExpense,
     updateExpense,
     isFirebaseActive,
-    isOnline
+    isOnline,
+    showAlert
   } = useApp();
 
   const activeMembers = useMemo(() => members.filter(m => m.isActive), [members]);
@@ -278,25 +279,25 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!parsedAmount || parsedAmount <= 0) {
-      alert('Please enter a valid amount greater than 0');
+      showAlert('Please enter a valid amount greater than 0.', 'Invalid Amount', 'warning');
       return;
     }
     if (!description.trim()) {
-      alert('Please enter an expense name (e.g. Asador Portuetxe, Uber)');
+      showAlert('Please enter an expense name (e.g. Dinner, Taxi).', 'Missing Expense Name', 'warning');
       return;
     }
     if (includedUserIds.length === 0) {
-      alert('Please select at least one person included in this expense');
+      showAlert('Please select at least one person included in this expense.', 'Select Participants', 'warning');
       return;
     }
 
     if (isMultiPayer && Math.abs(multiPayerTotal - parsedAmount) > 0.01) {
-      alert(`Payer amounts (${currency} ${multiPayerTotal.toFixed(2)}) must equal total amount (${currency} ${parsedAmount.toFixed(2)})`);
+      showAlert(`Payer amounts (${currency} ${multiPayerTotal.toFixed(2)}) must equal total amount (${currency} ${parsedAmount.toFixed(2)}).`, 'Payer Total Mismatch', 'warning');
       return;
     }
 
     if (splitMode === 'custom' && Math.abs(customSharesTotal - parsedAmount) > 0.01) {
-      alert(`Custom shares (${currency} ${customSharesTotal.toFixed(2)}) must equal total amount (${currency} ${parsedAmount.toFixed(2)})`);
+      showAlert(`Custom shares (${currency} ${customSharesTotal.toFixed(2)}) must equal total amount (${currency} ${parsedAmount.toFixed(2)}).`, 'Custom Share Mismatch', 'warning');
       return;
     }
 

@@ -21,7 +21,9 @@ export const TripSettings: React.FC = () => {
     addMember,
     saveHousehold,
     deleteHousehold,
-    transferOwnership
+    transferOwnership,
+    showAlert,
+    showConfirm
   } = useApp();
 
   const [name, setName] = useState(activeTrip?.name || '');
@@ -58,7 +60,7 @@ export const TripSettings: React.FC = () => {
       endDate,
       mainCurrency
     });
-    alert('Trip settings updated successfully!');
+    showAlert('Trip settings updated successfully!', 'Settings Saved', 'success');
   };
 
   const handleAddMemberSubmit = async (e: React.FormEvent) => {
@@ -86,7 +88,7 @@ export const TripSettings: React.FC = () => {
   const handleSaveHousehold = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!householdName.trim() || selectedHhMembers.length < 2) {
-      alert('Please enter a name and select at least 2 members for this household.');
+      showAlert('Please enter a name and select at least 2 members for this household.', 'Incomplete Household', 'warning');
       return;
     }
 
@@ -103,23 +105,47 @@ export const TripSettings: React.FC = () => {
     if (activeTrip.isClosed) {
       await reopenTrip(activeTrip.id);
     } else {
-      if (window.confirm('Are you sure you want to close this trip? It will be moved to Archive and become read-only.')) {
-        await closeTrip(activeTrip.id);
+      showConfirm(
+        'Are you sure you want to close this trip? It will be moved to Archive and become read-only.',
+        async () => {
+          await closeTrip(activeTrip.id);
+        },
+        {
+          title: 'Close Trip?',
+          confirmText: 'Close Trip',
+          isDestructive: false
+        }
+      );
+    }
+  };
+
+  const handleDeleteTrip = () => {
+    showConfirm(
+      'Delete this trip? It will be moved to "Recently Deleted" and kept for 30 days.',
+      async () => {
+        await deleteTrip(activeTrip.id);
+      },
+      {
+        title: 'Delete Trip?',
+        confirmText: 'Delete',
+        isDestructive: true
       }
-    }
+    );
   };
 
-  const handleDeleteTrip = async () => {
-    if (window.confirm('Delete this trip? It will be moved to "Recently Deleted" and kept for 30 days.')) {
-      await deleteTrip(activeTrip.id);
-    }
-  };
-
-  const handleTransferOwnership = async () => {
+  const handleTransferOwnership = () => {
     if (!newOwnerId || newOwnerId === activeTrip.ownerId) return;
-    if (window.confirm('Are you sure you want to transfer ownership? You will become a regular member.')) {
-      await transferOwnership(activeTrip.id, newOwnerId);
-    }
+    showConfirm(
+      'Are you sure you want to transfer ownership? You will become a regular member of this trip.',
+      async () => {
+        await transferOwnership(activeTrip.id, newOwnerId);
+      },
+      {
+        title: 'Transfer Ownership?',
+        confirmText: 'Transfer',
+        isDestructive: true
+      }
+    );
   };
 
   return (

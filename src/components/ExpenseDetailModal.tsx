@@ -23,7 +23,8 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
     members,
     currentUser,
     deleteExpense,
-    flagExpenseWrong
+    flagExpenseWrong,
+    showConfirm
   } = useApp();
 
   const [showFlagOptions, setShowFlagOptions] = useState<boolean>(false);
@@ -36,11 +37,19 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
   const memberMap = new Map(members.map(m => [m.userId, m.name]));
   const isCreator = exp.addedByUserId === currentUser.id || exp.paidByUserId === currentUser.id;
 
-  const handleDelete = async () => {
-    if (window.confirm('Are you sure you want to delete this expense?')) {
-      await deleteExpense(exp.id);
-      onClose();
-    }
+  const handleDelete = () => {
+    showConfirm(
+      'Are you sure you want to delete this expense?',
+      async () => {
+        await deleteExpense(exp.id);
+        onClose();
+      },
+      {
+        title: 'Delete Expense?',
+        confirmText: 'Delete',
+        isDestructive: true
+      }
+    );
   };
 
   const handleFlagReason = async (reason: Expense['flaggedReason']) => {

@@ -12,7 +12,7 @@ interface TripsHomeProps {
 }
 
 export const TripsHome: React.FC<TripsHomeProps> = ({ onSelectTrip, onOpenArchive }) => {
-  const { trips, currentUser, clearAllData } = useApp();
+  const { trips, currentUser, clearAllData, showConfirm } = useApp();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [tripBalances, setTripBalances] = useState<Record<string, { net: number; hasExpenses: boolean }>>({});
 
@@ -229,10 +229,18 @@ export const TripsHome: React.FC<TripsHomeProps> = ({ onSelectTrip, onOpenArchiv
 
         {trips.length > 0 && (
           <button
-            onClick={async () => {
-              if (window.confirm("Are you sure you want to delete all trips and reset all expenses? This cannot be undone.")) {
-                await clearAllData();
-              }
+            onClick={() => {
+              showConfirm(
+                "Are you sure you want to delete all trips and reset all expenses? This cannot be undone.",
+                async () => {
+                  await clearAllData();
+                },
+                {
+                  title: "Delete All Trips?",
+                  confirmText: "Delete All",
+                  isDestructive: true
+                }
+              );
             }}
             style={{
               display: 'flex',

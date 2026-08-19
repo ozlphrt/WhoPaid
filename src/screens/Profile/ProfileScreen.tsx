@@ -14,7 +14,9 @@ export const ProfileScreen: React.FC = () => {
     clearAllData,
     enableNotifications,
     isNotificationsEnabled,
-    refreshData
+    refreshData,
+    showAlert,
+    showConfirm
   } = useApp();
 
   const [notifGranted, setNotifGranted] = useState(isNotificationsEnabled);
@@ -307,11 +309,19 @@ export const ProfileScreen: React.FC = () => {
       {/* Clear / Reset All Data for testing */}
       <button
         type="button"
-        onClick={async () => {
-          if (window.confirm('Are you sure you want to delete all trips and expenses to test from scratch?')) {
-            await clearAllData();
-            alert('All trips and test data have been wiped clean!');
-          }
+        onClick={() => {
+          showConfirm(
+            'Are you sure you want to delete all trips and test expenses to start fresh?',
+            async () => {
+              await clearAllData();
+              showAlert('All trips and test data have been wiped clean.', 'Data Reset', 'success');
+            },
+            {
+              title: 'Reset All Data?',
+              confirmText: 'Reset Data',
+              isDestructive: true
+            }
+          );
         }}
         style={{
           width: '100%',

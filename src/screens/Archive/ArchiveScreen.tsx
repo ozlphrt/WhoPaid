@@ -7,7 +7,7 @@ interface ArchiveScreenProps {
 }
 
 export const ArchiveScreen: React.FC<ArchiveScreenProps> = ({ onSelectTrip }) => {
-  const { archivedTrips, deletedTrips, restoreTrip, permanentlyDeleteTrip } = useApp();
+  const { archivedTrips, deletedTrips, restoreTrip, permanentlyDeleteTrip, showConfirm } = useApp();
   const [activeTab, setActiveTab] = useState<'archived' | 'deleted'>('archived');
 
   const getDaysRemaining = (deletedAt?: string) => {
@@ -17,10 +17,18 @@ export const ArchiveScreen: React.FC<ArchiveScreenProps> = ({ onSelectTrip }) =>
     return Math.max(0, 30 - daysPassed);
   };
 
-  const handlePermanentDelete = async (tripId: string, name: string) => {
-    if (window.confirm(`Permanently delete "${name}"? This action cannot be undone and all data will be erased.`)) {
-      await permanentlyDeleteTrip(tripId);
-    }
+  const handlePermanentDelete = (tripId: string, name: string) => {
+    showConfirm(
+      `Permanently delete "${name}"? This action cannot be undone and all trip data will be erased.`,
+      async () => {
+        await permanentlyDeleteTrip(tripId);
+      },
+      {
+        title: 'Permanently Delete Trip?',
+        confirmText: 'Delete Forever',
+        isDestructive: true
+      }
+    );
   };
 
   return (

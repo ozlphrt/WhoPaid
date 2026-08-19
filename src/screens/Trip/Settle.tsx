@@ -17,7 +17,8 @@ export const Settle: React.FC = () => {
     currentUser,
     activeTrip,
     initiateSettlement,
-    confirmSettlement
+    confirmSettlement,
+    showAlert
   } = useApp();
 
   const [selectedTransfer, setSelectedTransfer] = useState<RecommendedTransfer | null>(null);
@@ -28,10 +29,11 @@ export const Settle: React.FC = () => {
   if (!activeTrip) return null;
 
   const memberMap = new Map(members.map(m => [m.userId, m.name]));
+  const householdMap = new Map(households.map(h => [h.id, h.name]));
 
-  const handleOpenSettleModal = (transfer: RecommendedTransfer) => {
+  const handleSelectTransfer = (transfer: RecommendedTransfer) => {
     setSelectedTransfer(transfer);
-    setSettlementCurrency(activeTrip.mainCurrency);
+    setSettlementCurrency(transfer.currency);
     setCustomAmountStr(transfer.amount.toString());
     setNotes('');
   };
@@ -42,7 +44,7 @@ export const Settle: React.FC = () => {
 
     const amount = parseFloat(customAmountStr) || selectedTransfer.amount;
     if (amount <= 0) {
-      alert('Please enter a valid amount');
+      showAlert('Please enter a valid payment amount greater than 0.', 'Invalid Amount', 'warning');
       return;
     }
 
@@ -208,7 +210,7 @@ export const Settle: React.FC = () => {
 
                   {debtorIsCurrent && (
                     <button
-                      onClick={() => handleOpenSettleModal(t)}
+                      onClick={() => handleSelectTransfer(t)}
                       className="btn-primary"
                       style={{ width: 'auto', padding: '8px 14px', fontSize: '0.82rem', borderRadius: 'var(--radius-md)' }}
                     >
