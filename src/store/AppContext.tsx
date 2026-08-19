@@ -1270,28 +1270,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const handlePostLogin = async (fbUser: any) => {
     if (!fbUser) return;
     try {
-      const localExisting = await db.users.get(fbUser.uid);
-      const cloudExisting = isFirebaseConfigured() ? await fetchUserFromCloud(fbUser.uid) : null;
-
-      const resolvedName = localExisting?.name || cloudExisting?.name || fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'User');
-      const resolvedCurrency = localExisting?.defaultCurrency || cloudExisting?.defaultCurrency || 'EUR';
-      const resolvedAvatar = fbUser.photoURL || localExisting?.avatarUrl || cloudExisting?.avatarUrl;
+      const resolvedName = fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'User');
+      const resolvedAvatar = fbUser.photoURL;
 
       const u: User = {
         id: fbUser.uid,
         name: resolvedName,
-        email: fbUser.email || localExisting?.email || 'user@whopaid.app',
-        defaultCurrency: resolvedCurrency,
+        email: fbUser.email || 'user@whopaid.app',
+        defaultCurrency: 'EUR',
         avatarUrl: resolvedAvatar
       };
-      await db.users.put(u);
-      if (isFirebaseConfigured()) {
-        await syncUserToCloud(u).catch(console.warn);
-      }
+
+      // 1. Instant optimistic state update
       setCurrentUser(u);
       localStorage.setItem('whopaid_auth_user', JSON.stringify(u));
+      localStorage.removeItem('whopaid_last_view');
 
-      // Check if user arrived via an invitation link or QR code
+      // 2. Persist locally in parallel
+      db.users.put(u).catch(console.warn);
+
+      // 3. Background sync without blocking login response
+      if (isFirebaseConfigured()) {
+        syncUserToCloud(u).catch(console.warn);
+      }
+
+      // 4. Handle invitation redirect or background data refresh
       const searchParams = new URLSearchParams(window.location.search);
       const hashParams = new URLSearchParams(window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '');
       const pendingJoin = searchParams.get('join') ||
@@ -1304,9 +1307,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (pendingJoin) {
         sessionStorage.removeItem('whopaid_pending_join');
         localStorage.removeItem('whopaid_pending_join');
-        await joinTrip(pendingJoin);
+        joinTrip(pendingJoin).catch(console.warn);
       } else {
-        await refreshData();
+        refreshData().catch(console.warn);
       }
     } catch (err: any) {
       console.error('Post-login sync failed:', err);

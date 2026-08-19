@@ -131,14 +131,22 @@ const AppContent: React.FC<AppContentProps> = () => {
     }
   };
 
-  // If no active trip is selected, only reset view if app is fully initialized and no trip is saved in localStorage
+  // If no active trip is selected, always reset view to trips (never remain on profile)
   useEffect(() => {
     const savedTrip = localStorage.getItem('whopaid_active_trip');
-    if (isInitialized && !activeTrip && !savedTrip && currentView !== 'trips' && currentView !== 'profile' && currentView !== 'archive') {
+    if (isInitialized && !activeTrip && !savedTrip && currentView !== 'trips' && currentView !== 'archive') {
       setCurrentView('trips');
       localStorage.setItem('whopaid_last_view', 'trips');
     }
-  }, [activeTrip, currentView, isInitialized]);
+  }, [activeTrip, isInitialized]);
+
+  // When user authenticates, ensure they land directly on trips
+  useEffect(() => {
+    if (isAuthenticated && currentView === 'profile') {
+      setCurrentView('trips');
+      localStorage.setItem('whopaid_last_view', 'trips');
+    }
+  }, [isAuthenticated]);
 
   // Handle invitation URL if query params exist (?join=... or ?tripId=...)
   useEffect(() => {
