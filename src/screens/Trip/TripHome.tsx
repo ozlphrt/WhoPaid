@@ -18,7 +18,8 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
     members,
     balances,
     userNetBalance,
-    recommendedTransfers
+    recommendedTransfers,
+    allUsers
   } = useApp();
 
   const [isAddOpen, setIsAddOpen] = useState(false);
@@ -331,10 +332,14 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
                 {/* Expense Rows */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {exps.map(exp => {
-                    const isSelfPayer = exp.paidByUserId === currentUser.id || exp.paidByUserId === currentUser.email;
+                    const isSelfPayer = 
+                      exp.paidByUserId === currentUser.id || 
+                      (currentUser.email && exp.paidByUserId?.toLowerCase() === currentUser.email.toLowerCase()) ||
+                      (currentUser.name && exp.paidByUserId?.toLowerCase().includes(currentUser.name.toLowerCase())) ||
+                      (currentUser.email && exp.paidByUserId?.toLowerCase().includes(currentUser.email.split('@')[0].toLowerCase()));
                     const payerName = exp.payers && exp.payers.length > 1
                       ? `${exp.payers.length} people`
-                      : (isSelfPayer ? 'You' : resolveMemberName(exp.paidByUserId, members, currentUser));
+                      : (isSelfPayer ? 'You' : resolveMemberName(exp.paidByUserId, members, currentUser, allUsers));
 
                     return (
                       <div

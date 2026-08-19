@@ -8,7 +8,7 @@ import { AddExpenseSheet } from '../../components/AddExpenseSheet';
 import { CategoryIcon } from '../../components/CategoryIcon';
 
 export const ExpenseList: React.FC = () => {
-  const { expenses, members, currentUser, activeTrip } = useApp();
+  const { expenses, members, currentUser, activeTrip, allUsers } = useApp();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -302,10 +302,14 @@ export const ExpenseList: React.FC = () => {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
           {filteredExpenses.map(exp => {
-            const isSelfPayer = exp.paidByUserId === currentUser.id || exp.paidByUserId === currentUser.email;
+            const isSelfPayer = 
+              exp.paidByUserId === currentUser.id || 
+              (currentUser.email && exp.paidByUserId?.toLowerCase() === currentUser.email.toLowerCase()) ||
+              (currentUser.name && exp.paidByUserId?.toLowerCase().includes(currentUser.name.toLowerCase())) ||
+              (currentUser.email && exp.paidByUserId?.toLowerCase().includes(currentUser.email.split('@')[0].toLowerCase()));
             const payerName = exp.payers && exp.payers.length > 1
               ? `${exp.payers.length} people`
-              : (isSelfPayer ? 'You' : resolveMemberName(exp.paidByUserId, members, currentUser));
+              : (isSelfPayer ? 'You' : resolveMemberName(exp.paidByUserId, members, currentUser, allUsers));
 
             const dateStr = new Date(exp.date).toLocaleDateString('en-US', {
               month: 'short',

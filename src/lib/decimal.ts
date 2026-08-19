@@ -87,18 +87,21 @@ export function getCurrencySymbol(currency: string): string {
 export function resolveMemberName(
   userId: string | undefined | null,
   members: Array<{ id?: string; userId?: string; name?: string; email?: string }>,
-  currentUser?: { id?: string; name?: string; email?: string }
+  currentUser?: { id?: string; name?: string; email?: string },
+  allUsers: Array<{ id?: string; name?: string; email?: string }> = []
 ): string {
   if (!userId) return currentUser?.name || 'Member';
 
   // 1. Match current logged-in user
   if (currentUser) {
-    if (
+    const isSelf = 
       (currentUser.id && userId === currentUser.id) ||
       (currentUser.email && userId.toLowerCase() === currentUser.email.toLowerCase()) ||
-      (currentUser.name && userId.toLowerCase() === currentUser.name.toLowerCase())
-    ) {
-      return currentUser.name || 'Member';
+      (currentUser.name && userId.toLowerCase() === currentUser.name.toLowerCase()) ||
+      (currentUser.name && userId.toLowerCase().includes(currentUser.name.toLowerCase())) ||
+      (currentUser.email && userId.toLowerCase().includes(currentUser.email.split('@')[0].toLowerCase()));
+    if (isSelf) {
+      return currentUser.name || 'You';
     }
   }
 
@@ -109,33 +112,38 @@ export function resolveMemberName(
     (m.id && m.id.includes(userId)) || 
     (m.userId && m.userId.includes(userId))
   );
-  if (byId?.name) return byId.name;
+  if (byId?.name && byId.name !== 'User') return byId.name;
 
   // 3. Match by email
   const byEmail = members.find(m => m.email && m.email.toLowerCase() === userId.toLowerCase());
-  if (byEmail?.name) return byEmail.name;
+  if (byEmail?.name && byEmail.name !== 'User') return byEmail.name;
 
   // 4. Match by name
   const byName = members.find(m => m.name && m.name.toLowerCase() === userId.toLowerCase());
   if (byName?.name) return byName.name;
 
-  // 5. If it looks like an email (e.g. ozalph@gmail.com)
+  // 5. Look up in allUsers
+  if (allUsers && allUsers.length > 0) {
+    const byUserList = allUsers.find(u => u.id === userId || (u.email && u.email.toLowerCase() === userId.toLowerCase()));
+    if (byUserList?.name) return byUserList.name;
+  }
+
+  // 6. If it looks like an email (e.g. ozalph@gmail.com)
   if (userId.includes('@')) {
     const raw = userId.split('@')[0];
     return raw.charAt(0).toUpperCase() + raw.slice(1);
   }
 
-  // 6. If it's a slug (e.g. user_ozalp or member_abc)
+  // 7. If it's a slug (e.g. user_ozalp or member_abc)
   if (userId.startsWith('user_') || userId.startsWith('member_')) {
     const raw = userId.replace(/^(user_|member_)/, '').split('_')[0];
     return raw.charAt(0).toUpperCase() + raw.slice(1);
   }
 
-  // 7. If it's a raw long alphanumeric hash / UID (length > 15 without spaces)
+  // 8. If it's a raw long alphanumeric hash / UID (length > 15 without spaces)
   if (userId.length > 15 && !userId.includes(' ')) {
-    const namedMember = members.find(m => m.name && m.name !== 'User' && m.name !== 'Member');
-    if (namedMember?.name) return namedMember.name;
-    return 'Guest';
+    // Check if member has a matching UID or return Member
+    return currentUser?.name || 'Member';
   }
 
   return userId.charAt(0).toUpperCase() + userId.slice(1);
