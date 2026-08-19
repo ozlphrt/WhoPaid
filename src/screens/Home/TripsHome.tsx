@@ -3,7 +3,7 @@ import { useApp } from '../../store/AppContext';
 import { formatMoney } from '../../lib/decimal';
 import { db } from '../../lib/db';
 import { calculateParticipantBalances } from '../../lib/balances';
-import { Plus, Calendar, ChevronRight, Archive } from 'lucide-react';
+import { Plus, Calendar, ChevronRight, Archive, Trash2 } from 'lucide-react';
 import { CreateTripModal } from '../../components/CreateTripModal';
 
 interface TripsHomeProps {
@@ -12,7 +12,7 @@ interface TripsHomeProps {
 }
 
 export const TripsHome: React.FC<TripsHomeProps> = ({ onSelectTrip, onOpenArchive }) => {
-  const { trips, currentUser } = useApp();
+  const { trips, currentUser, clearAllData } = useApp();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [tripBalances, setTripBalances] = useState<Record<string, { net: number; hasExpenses: boolean }>>({});
 
@@ -203,29 +203,58 @@ export const TripsHome: React.FC<TripsHomeProps> = ({ onSelectTrip, onOpenArchiv
         )}
       </div>
 
-      {/* Archive Quick Access */}
-      <button
-        onClick={onOpenArchive}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '12px 16px',
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: 'var(--radius-lg)',
-          marginTop: 4,
-          color: 'var(--text-secondary)',
-          fontWeight: 600,
-          fontSize: '0.85rem'
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Archive size={16} />
-          <span>Archived & Closed Trips</span>
-        </div>
-        <ChevronRight size={16} color="var(--text-tertiary)" />
-      </button>
+      {/* Archive & Data Management */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+        <button
+          onClick={onOpenArchive}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '12px 16px',
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-lg)',
+            color: 'var(--text-secondary)',
+            fontWeight: 600,
+            fontSize: '0.85rem'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Archive size={16} />
+            <span>Archived & Closed Trips</span>
+          </div>
+          <ChevronRight size={16} color="var(--text-tertiary)" />
+        </button>
+
+        {trips.length > 0 && (
+          <button
+            onClick={async () => {
+              if (window.confirm("Are you sure you want to delete all trips and reset all expenses? This cannot be undone.")) {
+                await clearAllData();
+              }
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              padding: '11px 16px',
+              background: 'rgba(239, 68, 68, 0.08)',
+              border: '1px solid rgba(239, 68, 68, 0.25)',
+              borderRadius: 'var(--radius-lg)',
+              color: 'var(--negative-text)',
+              fontWeight: 700,
+              fontSize: '0.82rem',
+              cursor: 'pointer',
+              marginTop: 4
+            }}
+          >
+            <Trash2 size={15} />
+            <span>Delete All Trips</span>
+          </button>
+        )}
+      </div>
 
       <CreateTripModal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} />
     </div>

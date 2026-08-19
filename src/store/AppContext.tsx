@@ -1145,6 +1145,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const clearAllData = async () => {
+    const allTrips = await db.trips.toArray();
+    const now = new Date().toISOString();
+    for (const t of allTrips) {
+      const deleted = { ...t, isDeleted: true, deletedAt: now, updatedAt: now };
+      await db.trips.put(deleted);
+      if (isFirebaseConfigured() && isOnline) {
+        syncTripToCloud(deleted).catch(console.warn);
+      }
+    }
     await db.trips.clear();
     await db.expenses.clear();
     await db.tripMembers.clear();
@@ -1153,6 +1162,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await db.activities.clear();
     setActiveTripId(null);
     localStorage.removeItem('whopaid_active_trip');
+    localStorage.removeItem('whopaid_last_view');
+    setTrips([]);
+    setExpenses([]);
+    setMembers([]);
+    setHouseholds([]);
+    setSettlements([]);
+    setActivities([]);
     await refreshData();
   };
 
