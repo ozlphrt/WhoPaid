@@ -300,6 +300,11 @@ export const TripSettings: React.FC = () => {
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <strong>{m.name}</strong>
+                  {(m.userId === currentUser.id || (currentUser.name && m.name.toLowerCase() === currentUser.name.toLowerCase())) && (
+                    <span style={{ fontSize: '0.68rem', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', padding: '1px 6px', borderRadius: 3, fontWeight: 700 }}>
+                      You
+                    </span>
+                  )}
                   {m.role === 'owner' && (
                     <span style={{ fontSize: '0.68rem', background: 'var(--bg-surface)', border: '1px solid var(--border-subtle)', color: 'var(--text-tertiary)', padding: '1px 5px', borderRadius: 3, fontWeight: 600 }}>
                       Owner
@@ -311,7 +316,11 @@ export const TripSettings: React.FC = () => {
                     </span>
                   )}
                 </div>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>{m.email}</span>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
+                  {(m.userId === currentUser.id || (currentUser.name && m.name.toLowerCase() === currentUser.name.toLowerCase()))
+                    ? (currentUser.email || m.email)
+                    : m.email}
+                </span>
               </div>
 
               {isOwner && m.userId !== currentUser.id && m.role !== 'owner' && (

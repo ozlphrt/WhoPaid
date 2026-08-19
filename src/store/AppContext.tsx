@@ -350,6 +350,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (activeTripId) {
         const tripMembers = await db.tripMembers.where('tripId').equals(activeTripId).toArray();
+        
+        // Auto-sync current user's actual email & ID into their member record if placeholder/outdated
+        const myMem = tripMembers.find(m => 
+          m.userId === currentUser.id || 
+          (currentUser.name && m.name.toLowerCase() === currentUser.name.toLowerCase())
+        );
+        if (myMem && currentUser.email && (!myMem.email || myMem.email !== currentUser.email || myMem.userId !== currentUser.id)) {
+          myMem.email = currentUser.email;
+          myMem.userId = currentUser.id;
+          await db.tripMembers.put(myMem);
+          if (isFirebaseConfigured() && navigator.onLine) {
+            syncMemberToCloud(activeTripId, myMem).catch(console.warn);
+          }
+        }
+
         setMembers(tripMembers);
 
         const tripHouseholds = await db.households.where('tripId').equals(activeTripId).toArray();
