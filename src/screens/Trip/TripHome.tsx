@@ -149,7 +149,7 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
               title="Add New Expense"
               aria-label="Add Expense"
             >
-              <Plus size={34} strokeWidth={2.8} />
+              <Plus size={28} strokeWidth={3} />
             </button>
           ) : (
             <div style={{

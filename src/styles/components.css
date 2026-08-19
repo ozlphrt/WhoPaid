@@ -119,6 +119,35 @@
   transform: scale(0.98);
 }
 
+/* Floating / Hero Action Circle Button */
+.btn-fab-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  border-radius: var(--radius-full);
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-text);
+  border: 1px solid var(--btn-primary-border);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18), var(--shadow-md);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all var(--duration-fast) var(--ease-spring);
+}
+
+.btn-fab-circle:hover {
+  background: var(--btn-primary-hover);
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.25), var(--shadow-lg);
+}
+
+.btn-fab-circle:active {
+  background: var(--btn-primary-active);
+  transform: scale(0.92);
+}
+
+
 /* Floating Action Button (FAB) */
 .fab-btn {
   position: fixed;
