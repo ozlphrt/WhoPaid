@@ -48,10 +48,11 @@ const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
   const isOwed = tripBal?.hasExpenses && tripBal.net > 0.009;
   const owes = tripBal?.hasExpenses && tripBal.net < -0.009;
 
-  const currentTranslateX = dragOffset !== null ? dragOffset : (isOpen ? -ACTION_WIDTH : 0);
+  const currentTranslateX = isOwner && dragOffset !== null ? dragOffset : (isOwner && isOpen ? -ACTION_WIDTH : 0);
 
-  // Touch Handlers
+  // Touch Handlers (Only active for trip owner)
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (!isOwner) return;
     startX.current = e.touches[0].clientX;
     startY.current = e.touches[0].clientY;
     isHorizontalSwipe.current = null;
@@ -59,7 +60,7 @@ const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isDragging) return;
+    if (!isOwner || !isDragging) return;
     const diffX = e.touches[0].clientX - startX.current;
     const diffY = e.touches[0].clientY - startY.current;
 
@@ -86,7 +87,7 @@ const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
   };
 
   const handleTouchEnd = () => {
-    if (!isDragging) return;
+    if (!isOwner || !isDragging) return;
     setIsDragging(false);
 
     if (isHorizontalSwipe.current) {
@@ -102,8 +103,9 @@ const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
     setDragOffset(null);
   };
 
-  // Mouse Drag Support
+  // Mouse Drag Support (Only active for trip owner)
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (!isOwner) return;
     startX.current = e.clientX;
     startY.current = e.clientY;
     isHorizontalSwipe.current = null;
@@ -154,7 +156,7 @@ const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
   };
 
   const handleCardClick = (e: React.MouseEvent) => {
-    if (isOpen) {
+    if (isOwner && isOpen) {
       e.stopPropagation();
       onClose();
     } else {
@@ -167,80 +169,82 @@ const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
       position: 'relative',
       borderRadius: 'var(--radius-xl)',
       overflow: 'hidden',
-      touchAction: 'pan-y'
+      touchAction: isOwner ? 'pan-y' : 'auto'
     }}>
       
-      {/* Background Revealed Action Buttons */}
-      <div style={{
-        position: 'absolute',
-        top: 0,
-        bottom: 0,
-        right: 0,
-        width: ACTION_WIDTH,
-        display: 'flex',
-        alignItems: 'stretch',
-        zIndex: 1,
-        borderRadius: 'var(--radius-xl)',
-        overflow: 'hidden'
-      }}>
-        {/* Archive / Close Button */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onArchiveTrip(trip);
-          }}
-          style={{
-            flex: 1,
-            background: 'var(--accent-primary, #344256)',
-            color: '#ffffff',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 4,
-            cursor: 'pointer',
-            padding: '0 8px',
-            border: 'none',
-            outline: 'none',
-            transition: 'background 0.15s ease'
-          }}
-        >
-          <Archive size={19} color="#ffffff" />
-          <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
-            Archive
-          </span>
-        </button>
+      {/* Background Revealed Action Buttons (Only for Trip Owner) */}
+      {isOwner && (
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          bottom: 0,
+          right: 0,
+          width: ACTION_WIDTH,
+          display: 'flex',
+          alignItems: 'stretch',
+          zIndex: 1,
+          borderRadius: 'var(--radius-xl)',
+          overflow: 'hidden'
+        }}>
+          {/* Archive / Close Button */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onArchiveTrip(trip);
+            }}
+            style={{
+              flex: 1,
+              background: 'var(--accent-primary, #344256)',
+              color: '#ffffff',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 4,
+              cursor: 'pointer',
+              padding: '0 8px',
+              border: 'none',
+              outline: 'none',
+              transition: 'background 0.15s ease'
+            }}
+          >
+            <Archive size={19} color="#ffffff" />
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
+              Archive
+            </span>
+          </button>
 
-        {/* Delete Button */}
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDeleteTrip(trip);
-          }}
-          style={{
-            flex: 1,
-            background: '#e11d48',
-            color: '#ffffff',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 4,
-            cursor: 'pointer',
-            padding: '0 8px',
-            border: 'none',
-            outline: 'none',
-            transition: 'background 0.15s ease'
-          }}
-        >
-          <Trash2 size={19} color="#ffffff" />
-          <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
-            Delete
-          </span>
-        </button>
-      </div>
+          {/* Delete Button */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDeleteTrip(trip);
+            }}
+            style={{
+              flex: 1,
+              background: '#e11d48',
+              color: '#ffffff',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 4,
+              cursor: 'pointer',
+              padding: '0 8px',
+              border: 'none',
+              outline: 'none',
+              transition: 'background 0.15s ease'
+            }}
+          >
+            <Trash2 size={19} color="#ffffff" />
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
+              Delete
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* Foreground Front Card */}
       <div
