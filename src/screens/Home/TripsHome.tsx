@@ -124,6 +124,7 @@ export const TripsHome: React.FC<TripsHomeProps> = ({ onSelectTrip, onOpenArchiv
               const tripBal = tripBalances[trip.id];
               const isOwed = tripBal?.hasExpenses && tripBal.net > 0.009;
               const owes = tripBal?.hasExpenses && tripBal.net < -0.009;
+              const isOwner = trip.ownerId === currentUser.id;
 
               return (
                 <div
@@ -140,9 +141,38 @@ export const TripsHome: React.FC<TripsHomeProps> = ({ onSelectTrip, onOpenArchiv
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {trip.name}
-                    </h3>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                      <h3 style={{ fontSize: '1.05rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {trip.name}
+                      </h3>
+                      {isOwner ? (
+                        <span style={{
+                          fontSize: '0.65rem',
+                          fontWeight: 700,
+                          background: 'var(--bg-subtle)',
+                          color: 'var(--text-primary)',
+                          border: '1px solid var(--border-strong)',
+                          padding: '1px 5px',
+                          borderRadius: 4,
+                          flexShrink: 0
+                        }}>
+                          Owner
+                        </span>
+                      ) : (
+                        <span style={{
+                          fontSize: '0.65rem',
+                          fontWeight: 600,
+                          background: 'var(--bg-subtle)',
+                          color: 'var(--text-tertiary)',
+                          border: '1px solid var(--border-subtle)',
+                          padding: '1px 5px',
+                          borderRadius: 4,
+                          flexShrink: 0
+                        }}>
+                          Shared
+                        </span>
+                      )}
+                    </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: 'var(--text-tertiary)' }}>
                       <Calendar size={13} />
                       <span>{formatDateRange(trip.startDate, trip.endDate, trip.mainCurrency)}</span>
@@ -167,7 +197,7 @@ export const TripsHome: React.FC<TripsHomeProps> = ({ onSelectTrip, onOpenArchiv
                           {isOwed ? (
                             <span>+{formatMoney(tripBal.net, trip.mainCurrency)}</span>
                           ) : owes ? (
-                            <span>−{formatMoney(Math.abs(tripBal.net), trip.mainCurrency)}</span>
+                            <span>-{formatMoney(Math.abs(tripBal.net), trip.mainCurrency)}</span>
                           ) : (
                             <span>{formatMoney(0, trip.mainCurrency)}</span>
                           )}
@@ -247,15 +277,16 @@ export const TripsHome: React.FC<TripsHomeProps> = ({ onSelectTrip, onOpenArchiv
               alignItems: 'center',
               justifyContent: 'center',
               gap: 8,
-              padding: '11px 16px',
-              background: 'rgba(239, 68, 68, 0.08)',
-              border: '1px solid rgba(239, 68, 68, 0.25)',
+              padding: '12px 16px',
+              background: 'var(--bg-surface)',
+              border: '1px solid rgba(239, 68, 68, 0.35)',
               borderRadius: 'var(--radius-lg)',
               color: 'var(--negative-text)',
               fontWeight: 700,
               fontSize: '0.82rem',
               cursor: 'pointer',
-              marginTop: 4
+              marginTop: 4,
+              boxShadow: 'var(--shadow-sm)'
             }}
           >
             <Trash2 size={15} />
