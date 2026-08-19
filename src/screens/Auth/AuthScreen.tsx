@@ -3,6 +3,8 @@ import { useApp } from '../../store/AppContext';
 import { CurrencyCode } from '../../types';
 import { Sparkles, Globe, Users, ArrowRight, ShieldCheck, Check, Loader2 } from 'lucide-react';
 
+import { loginAnonymously } from '../../lib/firebase';
+
 const POPULAR_CURRENCIES: CurrencyCode[] = ['EUR', 'USD', 'TRY', 'GBP', 'CHF', 'CAD', 'AUD', 'JPY'];
 
 export const AuthScreen: React.FC = () => {
@@ -53,8 +55,17 @@ export const AuthScreen: React.FC = () => {
     setLoading(true);
     setErrorMsg(null);
     try {
+      let fbUid: string | null = null;
+      if (isFirebaseActive) {
+        const fbUser = await loginAnonymously().catch(err => {
+          console.warn('Anonymous auth failed:', err);
+          return null;
+        });
+        if (fbUser) fbUid = fbUser.uid;
+      }
+
       const cleanName = guestName.trim();
-      const userId = `user_${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '')}_${Date.now().toString(36)}`;
+      const userId = fbUid || `user_${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '')}_${Date.now().toString(36)}`;
       const newUser = {
         id: userId,
         name: cleanName,

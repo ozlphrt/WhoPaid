@@ -224,6 +224,21 @@ export async function compressAndUploadReceipt(
   }
 }
 
+export async function fetchTripFromCloud(tripId: string): Promise<Trip | null> {
+  const { db } = getFirebaseInstances();
+  if (!db || !tripId) return null;
+  try {
+    const tripRef = doc(db, 'trips', tripId);
+    const snap = await getDoc(tripRef);
+    if (snap.exists()) {
+      return { id: snap.id, ...snap.data() } as Trip;
+    }
+  } catch (err) {
+    console.warn('[Firestore] Failed to fetch trip from cloud:', err);
+  }
+  return null;
+}
+
 export async function syncUserToCloud(user: { id: string; name: string; email: string; defaultCurrency?: string; avatarUrl?: string }): Promise<void> {
   const { db } = getFirebaseInstances();
   if (!db || !user?.id) return;

@@ -26,6 +26,7 @@ import {
   syncActivityToCloud,
   syncUserToCloud,
   fetchUserFromCloud,
+  fetchTripFromCloud,
   ActiveTripListeners
 } from '../lib/firestoreSync';
 import { sendLocalNotification, requestNotificationPermission, isNotificationGranted } from '../lib/notifications';
@@ -349,10 +350,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       },
       onMembersUpdate: async (remoteMembers) => {
+        await db.tripMembers.where('tripId').equals(activeTripId).delete();
         if (remoteMembers.length > 0) {
           await db.tripMembers.bulkPut(remoteMembers);
-          setMembers(remoteMembers);
         }
+        setMembers(remoteMembers);
       },
       onHouseholdsUpdate: async (remoteHouseholds) => {
         await db.households.where('tripId').equals(activeTripId).delete();
@@ -362,17 +364,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setHouseholds(remoteHouseholds);
       },
       onExpensesUpdate: async (remoteExpenses) => {
+        await db.expenses.where('tripId').equals(activeTripId).delete();
         if (remoteExpenses.length > 0) {
           await db.expenses.bulkPut(remoteExpenses);
-          setExpenses(remoteExpenses);
         }
+        const sorted = [...remoteExpenses].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setExpenses(sorted);
         setCloudSyncStatus('connected');
       },
       onSettlementsUpdate: async (remoteSettlements) => {
+        await db.settlements.where('tripId').equals(activeTripId).delete();
         if (remoteSettlements.length > 0) {
           await db.settlements.bulkPut(remoteSettlements);
-          setSettlements(remoteSettlements);
         }
+        setSettlements(remoteSettlements);
       },
       onActivitiesUpdate: async (remoteActs) => {
         if (remoteActs.length > 0) {
@@ -524,6 +529,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     await db.expenses.put(newExpense);
+    setExpenses(prev => [newExpense, ...prev.filter(e => e.id !== newExpense.id)]);
 
     if (isFirebaseConfigured() && isOnline) {
       syncExpenseToCloud(activeTrip.id, newExpense).catch(console.warn);
@@ -556,6 +562,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setUndoState(null);
 
     await db.expenses.delete(exp.id);
+    setExpenses(prev => prev.filter(e => e.id !== exp.id));
     if (isFirebaseConfigured() && isOnline && activeTrip) {
       deleteExpenseFromCloud(activeTrip.id, exp.id).catch(console.warn);
     }
@@ -576,6 +583,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       clientSyncStatus: isOnline ? 'synced' : 'pending'
     };
     await db.expenses.put(savePayload);
+    setExpenses(prev => prev.map(e => e.id === savePayload.id ? savePayload : e));
     if (isFirebaseConfigured() && isOnline && activeTrip) {
       syncExpenseToCloud(activeTrip.id, savePayload).catch(console.warn);
     }
@@ -594,6 +602,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatedAt: now
     };
     await db.expenses.put(updatedExp);
+    setExpenses(prev => prev.filter(e => e.id !== expenseId));
     if (isFirebaseConfigured() && isOnline && activeTrip) {
       syncExpenseToCloud(activeTrip.id, updatedExp).catch(console.warn);
     }
@@ -782,6 +791,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const joinTrip = async (tripId: string) => {
     try {
+      if (isFirebaseConfigured()) {
+        const remoteTrip = await fetchTripFromCloud(tripId);
+        if (remoteTrip) {
+          await db.trips.put(remoteTrip);
+          setTrips(prev => {
+            const idx = prev.findIndex(t => t.id === remoteTrip.id);
+            if (idx >= 0) {
+              const updated = [...prev];
+              updated[idx] = remoteTrip;
+              return updated;
+            }
+            return [...prev, remoteTrip];
+          });
+        }
+      }
+
       const existing = await db.tripMembers.where('tripId').equals(tripId).and(m => m.userId === currentUser.id).first();
       if (!existing) {
         const newMember: TripMember = {
