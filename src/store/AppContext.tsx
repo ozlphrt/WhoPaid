@@ -397,9 +397,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
 
       // Full 2-Way Sync: Upload local trips and download cloud trips
-      if (isFirebaseConfigured() && navigator.onLine && !isSyncingTripsRef.current) {
-        isSyncingTripsRef.current = true;
-        
+      if (isFirebaseConfigured() && navigator.onLine) {
         // 1. Upload any local active trips to cloud if present
         for (const localTrip of allTrips) {
           if (!localTrip.isDeleted) {
@@ -433,20 +431,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             const freshTrips = await db.trips.toArray();
             const freshMembers = await db.tripMembers.toArray();
             const freshMemberTripIds = new Set<string>();
+            const emailPrefix = currentUser.email ? currentUser.email.split('@')[0].toLowerCase() : '';
             for (const m of freshMembers) {
               if (
                 m.userId === currentUser.id ||
                 (currentUser.email && m.email && m.email.toLowerCase() === currentUser.email.toLowerCase()) ||
-                (currentUser.name && m.name && m.name.toLowerCase() === currentUser.name.toLowerCase())
+                (currentUser.name && m.name && m.name.toLowerCase() === currentUser.name.toLowerCase()) ||
+                (emailPrefix && m.name && m.name.toLowerCase().includes(emailPrefix))
               ) {
                 freshMemberTripIds.add(m.tripId);
               }
             }
             setTrips(freshTrips.filter(t => !t.isDeleted && (t.ownerId === currentUser.id || freshMemberTripIds.has(t.id))));
           }
-        }).catch(console.warn).finally(() => {
-          isSyncingTripsRef.current = false;
-        });
+        }).catch(console.warn);
       }
     } catch (err) {
       console.warn('IndexedDB initial load error, continuing with fallback:', err);

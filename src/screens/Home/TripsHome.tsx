@@ -12,11 +12,16 @@ interface TripsHomeProps {
 }
 
 export const TripsHome: React.FC<TripsHomeProps> = ({ onSelectTrip, onOpenArchive }) => {
-  const { trips, currentUser, clearAllData, showConfirm } = useApp();
+  const { trips, currentUser, refreshData, clearAllData, showConfirm } = useApp();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [tripBalances, setTripBalances] = useState<Record<string, { net: number; hasExpenses: boolean }>>({});
 
   const activeTrips = trips.filter(t => !t.isClosed && !t.isDeleted);
+
+  // Automatically refresh cloud data on overview mount
+  useEffect(() => {
+    refreshData();
+  }, [refreshData]);
 
   useEffect(() => {
     let isMounted = true;

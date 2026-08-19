@@ -275,14 +275,18 @@ export async function fetchUserTripsFromCloud(userId: string, userEmail?: string
     const resultTrips: Trip[] = [];
 
     const emailLower = userEmail ? userEmail.toLowerCase().trim() : '';
-    const emailPrefix = emailLower ? emailLower.split('@')[0] : '';
+    const emailPrefix = emailLower ? emailLower.split('@')[0].trim() : '';
     const nameLower = userName ? userName.toLowerCase().trim() : '';
 
     for (const docSnap of allSnap.docs) {
       const tripData = { id: docSnap.id, ...docSnap.data() } as Trip;
       if (tripData.isDeleted) continue;
 
-      if (userId && tripData.ownerId === userId) {
+      if (
+        (userId && tripData.ownerId === userId) ||
+        (emailLower && (tripData as any).ownerEmail && (tripData as any).ownerEmail.toLowerCase().trim() === emailLower) ||
+        (nameLower && (tripData as any).ownerName && (tripData as any).ownerName.toLowerCase().trim() === nameLower)
+      ) {
         resultTrips.push(tripData);
         continue;
       }
@@ -301,7 +305,10 @@ export async function fetchUserTripsFromCloud(userId: string, userEmail?: string
           if (
             (userId && mUserId === userId) ||
             (emailLower && mEmail === emailLower) ||
-            (nameLower && mName === nameLower)
+            (nameLower && mName === nameLower) ||
+            (emailPrefix && mEmail && mEmail.startsWith(emailPrefix)) ||
+            (emailPrefix && mName && mName.includes(emailPrefix)) ||
+            (nameLower && mName && (mName.includes(nameLower) || nameLower.includes(mName)))
           ) {
             isMem = true;
           }
