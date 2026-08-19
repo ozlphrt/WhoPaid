@@ -147,7 +147,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const [trips, setTrips] = useState<Trip[]>([]);
-  const [activeTripId, setActiveTripId] = useState<string | null>(null);
+  const [activeTripId, setActiveTripIdState] = useState<string | null>(() => {
+    return localStorage.getItem('whopaid_active_trip');
+  });
+
+  const setActiveTripId = useCallback((id: string | null) => {
+    setActiveTripIdState(id);
+    if (id) {
+      localStorage.setItem('whopaid_active_trip', id);
+    } else {
+      localStorage.removeItem('whopaid_active_trip');
+    }
+  }, []);
+
   const [members, setMembers] = useState<TripMember[]>([]);
   const [households, setHouseholds] = useState<Household[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);

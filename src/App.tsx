@@ -109,7 +109,29 @@ interface AppContentProps {}
 
 const AppContent: React.FC<AppContentProps> = () => {
   const { activeTrip, setActiveTripId, isInitialized, isAuthenticated, currentUser, joinTrip } = useApp();
-  const [currentView, setCurrentView] = useState<AppView>('trip-home');
+
+  // Start from 'trips' overview screen, or resume where user left off if an active trip is open
+  const [currentView, setCurrentView] = useState<AppView>(() => {
+    const savedTrip = localStorage.getItem('whopaid_active_trip');
+    const savedView = localStorage.getItem('whopaid_last_view') as AppView;
+    if (savedTrip && savedView && savedView !== 'trips') {
+      return savedView;
+    }
+    return 'trips';
+  });
+
+  const handleNavigate = (view: AppView) => {
+    setCurrentView(view);
+    localStorage.setItem('whopaid_last_view', view);
+  };
+
+  // If no active trip is selected, always show Trips Home
+  useEffect(() => {
+    if (!activeTrip && currentView !== 'trips' && currentView !== 'profile' && currentView !== 'archive') {
+      setCurrentView('trips');
+      localStorage.setItem('whopaid_last_view', 'trips');
+    }
+  }, [activeTrip, currentView]);
 
   // Handle invitation URL if query params exist (?join=... or ?tripId=...)
   useEffect(() => {
@@ -117,14 +139,14 @@ const AppContent: React.FC<AppContentProps> = () => {
     const joinTripId = params.get('join') || params.get('tripId');
     if (joinTripId && isAuthenticated) {
       joinTrip(joinTripId);
-      setCurrentView('trip-home');
+      handleNavigate('trip-home');
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [isAuthenticated, joinTrip]);
 
   const handleSelectTrip = (tripId: string) => {
     setActiveTripId(tripId);
-    setCurrentView('trip-home');
+    handleNavigate('trip-home');
   };
 
   if (!isInitialized) {
@@ -176,7 +198,7 @@ const AppContent: React.FC<AppContentProps> = () => {
     <div className="app-container">
       <TopNav
         currentView={currentView}
-        onNavigate={(view) => setCurrentView(view)}
+        onNavigate={handleNavigate}
       />
 
       <main style={{ flex: 1, paddingBottom: showTripDock ? 'calc(80px + env(safe-area-inset-bottom, 0px))' : 'calc(24px + env(safe-area-inset-bottom, 0px))' }}>
@@ -185,24 +207,24 @@ const AppContent: React.FC<AppContentProps> = () => {
             <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>Loading...</span>
           </div>
         }>
-          {currentView === 'trips' && (
+          {(!activeTrip || currentView === 'trips') && (
             <TripsHome
               onSelectTrip={handleSelectTrip}
-              onOpenArchive={() => setCurrentView('archive')}
+              onOpenArchive={() => handleNavigate('archive')}
             />
           )}
 
-          {currentView === 'trip-home' && (
+          {activeTrip && currentView === 'trip-home' && (
             <TripHome
-              onNavigateTab={(tab) => setCurrentView(tab)}
+              onNavigateTab={(tab) => handleNavigate(tab)}
             />
           )}
 
-          {currentView === 'expenses' && <ExpenseList />}
-          {currentView === 'balances' && <Balances />}
-          {currentView === 'settle' && <Settle />}
-          {currentView === 'report' && <Report />}
-          {currentView === 'settings' && <TripSettings />}
+          {activeTrip && currentView === 'expenses' && <ExpenseList />}
+          {activeTrip && currentView === 'balances' && <Balances />}
+          {activeTrip && currentView === 'settle' && <Settle />}
+          {activeTrip && currentView === 'report' && <Report />}
+          {activeTrip && currentView === 'settings' && <TripSettings />}
           {currentView === 'activity' && <ActivityScreen />}
           {currentView === 'archive' && <ArchiveScreen onSelectTrip={handleSelectTrip} />}
           {currentView === 'profile' && <ProfileScreen />}
@@ -212,7 +234,7 @@ const AppContent: React.FC<AppContentProps> = () => {
       {showTripDock && (
         <FloatingBottomDock
           currentView={currentView}
-          onNavigate={(view) => setCurrentView(view)}
+          onNavigate={handleNavigate}
         />
       )}
 
