@@ -220,7 +220,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await db.tripMembers.clear();
         await db.households.clear();
         await db.settlements.clear();
-        await db.auditLogs.clear();
         await db.activities.clear();
         localStorage.removeItem('whopaid_active_trip');
         localStorage.setItem(WIPE_MOCK_KEY, 'true');
@@ -1011,7 +1010,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await db.tripMembers.clear();
     await db.households.clear();
     await db.settlements.clear();
-    await db.auditLogs.clear();
     await db.activities.clear();
     setActiveTripId(null);
     localStorage.removeItem('whopaid_active_trip');
