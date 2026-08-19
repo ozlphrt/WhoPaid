@@ -266,13 +266,17 @@ export async function fetchTripFromCloud(tripId: string): Promise<Trip | null> {
   return null;
 }
 
-export async function fetchUserTripsFromCloud(userId: string, userEmail?: string): Promise<Trip[]> {
+export async function fetchUserTripsFromCloud(userId: string, userEmail?: string, userName?: string): Promise<Trip[]> {
   const { db } = getFirebaseInstances();
   if (!db || !userId) return [];
   try {
     const tripsRef = collection(db, 'trips');
     const allSnap = await getDocs(tripsRef);
     const resultTrips: Trip[] = [];
+
+    const emailLower = userEmail ? userEmail.toLowerCase().trim() : '';
+    const emailPrefix = emailLower ? emailLower.split('@')[0] : '';
+    const nameLower = userName ? userName.toLowerCase().trim() : '';
 
     for (const docSnap of allSnap.docs) {
       const tripData = { id: docSnap.id, ...docSnap.data() } as Trip;
@@ -290,9 +294,15 @@ export async function fetchUserTripsFromCloud(userId: string, userEmail?: string
         let isMem = false;
         memSnap.forEach(mDoc => {
           const m = mDoc.data() as TripMember;
+          const mEmail = m.email ? m.email.toLowerCase().trim() : '';
+          const mName = m.name ? m.name.toLowerCase().trim() : '';
+
           if (
             m.userId === userId ||
-            (userEmail && m.email && m.email.toLowerCase() === userEmail.toLowerCase())
+            (emailLower && mEmail === emailLower) ||
+            (emailPrefix && mEmail.startsWith(emailPrefix)) ||
+            (nameLower && mName === nameLower) ||
+            (emailPrefix && mName === emailPrefix)
           ) {
             isMem = true;
           }
