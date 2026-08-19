@@ -40,8 +40,10 @@ export const AuthScreen: React.FC = () => {
         setErrorMsg('Please allow popups in your browser settings and tap Sign in with Google again.');
       } else if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
         setErrorMsg(null);
+      } else if (err.code === 'auth/disallowed-useragent' || (err.message && err.message.includes('disallowed_useragent'))) {
+        setErrorMsg('Google blocks OAuth sign-ins inside iOS Home Screen apps for security. Please tap "Continue with Name" below and enter your email/name to access all your trips.');
       } else {
-        setErrorMsg(err.message || 'Google sign-in failed. Please try again.');
+        setErrorMsg(err.message || 'Google sign-in could not be completed. Please try "Continue with Name".');
       }
     } finally {
       setLoading(false);

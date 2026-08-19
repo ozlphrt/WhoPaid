@@ -182,8 +182,13 @@ export async function loginWithGoogle(): Promise<FirebaseUser | null> {
     prompt: 'select_account'
   });
 
+  const popupPromise = signInWithPopup(auth, provider);
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('Google Sign-In request timed out. If you are on an iOS Home Screen app, Google blocks embedded webview popups.')), 25000)
+  );
+
   try {
-    const res = await signInWithPopup(auth, provider);
+    const res = await Promise.race([popupPromise, timeoutPromise]);
     return res.user;
   } catch (err: any) {
     if (
