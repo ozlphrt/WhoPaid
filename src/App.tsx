@@ -9,7 +9,6 @@ import { Settle } from './screens/Trip/Settle';
 import { ProfileScreen } from './screens/Profile/ProfileScreen';
 import { AuthScreen } from './screens/Auth/AuthScreen';
 import { UndoToast } from './components/UndoToast';
-import { PWAUpdateModal } from './components/PWAUpdateModal';
 import { db } from './lib/db';
 import { PENDING_INVITE_KEY } from './lib/invite';
 import './styles/global.css';
@@ -178,6 +177,14 @@ const AppContent: React.FC<AppContentProps> = () => {
     if (pendingJoin && joiningTripRef.current !== pendingJoin) {
       joiningTripRef.current = pendingJoin;
       setIsJoiningTrip(true);
+      const slowJoinTimer = window.setTimeout(() => {
+        setIsJoiningTrip(false);
+        showAlert(
+          'The invitation is still finishing in the background. You can keep using WhoPaid; the trip will open as soon as it is ready.',
+          'Still joining your trip',
+          'info'
+        );
+      }, 10_000);
       joinTrip(pendingJoin)
         .then(() => {
           sessionStorage.removeItem(PENDING_INVITE_KEY);
@@ -186,12 +193,14 @@ const AppContent: React.FC<AppContentProps> = () => {
           localStorage.setItem('whopaid_last_view', 'trip-home');
         })
         .catch((error: unknown) => {
-          // Reset the ref so the join can be retried on next render/refresh
-          joiningTripRef.current = null;
+          // Keep this attempt marked as handled to avoid an automatic retry
+          // loop. The pending token remains stored, so reopening WhoPaid can
+          // retry a transient failure.
           const message = error instanceof Error ? error.message : 'The trip could not be joined.';
           showAlert(message, 'Could not join trip', 'warning');
         })
         .finally(() => {
+          window.clearTimeout(slowJoinTimer);
           setIsJoiningTrip(false);
         });
     }
@@ -307,7 +316,6 @@ const AppContent: React.FC<AppContentProps> = () => {
       )}
 
       <UndoToast />
-      <PWAUpdateModal />
     </div>
   );
 };
