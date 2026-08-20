@@ -118,6 +118,7 @@ interface AppContentProps {}
 const AppContent: React.FC<AppContentProps> = () => {
   const {
     activeTrip,
+    trips,
     setActiveTripId,
     isInitialized,
     isAuthenticated,
@@ -129,6 +130,7 @@ const AppContent: React.FC<AppContentProps> = () => {
     isFirebaseAuthReady
   } = useApp();
   const joiningTripRef = useRef<string | null>(null);
+  const slowJoinTimerRef = useRef<number | null>(null);
   const [isJoiningTrip, setIsJoiningTrip] = useState(false);
 
   // Start from 'trips' overview screen, or resume where user left off if an active trip is open (never resume into profile)
@@ -174,10 +176,29 @@ const AppContent: React.FC<AppContentProps> = () => {
     if (!isInitialized || !isFirebaseAuthReady || !isAuthenticated || !firebaseUser) return;
 
     const pendingJoin = localStorage.getItem(PENDING_INVITE_KEY) || sessionStorage.getItem(PENDING_INVITE_KEY);
+    const alreadyJoinedTrip = pendingJoin
+      ? trips.find(trip => trip.inviteToken === pendingJoin && !trip.isDeleted)
+      : undefined;
+
+    if (pendingJoin && alreadyJoinedTrip) {
+      if (slowJoinTimerRef.current !== null) {
+        window.clearTimeout(slowJoinTimerRef.current);
+        slowJoinTimerRef.current = null;
+      }
+      sessionStorage.removeItem(PENDING_INVITE_KEY);
+      localStorage.removeItem(PENDING_INVITE_KEY);
+      joiningTripRef.current = pendingJoin;
+      setIsJoiningTrip(false);
+      setActiveTripId(alreadyJoinedTrip.id);
+      setCurrentView('trip-home');
+      localStorage.setItem('whopaid_last_view', 'trip-home');
+      return;
+    }
+
     if (pendingJoin && joiningTripRef.current !== pendingJoin) {
       joiningTripRef.current = pendingJoin;
       setIsJoiningTrip(true);
-      const slowJoinTimer = window.setTimeout(() => {
+      slowJoinTimerRef.current = window.setTimeout(() => {
         setIsJoiningTrip(false);
         showAlert(
           'The invitation is still finishing in the background. You can keep using WhoPaid; the trip will open as soon as it is ready.',
@@ -200,11 +221,14 @@ const AppContent: React.FC<AppContentProps> = () => {
           showAlert(message, 'Could not join trip', 'warning');
         })
         .finally(() => {
-          window.clearTimeout(slowJoinTimer);
+          if (slowJoinTimerRef.current !== null) {
+            window.clearTimeout(slowJoinTimerRef.current);
+            slowJoinTimerRef.current = null;
+          }
           setIsJoiningTrip(false);
         });
     }
-  }, [isInitialized, isFirebaseAuthReady, isAuthenticated, firebaseUser, joinTrip, showAlert]);
+  }, [isInitialized, isFirebaseAuthReady, isAuthenticated, firebaseUser, trips, setActiveTripId, joinTrip, showAlert]);
 
   const handleSelectTrip = (tripId: string) => {
     setActiveTripId(tripId);

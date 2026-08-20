@@ -1129,12 +1129,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const remoteTrip = await joinTripInCloud(inviteToken, currentUser.id);
     const tripId = remoteTrip.id;
-    await db.trips.put(remoteTrip);
 
     // Publish the successful cloud join immediately. Secondary hydration must
-    // not prevent the trip from appearing in the user's list.
+    // not prevent the trip from appearing in the user's list. Local database
+    // persistence is also non-blocking because another PWA/browser instance
+    // may temporarily hold the IndexedDB connection.
     setTrips(prev => [...prev.filter(trip => trip.id !== remoteTrip.id), remoteTrip]);
     setActiveTripId(tripId);
+    void db.trips.put(remoteTrip).catch(error => {
+      console.warn('[IndexedDB] Joined trip will be persisted by background sync:', error);
+    });
 
     // The secure membership index and trip are already persisted. Do not make
     // the user wait for every member and expense before completing the join.
