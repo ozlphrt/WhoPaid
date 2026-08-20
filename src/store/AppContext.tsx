@@ -480,32 +480,41 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       try {
         const syncPromise = (async () => {
           const localTrips = await db.trips.toArray();
-          const tripsNeedingUpload = localTrips.filter(trip =>
+          // 1. Sync owned trips and ensure invite token exists
+          const ownedTrips = localTrips.filter(trip =>
             !trip.isDeleted &&
-            trip.ownerId === currentUser.id &&
-            (!trip.inviteToken || trip.clientSyncStatus === 'pending' || trip.clientSyncStatus === 'failed')
+            trip.ownerId === currentUser.id
           );
 
-          if (tripsNeedingUpload.length > 0) {
-            await Promise.all(tripsNeedingUpload.map(async localTrip => {
-              const migratedTrip: Trip = localTrip.inviteToken
-                ? localTrip
-                : { ...localTrip, inviteToken: createId('invite') };
-              await db.trips.put(migratedTrip);
-              await Promise.all([
-                syncTripToCloud(migratedTrip),
-                syncTripInvite(migratedTrip),
-                syncUserTripMembership(migratedTrip.id, currentUser.id, 'owner')
-              ]);
+          await Promise.all(ownedTrips.map(async localTrip => {
+            const migratedTrip: Trip = localTrip.inviteToken
+              ? localTrip
+              : { ...localTrip, inviteToken: createId('invite') };
+            await db.trips.put(migratedTrip);
+            await Promise.all([
+              syncTripToCloud(migratedTrip),
+              syncTripInvite(migratedTrip),
+              syncUserTripMembership(migratedTrip.id, currentUser.id, 'owner')
+            ]);
 
-              if (localTrip.clientSyncStatus === 'pending' || localTrip.clientSyncStatus === 'failed') {
-                const localMembers = await db.tripMembers.where('tripId').equals(localTrip.id).toArray();
-                await Promise.all(localMembers.map(member => syncMemberToCloud(localTrip.id, member)));
-              }
+            const localMembers = await db.tripMembers.where('tripId').equals(localTrip.id).toArray();
+            await Promise.all(localMembers.map(member => syncMemberToCloud(localTrip.id, member)));
+            await db.trips.put({ ...migratedTrip, clientSyncStatus: 'synced' });
+          }));
 
-              await db.trips.put({ ...migratedTrip, clientSyncStatus: 'synced' });
-            }));
-          }
+          // 2. Sync membership for all active shared trips so all devices (PWA/Mobile) can access them
+          const sharedTrips = localTrips.filter(trip =>
+            !trip.isDeleted &&
+            trip.ownerId !== currentUser.id
+          );
+
+          await Promise.all(sharedTrips.map(async sharedTrip => {
+            try {
+              await syncUserTripMembership(sharedTrip.id, currentUser.id, 'member', sharedTrip.inviteToken);
+            } catch (err) {
+              console.warn('[Firestore] Failed to sync shared trip membership for:', sharedTrip.id, err);
+            }
+          }));
 
           const pendingExpenses = (await db.expenses
             .where('clientSyncStatus')
