@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   PENDING_INVITE_KEY,
   buildInviteUrl,
+  capturePendingInviteFromBrowser,
   clearPendingInvite,
+  hasFreshPendingInvite,
   markPendingInviteAttempt,
   readInviteToken,
   wasPendingInviteAttempted
@@ -54,5 +56,32 @@ describe('trip invitation URLs', () => {
     expect(localStorage.getItem(PENDING_INVITE_KEY)).toBeNull();
     expect(sessionStorage.getItem(PENDING_INVITE_KEY)).toBeNull();
     expect(wasPendingInviteAttempted('invite-123')).toBe(false);
+  });
+
+  it('discards legacy stale tokens before app startup', () => {
+    localStorage.setItem(PENDING_INVITE_KEY, 'old-invite');
+    vi.stubGlobal('window', {
+      location: { href: 'https://example.test/WhoPaid/' },
+      history: { replaceState: vi.fn() }
+    });
+
+    expect(capturePendingInviteFromBrowser()).toBeNull();
+    expect(localStorage.getItem(PENDING_INVITE_KEY)).toBeNull();
+  });
+
+  it('keeps a freshly captured token through an OAuth-style clean return URL', () => {
+    const replaceState = vi.fn();
+    vi.stubGlobal('window', {
+      location: { href: 'https://example.test/WhoPaid/?join=fresh-invite' },
+      history: { replaceState }
+    });
+
+    expect(capturePendingInviteFromBrowser()).toBe('fresh-invite');
+    expect(hasFreshPendingInvite()).toBe(true);
+    expect(replaceState).toHaveBeenCalledOnce();
+
+    window.location.href = 'https://example.test/WhoPaid/';
+    expect(capturePendingInviteFromBrowser()).toBeNull();
+    expect(localStorage.getItem(PENDING_INVITE_KEY)).toBe('fresh-invite');
   });
 });
