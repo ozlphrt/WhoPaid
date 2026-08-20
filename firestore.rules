@@ -5,10 +5,6 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function tripData(tripId) {
-      return get(/databases/$(database)/documents/trips/$(tripId)).data;
-    }
-
     function hasMembership(tripId) {
       return signedIn() && exists(
         /databases/$(database)/documents/users/$(request.auth.uid)/tripMemberships/$(tripId)
@@ -16,25 +12,31 @@ service cloud.firestore {
     }
 
     function isOwner(tripId) {
-      return signedIn() && tripData(tripId).ownerId == request.auth.uid;
+      return signedIn() && (
+        exists(/databases/$(database)/documents/trips/$(tripId)) && 
+        get(/databases/$(database)/documents/trips/$(tripId)).data.ownerId == request.auth.uid
+      );
     }
 
     function isTripMember(tripId) {
-      return isOwner(tripId) || hasMembership(tripId);
+      return signedIn() && (
+        hasMembership(tripId) ||
+        isOwner(tripId) ||
+        exists(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid))
+      );
     }
 
     function validInviteFor(tripId) {
-      return request.resource.data.inviteToken is string
-        && get(
-          /databases/$(database)/documents/tripInvites/$(request.resource.data.inviteToken)
-        ).data.tripId == tripId
-        && get(
-          /databases/$(database)/documents/tripInvites/$(request.resource.data.inviteToken)
-        ).data.revoked == false;
+      let inviteId = request.resource.data.inviteToken;
+      return inviteId is string
+        && exists(/databases/$(database)/documents/tripInvites/$(inviteId))
+        && get(/databases/$(database)/documents/tripInvites/$(inviteId)).data.tripId == tripId
+        && get(/databases/$(database)/documents/tripInvites/$(inviteId)).data.revoked != true;
     }
 
+    // User profile and memberships
     match /users/{userId} {
-      allow read, create, update, delete: if signedIn() && request.auth.uid == userId;
+      allow read, write: if signedIn() && request.auth.uid == userId;
 
       match /tripMemberships/{tripId} {
         allow read: if signedIn() && request.auth.uid == userId;
@@ -43,12 +45,9 @@ service cloud.firestore {
           && request.resource.data.userId == request.auth.uid
           && request.resource.data.tripId == tripId
           && (
-            tripData(tripId).ownerId == request.auth.uid ||
-            (
-              tripData(tripId).isClosed == false
-              && tripData(tripId).isDeleted == false
-              && validInviteFor(tripId)
-            )
+            request.resource.data.role == 'owner' ||
+            validInviteFor(tripId) ||
+            exists(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid))
           );
         allow update: if signedIn()
           && request.auth.uid == userId
@@ -61,46 +60,57 @@ service cloud.firestore {
       }
     }
 
+    // Public invite tokens (read-only for authenticated users to look up tripId)
     match /tripInvites/{inviteToken} {
       allow get: if signedIn();
       allow list: if false;
       allow create: if signedIn()
         && request.resource.data.tripId is string
-        && request.resource.data.createdBy == request.auth.uid
-        && isOwner(request.resource.data.tripId);
+        && request.resource.data.createdBy == request.auth.uid;
       allow update: if signedIn()
-        && isOwner(resource.data.tripId)
-        && request.resource.data.tripId == resource.data.tripId
-        && request.resource.data.createdBy == resource.data.createdBy;
-      allow delete: if signedIn() && isOwner(resource.data.tripId);
+        && (resource.data.createdBy == request.auth.uid || isOwner(resource.data.tripId));
+      allow delete: if signedIn()
+        && (resource.data.createdBy == request.auth.uid || isOwner(resource.data.tripId));
     }
 
+    // Trips collection and subcollections
     match /trips/{tripId} {
-      allow read: if isTripMember(tripId);
+      allow read: if signedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        isTripMember(tripId)
+      );
       allow create: if signedIn()
-        && request.resource.data.ownerId == request.auth.uid
-        && request.resource.data.inviteToken is string;
-      allow update, delete: if isOwner(tripId);
+        && request.resource.data.ownerId == request.auth.uid;
+      allow update: if signedIn() && (
+        resource.data.ownerId == request.auth.uid ||
+        isTripMember(tripId)
+      );
+      allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
 
       match /members/{memberId} {
-        allow read, create, update, delete: if isTripMember(tripId);
+        allow read, create, update, delete: if signedIn();
       }
 
       match /households/{householdId} {
-        allow read, write: if isTripMember(tripId);
+        allow read, write: if signedIn();
       }
 
       match /expenses/{expenseId} {
-        allow read, write: if isTripMember(tripId);
+        allow read, write: if signedIn();
       }
 
       match /settlements/{settlementId} {
-        allow read, write: if isTripMember(tripId);
+        allow read, write: if signedIn();
       }
 
       match /activities/{activityId} {
-        allow read, write: if isTripMember(tripId);
+        allow read, write: if signedIn();
       }
+    }
+
+    // Collection group query support for members
+    match /{path=**}/members/{memberId} {
+      allow read: if signedIn();
     }
   }
 }
