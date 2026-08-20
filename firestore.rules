@@ -52,20 +52,35 @@ service cloud.firestore {
         && legacyMemberMatchesCaller(tripId, request.resource.data.memberId);
     }
 
+    function validMembershipDocument(userId, tripId) {
+      return request.resource.data.keys().hasOnly([
+          'tripId', 'userId', 'role', 'inviteToken', 'memberId', 'joinedAt'
+        ])
+        && request.resource.data.userId == userId
+        && request.resource.data.tripId == tripId
+        && request.resource.data.role in ['owner', 'member']
+        && (!('inviteToken' in request.resource.data) || request.resource.data.inviteToken is string)
+        && (!('memberId' in request.resource.data) || request.resource.data.memberId is string)
+        && (!('joinedAt' in request.resource.data) || request.resource.data.joinedAt is string);
+    }
+
     match /users/{userId} {
       allow read, create, update, delete: if signedIn() && request.auth.uid == userId;
 
       match /tripMemberships/{tripId} {
         allow read: if signedIn() && request.auth.uid == userId;
         allow create: if signedIn()
-          && request.resource.data.userId == userId
-          && request.resource.data.tripId == tripId
+          && validMembershipDocument(userId, tripId)
           && (
             (
               request.auth.uid == userId && (
-                isOwner(tripId) ||
-                validInviteFor(tripId) ||
-                validLegacyMemberProof(tripId)
+                (isOwner(tripId) && request.resource.data.role == 'owner') ||
+                (
+                  request.resource.data.role == 'member' && (
+                    validInviteFor(tripId) ||
+                    validLegacyMemberProof(tripId)
+                  )
+                )
               )
             ) ||
             (
@@ -75,10 +90,14 @@ service cloud.firestore {
             )
           );
         allow update: if signedIn()
+          && validMembershipDocument(userId, tripId)
           && request.resource.data.userId == resource.data.userId
           && request.resource.data.tripId == resource.data.tripId
           && (
-            request.auth.uid == userId ||
+            (
+              request.auth.uid == userId &&
+              request.resource.data.role == resource.data.role
+            ) ||
             (isOwner(tripId) && request.resource.data.role == 'member')
           );
         allow delete: if signedIn() && (

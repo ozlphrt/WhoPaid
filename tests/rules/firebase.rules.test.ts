@@ -160,6 +160,23 @@ describe('Firestore authorization', () => {
     }));
   });
 
+  it('rejects invite-based role escalation and unexpected membership fields', async () => {
+    const outsiderDb = testEnv.authenticatedContext('outsider').firestore();
+    await assertFails(setDoc(doc(outsiderDb, 'users', 'outsider', 'tripMemberships', 'trip-b'), {
+      tripId: 'trip-b', userId: 'outsider', role: 'owner', inviteToken: 'invite-b'
+    }));
+    await assertFails(setDoc(doc(outsiderDb, 'users', 'outsider', 'tripMemberships', 'trip-b'), {
+      tripId: 'trip-b', userId: 'outsider', role: 'member', inviteToken: 'invite-b', admin: true
+    }));
+  });
+
+  it('does not let a member promote their existing membership role', async () => {
+    const memberDb = testEnv.authenticatedContext('member').firestore();
+    await assertFails(updateDoc(doc(memberDb, 'users', 'member', 'tripMemberships', 'trip-a'), {
+      role: 'owner'
+    }));
+  });
+
   it('does not let an owner repoint an invite to somebody else\'s trip', async () => {
     const ownerDb = testEnv.authenticatedContext('other-owner').firestore();
     await assertFails(updateDoc(doc(ownerDb, 'tripInvites', 'invite-b'), {
