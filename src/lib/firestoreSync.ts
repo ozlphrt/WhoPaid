@@ -196,7 +196,17 @@ export async function joinTripInCloud(inviteToken: string, userId: string): Prom
   if (auth.currentUser.uid !== userId) throw new Error('Please sign in again before joining this trip.');
   if (!inviteToken || !userId) throw new Error('An invitation and signed-in user are required.');
 
-  const idToken = await auth.currentUser.getIdToken();
+  let tokenTimeoutId: ReturnType<typeof globalThis.setTimeout> | undefined;
+  const idToken = await Promise.race([
+    auth.currentUser.getIdToken(),
+    new Promise<never>((_, reject) => {
+      tokenTimeoutId = globalThis.setTimeout(() => {
+        reject(new Error('Authentication timed out. Please reopen WhoPaid and try again.'));
+      }, 5_000);
+    })
+  ]).finally(() => {
+    if (tokenTimeoutId !== undefined) globalThis.clearTimeout(tokenTimeoutId);
+  });
   return acceptTripInvite({
     projectId: config.projectId,
     inviteToken,
