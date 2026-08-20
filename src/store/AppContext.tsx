@@ -55,6 +55,7 @@ export interface StartupStatus {
   phase: 'loading-local' | 'syncing-cloud' | 'ready' | 'error';
   message: string;
   progress: number;
+  indeterminate?: boolean;
 }
 
 interface AppContextType {
@@ -471,7 +472,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setStartupStatus({
       phase: 'syncing-cloud',
       message: 'Checking for trip updates...',
-      progress: 45
+      progress: 45,
+      indeterminate: true
     });
 
     const reconcileCloud = async () => {
@@ -487,7 +489,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setStartupStatus({
             phase: 'syncing-cloud',
             message: 'Finishing secure trip setup...',
-            progress: 58
+            progress: 58,
+            indeterminate: false
           });
         }
 
@@ -519,7 +522,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           setStartupStatus({
             phase: 'syncing-cloud',
             message: `Uploading ${pendingExpenses.length} saved expense${pendingExpenses.length === 1 ? '' : 's'}...`,
-            progress: 70
+            progress: 70,
+            indeterminate: false
           });
           await Promise.all(pendingExpenses.map(async expense => {
             try {
@@ -535,7 +539,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setStartupStatus({
           phase: 'syncing-cloud',
           message: 'Downloading the latest trip list...',
-          progress: 84
+          progress: 84,
+          indeterminate: true
         });
         const remoteTrips = await fetchUserTripsFromCloud(currentUser.id);
         if (remoteTrips.length > 0) {

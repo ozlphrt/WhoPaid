@@ -202,27 +202,13 @@ const AppContent: React.FC<AppContentProps> = () => {
   if (!isInitialized) {
     return (
       <div className="startup-screen" role="status" aria-live="polite">
-        <img
-          className="startup-logo"
-          src={`${import.meta.env.BASE_URL}icons/icon-192.png`}
-          alt="WhoPaid"
-        />
-        <div className="startup-copy">
-          <h1>WhoPaid</h1>
-          <p>{startupStatus.message}</p>
+        <h1 className="startup-wordmark">WhoPaid</h1>
+        <div className="startup-ring is-indeterminate" aria-hidden="true">
+          <span>•••</span>
         </div>
-        <div
-          className="startup-progress-track"
-          role="progressbar"
-          aria-label="Opening WhoPaid"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={startupStatus.progress}
-        >
-          <div
-            className="startup-progress-fill"
-            style={{ width: `${startupStatus.progress}%` }}
-          />
+        <div className="startup-copy">
+          <h2>Opening WhoPaid</h2>
+          <p>{startupStatus.message}</p>
         </div>
         <span className="startup-hint">Saved data opens first. Cloud updates continue in the background.</span>
       </div>
@@ -285,23 +271,39 @@ const AppContent: React.FC<AppContentProps> = () => {
         />
       )}
 
-      {(startupStatus.phase === 'syncing-cloud' || startupStatus.phase === 'error') && (
+      {startupStatus.phase === 'syncing-cloud' && (
         <div
-          className={`sync-progress-notice${startupStatus.phase === 'error' ? ' is-error' : ''}`}
+          className="sync-progress-overlay"
           role="status"
           aria-live="polite"
         >
-          <div className="sync-progress-row">
-            <span className="sync-progress-dot" aria-hidden="true" />
-            <div>
-              <strong>{startupStatus.phase === 'error' ? 'Saved data is ready' : 'Syncing your trips'}</strong>
-              <span>{startupStatus.message}</span>
+          <h1 className="sync-progress-wordmark">WhoPaid</h1>
+          <div
+            className={`sync-progress-ring${startupStatus.indeterminate ? ' is-indeterminate' : ''}`}
+            role="progressbar"
+            aria-label="Trip synchronization"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            {...(!startupStatus.indeterminate ? { 'aria-valuenow': startupStatus.progress } : {})}
+            style={{ '--sync-progress': `${startupStatus.progress * 3.6}deg` } as React.CSSProperties}
+          >
+            <div className="sync-progress-value">
+              {startupStatus.indeterminate ? <span>•••</span> : <strong>{startupStatus.progress}%</strong>}
             </div>
-            <span className="sync-progress-percent">{startupStatus.progress}%</span>
           </div>
-          <div className="sync-progress-track" aria-hidden="true">
-            <div style={{ width: `${startupStatus.progress}%` }} />
+          <div className="sync-progress-copy">
+            <h2>Syncing your trips</h2>
+            <p>{startupStatus.message}</p>
+            <span>Your saved trips are already available on this device.</span>
           </div>
+          <p className="sync-progress-footer">Keep WhoPaid open for a moment. Sync will continue automatically.</p>
+        </div>
+      )}
+
+      {startupStatus.phase === 'error' && (
+        <div className="sync-error-notice" role="status" aria-live="polite">
+          <strong>Saved data is ready</strong>
+          <span>{startupStatus.message}</span>
         </div>
       )}
 
