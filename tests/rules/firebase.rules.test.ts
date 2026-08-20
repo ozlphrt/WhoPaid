@@ -8,11 +8,14 @@ import {
 } from '@firebase/rules-unit-testing';
 import {
   collection,
+  collectionGroup,
   doc,
   getDoc,
   getDocs,
+  query,
   setDoc,
   updateDoc,
+  where,
 } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadString } from 'firebase/storage';
 
@@ -49,6 +52,21 @@ beforeEach(async () => {
       isClosed: false,
       isDeleted: false,
       updatedAt: '2026-01-01T00:00:00.000Z'
+    });
+    await setDoc(doc(db, 'trips', 'trip-legacy'), {
+      name: 'Legacy Shared Trip',
+      ownerId: 'other-owner',
+      isClosed: false,
+      isDeleted: false,
+      updatedAt: '2026-01-01T00:00:00.000Z'
+    });
+    await setDoc(doc(db, 'trips', 'trip-legacy', 'members', 'legacy-member'), {
+      tripId: 'trip-legacy',
+      userId: 'old-local-id',
+      authUid: 'legacy-user',
+      email: 'legacy@example.test',
+      role: 'member',
+      isActive: true
     });
     await setDoc(doc(db, 'trips', 'trip-a', 'expenses', 'expense-a'), {
       description: 'Dinner',
@@ -96,6 +114,29 @@ describe('Firestore authorization', () => {
     const outsiderDb = testEnv.authenticatedContext('outsider').firestore();
     await assertFails(getDoc(doc(outsiderDb, 'trips', 'trip-b')));
     await assertFails(getDoc(doc(outsiderDb, 'trips', 'trip-b', 'expenses', 'expense-b')));
+  });
+
+  it('lets a legacy member discover and self-index only their own shared trip', async () => {
+    const legacyDb = testEnv.authenticatedContext('legacy-user', { email: 'legacy@example.test' }).firestore();
+    const matchingMembers = await assertSucceeds(getDocs(query(
+      collectionGroup(legacyDb, 'members'),
+      where('authUid', '==', 'legacy-user')
+    )));
+    expect(matchingMembers.docs.map(item => item.id)).toEqual(['legacy-member']);
+
+    await assertSucceeds(setDoc(doc(legacyDb, 'users', 'legacy-user', 'tripMemberships', 'trip-legacy'), {
+      tripId: 'trip-legacy',
+      userId: 'legacy-user',
+      role: 'member',
+      memberId: 'legacy-member'
+    }));
+    await assertSucceeds(getDoc(doc(legacyDb, 'trips', 'trip-legacy')));
+
+    const outsiderDb = testEnv.authenticatedContext('outsider').firestore();
+    await assertFails(getDocs(query(
+      collectionGroup(outsiderDb, 'members'),
+      where('authUid', '==', 'legacy-user')
+    )));
   });
 
   it('allows a valid bearer invite to create only the caller membership', async () => {

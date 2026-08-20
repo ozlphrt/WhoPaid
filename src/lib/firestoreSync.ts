@@ -172,7 +172,8 @@ export async function syncUserTripMembership(
   tripId: string,
   userId: string,
   role: 'owner' | 'member',
-  inviteToken?: string
+  inviteToken?: string,
+  memberId?: string
 ): Promise<void> {
   const { db } = getFirebaseInstances();
   if (!db || !tripId || !userId) return;
@@ -181,6 +182,7 @@ export async function syncUserTripMembership(
     userId,
     role,
     inviteToken,
+    memberId,
     joinedAt: new Date().toISOString()
   }), { merge: true });
 }
@@ -368,14 +370,17 @@ export async function fetchUserTripsFromCloud(userId: string, userEmail?: string
       await Promise.all(membershipTripFetches);
     }
 
-    // 2. Optional auxiliary query (with strict 2s timeout so it never hangs)
+    // 2. Self-heal legacy shared trips that predate the per-user membership
+    // index. Security rules expose only member records matching this user's
+    // own authenticated UID or email.
     const auxPromise = (async () => {
       const memberQueries: Promise<any>[] = [
+        getDocs(query(collectionGroup(db, 'members'), where('authUid', '==', userId))).catch(() => null),
         getDocs(query(collectionGroup(db, 'members'), where('userId', '==', userId))).catch(() => null)
       ];
       if (userEmail) {
         memberQueries.push(
-          getDocs(query(collectionGroup(db, 'members'), where('email', '==', userEmail.toLowerCase()))).catch(() => null)
+          getDocs(query(collectionGroup(db, 'members'), where('email', '==', userEmail))).catch(() => null)
         );
       }
       const snaps = await Promise.all(memberQueries);
@@ -384,12 +389,20 @@ export async function fetchUserTripsFromCloud(userId: string, userEmail?: string
           await Promise.all(snap.docs.map(async (mDoc: any) => {
             const parentTripRef = mDoc.ref.parent?.parent;
             if (parentTripRef && !resultById.has(parentTripRef.id)) {
+              // The member document is proof of existing access. Create the
+              // caller's own index before reading the protected trip document.
+              await syncUserTripMembership(
+                parentTripRef.id,
+                userId,
+                'member',
+                undefined,
+                mDoc.id
+              ).catch(() => null);
               const tripDoc = await getDoc(parentTripRef).catch(() => null);
               if (tripDoc && tripDoc.exists()) {
                 const trip = { id: tripDoc.id, ...(tripDoc.data() as any) } as Trip;
                 if (!trip.isDeleted) {
                   resultById.set(trip.id, trip);
-                  syncUserTripMembership(trip.id, userId, 'member').catch(() => {});
                 }
               }
             }
@@ -398,7 +411,7 @@ export async function fetchUserTripsFromCloud(userId: string, userEmail?: string
       }
     })();
 
-    const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 2000));
+    const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 4000));
     await Promise.race([auxPromise, timeoutPromise]);
 
     return [...resultById.values()];

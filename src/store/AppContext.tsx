@@ -479,7 +479,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ]);
 
           const localMembers = await db.tripMembers.where('tripId').equals(localTrip.id).toArray();
-          await Promise.all(localMembers.map(member => syncMemberToCloud(localTrip.id, member)));
+          await Promise.all(localMembers.flatMap(member => {
+            const writes: Promise<void>[] = [syncMemberToCloud(localTrip.id, member)];
+            if (member.authUid && member.authUid !== currentUser.id) {
+              writes.push(syncUserTripMembership(
+                localTrip.id,
+                member.authUid,
+                'member',
+                undefined,
+                member.id
+              ));
+            }
+            return writes;
+          }));
           await db.trips.put({ ...migratedTrip, clientSyncStatus: 'synced' });
         }));
 
@@ -517,27 +529,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const remoteTrips = await fetchUserTripsFromCloud(currentUser.id, currentUser.email);
         if (remoteTrips.length > 0) {
           await db.trips.bulkPut(remoteTrips);
-          
-          // Hydrate members & expenses for shared trips from cloud
-          await Promise.all(remoteTrips.map(async trip => {
-            try {
-              const [mems, exps] = await Promise.all([
-                fetchTripMembersFromCloud(trip.id),
-                fetchTripExpensesFromCloud(trip.id)
-              ]);
-              if (mems.length > 0) await db.tripMembers.bulkPut(mems);
-              if (exps.length > 0) await db.expenses.bulkPut(exps);
-            } catch (err) {
-              console.warn('[Firestore] Error hydrating trip cache for:', trip.name, err);
-            }
-          }));
-
+          // Publish the trip list immediately. Trip contents are hydrated by
+          // the active-trip realtime listeners only when the user opens one;
+          // fetching every subcollection here made fresh PWA installs appear
+          // stuck and could exceed the global startup timeout.
           setTrips(previous => {
             const merged = new Map(previous.map(trip => [trip.id, trip]));
             remoteTrips.forEach(trip => merged.set(trip.id, trip));
             return [...merged.values()].filter(trip => !trip.isDeleted);
           });
-          await refreshData();
         }
       })();
 

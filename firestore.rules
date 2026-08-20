@@ -34,23 +34,53 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/tripInvites/$(inviteId)).data.revoked != true;
     }
 
+    function legacyMemberMatchesCaller(tripId, memberId) {
+      let memberPath = /databases/$(database)/documents/trips/$(tripId)/members/$(memberId);
+      return exists(memberPath)
+        && (
+          get(memberPath).data.authUid == request.auth.uid ||
+          get(memberPath).data.userId == request.auth.uid ||
+          (
+            request.auth.token.email is string &&
+            get(memberPath).data.email == request.auth.token.email
+          )
+        );
+    }
+
+    function validLegacyMemberProof(tripId) {
+      return request.resource.data.memberId is string
+        && legacyMemberMatchesCaller(tripId, request.resource.data.memberId);
+    }
+
     match /users/{userId} {
       allow read, create, update, delete: if signedIn() && request.auth.uid == userId;
 
       match /tripMemberships/{tripId} {
         allow read: if signedIn() && request.auth.uid == userId;
         allow create: if signedIn()
-          && request.auth.uid == userId
-          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.userId == userId
           && request.resource.data.tripId == tripId
           && (
-            isOwner(tripId) ||
-            validInviteFor(tripId)
+            (
+              request.auth.uid == userId && (
+                isOwner(tripId) ||
+                validInviteFor(tripId) ||
+                validLegacyMemberProof(tripId)
+              )
+            ) ||
+            (
+              isOwner(tripId) &&
+              request.resource.data.userId == userId &&
+              request.resource.data.role == 'member'
+            )
           );
         allow update: if signedIn()
-          && request.auth.uid == userId
           && request.resource.data.userId == resource.data.userId
-          && request.resource.data.tripId == resource.data.tripId;
+          && request.resource.data.tripId == resource.data.tripId
+          && (
+            request.auth.uid == userId ||
+            (isOwner(tripId) && request.resource.data.role == 'member')
+          );
         allow delete: if signedIn() && (
           request.auth.uid == userId ||
           isOwner(tripId)
@@ -98,6 +128,20 @@ service cloud.firestore {
       match /activities/{activityId} {
         allow read, write: if isTripMember(tripId);
       }
+    }
+
+    // Migration-only discovery for older shared trips that predate the
+    // per-user membership index. Collection-group queries must constrain one
+    // of these identity fields to the signed-in user's own Firebase identity.
+    match /{documentPath=**}/members/{memberId} {
+      allow list: if signedIn() && (
+        resource.data.authUid == request.auth.uid ||
+        resource.data.userId == request.auth.uid ||
+        (
+          request.auth.token.email is string &&
+          resource.data.email == request.auth.token.email
+        )
+      );
     }
   }
 }
