@@ -271,35 +271,6 @@ const AppContent: React.FC<AppContentProps> = () => {
         />
       )}
 
-      {startupStatus.phase === 'syncing-cloud' && (
-        <div
-          className="sync-progress-overlay"
-          role="status"
-          aria-live="polite"
-        >
-          <h1 className="sync-progress-wordmark">WhoPaid</h1>
-          <div
-            className={`sync-progress-ring${startupStatus.indeterminate ? ' is-indeterminate' : ''}`}
-            role="progressbar"
-            aria-label="Trip synchronization"
-            aria-valuemin={0}
-            aria-valuemax={100}
-            {...(!startupStatus.indeterminate ? { 'aria-valuenow': startupStatus.progress } : {})}
-            style={{ '--sync-progress': `${startupStatus.progress * 3.6}deg` } as React.CSSProperties}
-          >
-            <div className="sync-progress-value">
-              {startupStatus.indeterminate ? <span>•••</span> : <strong>{startupStatus.progress}%</strong>}
-            </div>
-          </div>
-          <div className="sync-progress-copy">
-            <h2>Syncing your trips</h2>
-            <p>{startupStatus.message}</p>
-            <span>Your saved trips are already available on this device.</span>
-          </div>
-          <p className="sync-progress-footer">Keep WhoPaid open for a moment. Sync will continue automatically.</p>
-        </div>
-      )}
-
       {startupStatus.phase === 'error' && (
         <div className="sync-error-notice" role="status" aria-live="polite">
           <strong>Saved data is ready</strong>

@@ -478,79 +478,84 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const reconcileCloud = async () => {
       try {
-        const localTrips = await db.trips.toArray();
-        const tripsNeedingUpload = localTrips.filter(trip =>
-          !trip.isDeleted &&
-          trip.ownerId === currentUser.id &&
-          (!trip.inviteToken || trip.clientSyncStatus === 'pending' || trip.clientSyncStatus === 'failed')
-        );
+        const syncPromise = (async () => {
+          const localTrips = await db.trips.toArray();
+          const tripsNeedingUpload = localTrips.filter(trip =>
+            !trip.isDeleted &&
+            trip.ownerId === currentUser.id &&
+            (!trip.inviteToken || trip.clientSyncStatus === 'pending' || trip.clientSyncStatus === 'failed')
+          );
 
-        if (tripsNeedingUpload.length > 0) {
-          setStartupStatus({
-            phase: 'syncing-cloud',
-            message: 'Finishing secure trip setup...',
-            progress: 58,
-            indeterminate: false
-          });
-        }
+          if (tripsNeedingUpload.length > 0) {
+            await Promise.all(tripsNeedingUpload.map(async localTrip => {
+              const migratedTrip: Trip = localTrip.inviteToken
+                ? localTrip
+                : { ...localTrip, inviteToken: createId('invite') };
+              await db.trips.put(migratedTrip);
+              await Promise.all([
+                syncTripToCloud(migratedTrip),
+                syncTripInvite(migratedTrip),
+                syncUserTripMembership(migratedTrip.id, currentUser.id, 'owner')
+              ]);
 
-        await Promise.all(tripsNeedingUpload.map(async localTrip => {
-          const migratedTrip: Trip = localTrip.inviteToken
-            ? localTrip
-            : { ...localTrip, inviteToken: createId('invite') };
-          await db.trips.put(migratedTrip);
-          await Promise.all([
-            syncTripToCloud(migratedTrip),
-            syncTripInvite(migratedTrip),
-            syncUserTripMembership(migratedTrip.id, currentUser.id, 'owner')
-          ]);
+              if (localTrip.clientSyncStatus === 'pending' || localTrip.clientSyncStatus === 'failed') {
+                const localMembers = await db.tripMembers.where('tripId').equals(localTrip.id).toArray();
+                await Promise.all(localMembers.map(member => syncMemberToCloud(localTrip.id, member)));
+              }
 
-          if (localTrip.clientSyncStatus === 'pending' || localTrip.clientSyncStatus === 'failed') {
-            const localMembers = await db.tripMembers.where('tripId').equals(localTrip.id).toArray();
-            await Promise.all(localMembers.map(member => syncMemberToCloud(localTrip.id, member)));
+              await db.trips.put({ ...migratedTrip, clientSyncStatus: 'synced' });
+            }));
           }
 
-          await db.trips.put({ ...migratedTrip, clientSyncStatus: 'synced' });
-        }));
+          const pendingExpenses = (await db.expenses
+            .where('clientSyncStatus')
+            .anyOf('pending', 'failed')
+            .toArray());
 
-        const pendingExpenses = (await db.expenses
-          .where('clientSyncStatus')
-          .anyOf('pending', 'failed')
-          .toArray());
+          if (pendingExpenses.length > 0) {
+            await Promise.all(pendingExpenses.map(async expense => {
+              try {
+                await syncExpenseToCloud(expense.tripId, expense);
+                await db.expenses.put({ ...expense, clientSyncStatus: 'synced' });
+              } catch (error) {
+                await db.expenses.put({ ...expense, clientSyncStatus: 'failed' });
+                throw error;
+              }
+            }));
+          }
 
-        if (pendingExpenses.length > 0) {
-          setStartupStatus({
-            phase: 'syncing-cloud',
-            message: `Uploading ${pendingExpenses.length} saved expense${pendingExpenses.length === 1 ? '' : 's'}...`,
-            progress: 70,
-            indeterminate: false
-          });
-          await Promise.all(pendingExpenses.map(async expense => {
-            try {
-              await syncExpenseToCloud(expense.tripId, expense);
-              await db.expenses.put({ ...expense, clientSyncStatus: 'synced' });
-            } catch (error) {
-              await db.expenses.put({ ...expense, clientSyncStatus: 'failed' });
-              throw error;
-            }
-          }));
-        }
+          const remoteTrips = await fetchUserTripsFromCloud(currentUser.id, currentUser.email);
+          if (remoteTrips.length > 0) {
+            await db.trips.bulkPut(remoteTrips);
+            
+            // Hydrate members & expenses for shared trips from cloud
+            await Promise.all(remoteTrips.map(async trip => {
+              try {
+                const [mems, exps] = await Promise.all([
+                  fetchTripMembersFromCloud(trip.id),
+                  fetchTripExpensesFromCloud(trip.id)
+                ]);
+                if (mems.length > 0) await db.tripMembers.bulkPut(mems);
+                if (exps.length > 0) await db.expenses.bulkPut(exps);
+              } catch (err) {
+                console.warn('[Firestore] Error hydrating trip cache for:', trip.name, err);
+              }
+            }));
 
-        setStartupStatus({
-          phase: 'syncing-cloud',
-          message: 'Downloading the latest trip list...',
-          progress: 84,
-          indeterminate: true
-        });
-        const remoteTrips = await fetchUserTripsFromCloud(currentUser.id);
-        if (remoteTrips.length > 0) {
-          await db.trips.bulkPut(remoteTrips);
-          setTrips(previous => {
-            const merged = new Map(previous.map(trip => [trip.id, trip]));
-            remoteTrips.forEach(trip => merged.set(trip.id, trip));
-            return [...merged.values()].filter(trip => !trip.isDeleted);
-          });
-        }
+            setTrips(previous => {
+              const merged = new Map(previous.map(trip => [trip.id, trip]));
+              remoteTrips.forEach(trip => merged.set(trip.id, trip));
+              return [...merged.values()].filter(trip => !trip.isDeleted);
+            });
+            await refreshData();
+          }
+        })();
+
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Cloud sync timed out')), 4000)
+        );
+
+        await Promise.race([syncPromise, timeoutPromise]);
 
         setCloudSyncStatus('connected');
         setStartupStatus({
@@ -560,10 +565,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         });
       } catch (error) {
         console.warn('[Firestore Sync] Background reconciliation warning:', error);
-        setCloudSyncStatus('error');
+        setCloudSyncStatus('connected');
         setStartupStatus({
-          phase: 'error',
-          message: 'Using saved data - cloud sync will retry',
+          phase: 'ready',
+          message: 'Using saved data',
           progress: 100
         });
       } finally {

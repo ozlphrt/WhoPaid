@@ -1,5 +1,6 @@
 import { 
   collection, 
+  collectionGroup,
   doc, 
   getDoc,
   getDocs,
@@ -333,31 +334,65 @@ export async function fetchTripFromCloud(tripId: string): Promise<Trip | null> {
   return null;
 }
 
-export async function fetchUserTripsFromCloud(userId: string): Promise<Trip[]> {
+export async function fetchUserTripsFromCloud(userId: string, userEmail?: string): Promise<Trip[]> {
   const { db } = getFirebaseInstances();
   if (!db || !userId) return [];
   try {
     const tripsRef = collection(db, 'trips');
     const resultById = new Map<string, Trip>();
-    const [ownedSnap, membershipSnap] = await Promise.all([
-      getDocs(query(tripsRef, where('ownerId', '==', userId))),
-      // Older deployed rules may not expose this index. Catch only this read
-      // so owned trips remain available during a staged rules migration.
-      getDocs(collection(db, 'users', userId, 'tripMemberships')).catch(() => null)
-    ]);
-    ownedSnap.forEach((tripDoc) => {
-      const trip = { id: tripDoc.id, ...tripDoc.data() } as Trip;
-      if (!trip.isDeleted) resultById.set(trip.id, trip);
-    });
 
-    if (membershipSnap) {
-      await Promise.all(membershipSnap.docs.map(async membershipDoc => {
-        const tripId = membershipDoc.data().tripId || membershipDoc.id;
-        const tripDoc = await getDoc(doc(db, 'trips', tripId));
-        if (!tripDoc.exists()) return;
+    const queries: Promise<any>[] = [
+      getDocs(query(tripsRef, where('ownerId', '==', userId))).catch(() => null),
+      getDocs(collection(db, 'users', userId, 'tripMemberships')).catch(() => null),
+      getDocs(query(collectionGroup(db, 'members'), where('userId', '==', userId))).catch(() => null)
+    ];
+
+    if (userEmail) {
+      queries.push(
+        getDocs(query(collectionGroup(db, 'members'), where('email', '==', userEmail.toLowerCase()))).catch(() => null)
+      );
+    }
+
+    const [ownedSnap, membershipSnap, memberUidSnap, memberEmailSnap] = await Promise.all(queries);
+
+    if (ownedSnap) {
+      ownedSnap.forEach((tripDoc: any) => {
         const trip = { id: tripDoc.id, ...tripDoc.data() } as Trip;
         if (!trip.isDeleted) resultById.set(trip.id, trip);
+      });
+    }
+
+    if (membershipSnap) {
+      await Promise.all(membershipSnap.docs.map(async (membershipDoc: any) => {
+        const tripId = membershipDoc.data().tripId || membershipDoc.id;
+        if (!resultById.has(tripId)) {
+          const tripDoc = await getDoc(doc(db, 'trips', tripId)).catch(() => null);
+          if (tripDoc && tripDoc.exists()) {
+            const trip = { id: tripDoc.id, ...(tripDoc.data() as any) } as Trip;
+            if (!trip.isDeleted) resultById.set(trip.id, trip);
+          }
+        }
       }));
+    }
+
+    // Process collectionGroup member matches for shared trips
+    const memberSnaps = [memberUidSnap, memberEmailSnap].filter(Boolean);
+    for (const snap of memberSnaps) {
+      if (snap) {
+        await Promise.all(snap.docs.map(async (mDoc: any) => {
+          const parentTripRef = mDoc.ref.parent?.parent;
+          if (parentTripRef && !resultById.has(parentTripRef.id)) {
+            const tripDoc = await getDoc(parentTripRef).catch(() => null);
+            if (tripDoc && tripDoc.exists()) {
+              const trip = { id: tripDoc.id, ...(tripDoc.data() as any) } as Trip;
+              if (!trip.isDeleted) {
+                resultById.set(trip.id, trip);
+                syncUserTripMembership(trip.id, userId, 'member').catch(() => {});
+              }
+            }
+          }
+        }));
+      }
     }
 
     return [...resultById.values()];

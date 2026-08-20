@@ -376,7 +376,7 @@ export const AuthScreen: React.FC = () => {
           <span>Secure sign-in • Private trip access • Cloud backup</span>
         </div>
         <span style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)' }}>
-          WhoPaid • v1.2.0
+          WhoPaid • v1.3.0
         </span>
       </div>
 
