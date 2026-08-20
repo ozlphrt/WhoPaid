@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useApp } from '../store/AppContext';
 import { BottomSheet } from './BottomSheet';
 import { suggestTripEmoji, POPULAR_EMOJIS } from '../lib/emoji';
 import { CurrencyCode } from '../types';
+import { acquireSingleFlight, releaseSingleFlight } from '../lib/asyncReliability';
 
 interface CreateTripModalProps {
   isOpen: boolean;
@@ -24,6 +25,8 @@ export const CreateTripModal: React.FC<CreateTripModalProps> = ({ isOpen, onClos
     return d.toISOString().split('T')[0];
   });
   const [mainCurrency, setMainCurrency] = useState<CurrencyCode>('EUR');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submissionInFlightRef = useRef(false);
 
   const handleNameChange = (val: string) => {
     setName(val);
@@ -33,26 +36,39 @@ export const CreateTripModal: React.FC<CreateTripModalProps> = ({ isOpen, onClos
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!acquireSingleFlight(submissionInFlightRef)) return;
     if (!name.trim()) {
+      releaseSingleFlight(submissionInFlightRef);
       showAlert('Please enter a trip name to continue.', 'Missing Trip Name', 'warning');
       return;
     }
 
-    await createTrip(
-      {
-        name: name.trim(),
-        emoji,
-        startDate,
-        endDate,
-        mainCurrency,
-        ownerId: currentUser.id,
-        isClosed: false,
-        isDeleted: false
-      },
-      []
-    );
-
-    onClose();
+    setIsSubmitting(true);
+    try {
+      await createTrip(
+        {
+          name: name.trim(),
+          emoji,
+          startDate,
+          endDate,
+          mainCurrency,
+          ownerId: currentUser.id,
+          isClosed: false,
+          isDeleted: false
+        },
+        []
+      );
+      onClose();
+    } catch (error) {
+      showAlert(
+        error instanceof Error ? error.message : 'The trip could not be created. Please try again.',
+        'Trip Not Created',
+        'warning'
+      );
+    } finally {
+      releaseSingleFlight(submissionInFlightRef);
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -155,8 +171,8 @@ export const CreateTripModal: React.FC<CreateTripModalProps> = ({ isOpen, onClos
         </div>
 
         {/* Submit */}
-        <button type="submit" className="btn-primary" style={{ marginTop: 8 }}>
-          <span>Create Trip</span>
+        <button type="submit" disabled={isSubmitting} className="btn-primary" style={{ marginTop: 8 }}>
+          <span>{isSubmitting ? 'Creating Trip…' : 'Create Trip'}</span>
         </button>
 
       </form>

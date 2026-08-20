@@ -22,6 +22,7 @@ import { checkForDuplicateExpense } from '../lib/duplicate';
 import { compressAndUploadReceipt } from '../lib/firestoreSync';
 import { parseReceiptText } from '../lib/receiptOcr';
 import { NumericKeypad } from './NumericKeypad';
+import { acquireSingleFlight, releaseSingleFlight } from '../lib/asyncReliability';
 
 interface AddExpenseSheetProps {
   isOpen: boolean;
@@ -51,7 +52,9 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
 
   const activeMembers = useMemo(() => members.filter(m => m.isActive), [members]);
   const [isUploadingReceipt, setIsUploadingReceipt] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const submissionInFlightRef = useRef(false);
 
   // Form State
   const [amountStr, setAmountStr] = useState<string>('');
@@ -279,6 +282,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   // Save Expense
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submissionInFlightRef.current) return;
     if (!parsedAmount || parsedAmount <= 0) {
       showAlert('Please enter a valid amount greater than 0.', 'Invalid Amount', 'warning');
       return;
@@ -343,19 +347,30 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
       exchangeRate: isManualFx ? parseFloat(manualFxRate) || 1 : undefined
     };
 
-    if (editExpenseId) {
-      const existing = expenses.find(e => e.id === editExpenseId);
-      if (existing) {
+    if (!acquireSingleFlight(submissionInFlightRef)) return;
+    setIsSubmitting(true);
+    try {
+      if (editExpenseId) {
+        const existing = expenses.find(e => e.id === editExpenseId);
+        if (!existing) throw new Error('This expense is no longer available.');
         await updateExpense({
           ...existing,
           ...expensePayload
         } as import('../types').Expense);
+      } else {
+        await addExpense(expensePayload);
       }
-    } else {
-      await addExpense(expensePayload);
+      onClose();
+    } catch (error) {
+      showAlert(
+        error instanceof Error ? error.message : 'The expense could not be saved. Please try again.',
+        'Expense Not Saved',
+        'warning'
+      );
+    } finally {
+      releaseSingleFlight(submissionInFlightRef);
+      setIsSubmitting(false);
     }
-
-    onClose();
   };
 
   const payerName = isMultiPayer
@@ -740,6 +755,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
         {/* Primary Save Button */}
         <button
           type="submit"
+          disabled={isSubmitting || isUploadingReceipt}
           className="btn-primary"
           style={{
             padding: '11px',
@@ -748,7 +764,8 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             borderRadius: 'var(--radius-md)'
           }}
         >
-          <span>Save Expense {parsedAmount > 0 ? `• ${formatAmount(parsedAmount, currency)}` : ''}</span>
+          {isSubmitting && <Loader2 size={16} className="animate-spin" />}
+          <span>{isSubmitting ? 'Saving Expense…' : `Save Expense ${parsedAmount > 0 ? `• ${formatAmount(parsedAmount, currency)}` : ''}`}</span>
         </button>
 
       </form>

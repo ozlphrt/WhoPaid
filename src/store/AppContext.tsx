@@ -47,6 +47,7 @@ import {
 } from '../lib/firestoreSync';
 import { sendLocalNotification, requestNotificationPermission, isNotificationGranted } from '../lib/notifications';
 import { createId } from '../lib/id';
+import { retryOperation } from '../lib/asyncReliability';
 
 interface UndoState {
   expense: Expense;
@@ -106,6 +107,7 @@ interface AppContextType {
   deleteHousehold: (householdId: string) => Promise<void>;
   transferOwnership: (tripId: string, newOwnerUserId: string) => Promise<void>;
   rotateTripInvite: (tripId: string) => Promise<void>;
+  prepareTripForSharing: (tripId: string) => Promise<void>;
 
   // Expense Actions
   addExpense: (expenseData: Partial<Expense>) => Promise<{ expense: Expense; isDuplicate: boolean; duplicateReason?: string }>;
@@ -250,7 +252,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const tripListenersRef = useRef<ActiveTripListeners | null>(null);
   const hasHydratedRef = useRef<boolean>(false);
-  const cloudSyncInFlightRef = useRef<boolean>(false);
+  const cloudSyncInFlightRef = useRef<Promise<void> | null>(null);
   const summaryHydrationInFlightRef = useRef<Promise<void> | null>(null);
 
   // In-App Global Modal Dialog State
@@ -461,12 +463,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    cloudSyncInFlightRef.current = true;
     setIsSyncing(true);
     setCloudSyncStatus('syncing');
+    let syncPromise: Promise<void> | null = null;
 
     try {
-      const syncPromise = (async () => {
+      syncPromise = (async () => {
         const localTrips = await db.trips.toArray();
         // 1. Sync owned trips and ensure invite token exists
         const ownedTrips = localTrips.filter(trip =>
@@ -475,31 +477,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         );
 
         await Promise.all(ownedTrips.map(async localTrip => {
-          const migratedTrip: Trip = localTrip.inviteToken
-            ? localTrip
-            : { ...localTrip, inviteToken: createId('invite') };
-          await db.trips.put(migratedTrip);
-          await Promise.all([
-            syncTripToCloud(migratedTrip),
-            syncTripInvite(migratedTrip),
-            syncUserTripMembership(migratedTrip.id, currentUser.id, 'owner')
-          ]);
+          try {
+            const migratedTrip: Trip = localTrip.inviteToken
+              ? localTrip
+              : { ...localTrip, inviteToken: createId('invite') };
+            await db.trips.put(migratedTrip);
+            await Promise.all([
+              syncTripToCloud(migratedTrip),
+              syncTripInvite(migratedTrip),
+              syncUserTripMembership(migratedTrip.id, currentUser.id, 'owner')
+            ]);
 
-          const localMembers = await db.tripMembers.where('tripId').equals(localTrip.id).toArray();
-          await Promise.all(localMembers.flatMap(member => {
-            const writes: Promise<void>[] = [syncMemberToCloud(localTrip.id, member)];
-            if (member.authUid && member.authUid !== currentUser.id) {
-              writes.push(syncUserTripMembership(
-                localTrip.id,
-                member.authUid,
-                'member',
-                undefined,
-                member.id
-              ));
-            }
-            return writes;
-          }));
-          await db.trips.put({ ...migratedTrip, clientSyncStatus: 'synced' });
+            const localMembers = await db.tripMembers.where('tripId').equals(localTrip.id).toArray();
+            await Promise.all(localMembers.flatMap(member => {
+              const writes: Promise<void>[] = [syncMemberToCloud(localTrip.id, member)];
+              if (member.authUid && member.authUid !== currentUser.id) {
+                writes.push(syncUserTripMembership(
+                  localTrip.id,
+                  member.authUid,
+                  'member',
+                  undefined,
+                  member.id
+                ));
+              }
+              return writes;
+            }));
+            await db.trips.put({ ...migratedTrip, clientSyncStatus: 'synced' });
+          } catch (error) {
+            await db.trips.put({ ...localTrip, clientSyncStatus: 'failed' });
+            console.warn('[Firestore] Owned trip sync will retry:', localTrip.id, error);
+          }
         }));
 
         // 2. Sync membership for all active shared trips so all devices (PWA/Mobile) can access them
@@ -528,7 +535,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               await db.expenses.put({ ...expense, clientSyncStatus: 'synced' });
             } catch (error) {
               await db.expenses.put({ ...expense, clientSyncStatus: 'failed' });
-              throw error;
+              console.warn('[Firestore] Pending expense sync will retry:', expense.id, error);
             }
           }));
         }
@@ -591,6 +598,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         }
       })();
+      cloudSyncInFlightRef.current = syncPromise;
 
       // Fast, responsive sync timeout (6s maximum)
       const timeoutPromise = new Promise((_, reject) => 
@@ -615,7 +623,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     } finally {
       setIsSyncing(false);
-      cloudSyncInFlightRef.current = false;
+      if (syncPromise) {
+        const activeSync = syncPromise;
+        void activeSync.then(
+          () => {
+            if (cloudSyncInFlightRef.current === activeSync) cloudSyncInFlightRef.current = null;
+          },
+          () => {
+            if (cloudSyncInFlightRef.current === activeSync) cloudSyncInFlightRef.current = null;
+          }
+        );
+      } else {
+        cloudSyncInFlightRef.current = null;
+      }
     }
   }, [isAuthenticated, currentUser.id, currentUser.email, refreshData]);
 
@@ -813,7 +833,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setCloudSyncStatus('syncing');
     try {
-      await syncExpenseToCloud(expense.tripId, expense);
+      await retryOperation(() => syncExpenseToCloud(expense.tripId, expense));
       const synced = { ...expense, clientSyncStatus: 'synced' as const };
       await db.expenses.put(synced);
       setExpenses(prev => prev.map(item => item.id === synced.id ? synced : item));
@@ -905,6 +925,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setExpenses(prev => [newExpense, ...prev.filter(e => e.id !== newExpense.id)]);
 
     const persistedExpense = await syncExpenseAndPersistStatus(newExpense);
+    if (persistedExpense.clientSyncStatus === 'failed') {
+      showAlert(
+        'The expense is saved on this device and will retry automatically when cloud access is available.',
+        'Waiting to Sync',
+        'warning'
+      );
+    }
 
     await addActivity(
       'expense_added',
@@ -1100,7 +1127,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updatedAt: now,
       isClosed: false,
       isDeleted: false,
-      clientSyncStatus: isOnline ? 'synced' : 'pending'
+      clientSyncStatus: 'pending'
     };
     await db.trips.put(newTrip);
 
@@ -1147,26 +1174,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     }
 
-    if (isFirebaseConfigured() && isOnline) {
-      try {
-        // The parent trip must exist before membership-scoped rules permit
-        // writes to any of its subcollections.
-        await syncTripToCloud(newTrip);
-        await syncTripInvite(newTrip);
-        await syncUserTripMembership(tripId, currentUser.id, 'owner');
-        const localMembers = await db.tripMembers.where('tripId').equals(tripId).toArray();
-        await Promise.all(localMembers.map(member => syncMemberToCloud(tripId, member)));
-        const syncedTrip = { ...newTrip, clientSyncStatus: 'synced' as const };
-        await db.trips.put(syncedTrip);
-      } catch (error) {
-        await db.trips.put({ ...newTrip, clientSyncStatus: 'failed' });
-        setCloudSyncStatus('error');
-        console.warn('[Firestore Sync] Trip remains local after upload failure:', error);
-      }
-    }
-
     setActiveTripId(tripId);
     await refreshData();
+
+    // The local trip is complete and usable now. Cloud publication continues
+    // in the background; the sharing screen verifies it before exposing a link.
+    if (isFirebaseConfigured() && isOnline) {
+      void (async () => {
+        try {
+          // The parent trip must exist before membership-scoped rules permit
+          // writes to any of its subcollections.
+          await retryOperation(() => syncTripToCloud(newTrip));
+          await retryOperation(() => syncTripInvite(newTrip));
+          await retryOperation(() => syncUserTripMembership(tripId, currentUser.id, 'owner'));
+          const localMembers = await db.tripMembers.where('tripId').equals(tripId).toArray();
+          await Promise.all(localMembers.map(member => retryOperation(() => syncMemberToCloud(tripId, member))));
+          const syncedTrip = { ...newTrip, clientSyncStatus: 'synced' as const };
+          await db.trips.put(syncedTrip);
+          setTrips(previous => previous.map(trip => trip.id === tripId ? syncedTrip : trip));
+        } catch (error) {
+          const failedTrip = { ...newTrip, clientSyncStatus: 'failed' as const };
+          await db.trips.put(failedTrip);
+          setTrips(previous => previous.map(trip => trip.id === tripId ? failedTrip : trip));
+          setCloudSyncStatus('error');
+          console.warn('[Firestore Sync] Trip remains local after upload failure:', error);
+        }
+      })();
+    }
+
     return newTrip.id;
   };
 
@@ -1191,12 +1226,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // the user wait for every member and expense before completing the join.
     void (async () => {
       try {
-        const [remoteMembers, remoteExpenses] = await Promise.all([
-          fetchTripMembersFromCloud(tripId),
-          fetchTripExpensesFromCloud(tripId)
-        ]);
+        const [remoteMembers, remoteExpenses, remoteHouseholds, remoteSettlements] = await retryOperation(
+          () => Promise.all([
+            fetchTripMembersFromCloud(tripId, true),
+            fetchTripExpensesFromCloud(tripId, true),
+            fetchTripHouseholdsFromCloud(tripId, true),
+            fetchTripSettlementsFromCloud(tripId, true)
+          ])
+        );
         if (remoteMembers.length > 0) await db.tripMembers.bulkPut(remoteMembers);
         if (remoteExpenses.length > 0) await db.expenses.bulkPut(remoteExpenses);
+        if (remoteHouseholds.length > 0) await db.households.bulkPut(remoteHouseholds);
+        if (remoteSettlements.length > 0) await db.settlements.bulkPut(remoteSettlements);
 
         const normalizedEmail = currentUser.email.trim().toLowerCase();
         const existing = remoteMembers.find(member =>
@@ -1220,12 +1261,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           joinedAt: existing?.joinedAt || new Date().toISOString()
         };
         await db.tripMembers.put(memberRecord);
-        await syncMemberToCloud(tripId, memberRecord);
-
         setMembers(await db.tripMembers.where('tripId').equals(tripId).toArray());
         const hydratedExpenses = await db.expenses.where('tripId').equals(tripId).toArray();
         hydratedExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         setExpenses(hydratedExpenses);
+        setHouseholds(await db.households.where('tripId').equals(tripId).toArray());
+        setSettlements(await db.settlements.where('tripId').equals(tripId).toArray());
+        setTrips(previous => [...previous]);
+        await retryOperation(() => syncMemberToCloud(tripId, memberRecord));
       } catch (error) {
         // Membership remains valid and startup sync will retry hydration.
         console.warn('[Firestore] Joined trip; background hydration will retry later:', error);
@@ -1505,6 +1548,69 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTrips(prev => prev.map(item => item.id === tripId ? syncedTrip : item));
   };
 
+  const prepareTripForSharing = async (tripId: string) => {
+    const trip = await db.trips.get(tripId);
+    if (!trip?.inviteToken) throw new Error('This trip does not have a valid invitation link.');
+    if (!isFirebaseConfigured() || !isOnline) {
+      throw new Error('Connect to the internet before sharing this trip.');
+    }
+
+    // Members may forward an existing owner-created link and must still flush
+    // expenses created on their device. Owners additionally publish the trip,
+    // invitation, membership roster, households, and settlements.
+    const isOwner = trip.ownerId === currentUser.id;
+
+    try {
+      if (isOwner) {
+        await retryOperation(() => syncTripToCloud(trip));
+        await retryOperation(() => syncTripInvite(trip));
+        await retryOperation(() => syncUserTripMembership(tripId, currentUser.id, 'owner'));
+      }
+
+      const [localMembers, localHouseholds, localExpenses, localSettlements, remoteExpenses] = await Promise.all([
+        db.tripMembers.where('tripId').equals(tripId).toArray(),
+        db.households.where('tripId').equals(tripId).toArray(),
+        db.expenses.where('tripId').equals(tripId).toArray(),
+        db.settlements.where('tripId').equals(tripId).toArray(),
+        fetchTripExpensesFromCloud(tripId, true)
+      ]);
+
+      const remoteExpensesById = new Map(remoteExpenses.map(expense => [expense.id, expense]));
+      const expensesToUpload = localExpenses.filter(expense => {
+        const remoteExpense = remoteExpensesById.get(expense.id);
+        return !remoteExpense ||
+          !remoteExpense.updatedAt ||
+          expense.clientSyncStatus !== 'synced' ||
+          expense.updatedAt > remoteExpense.updatedAt;
+      });
+
+      const writes: Array<Promise<void>> = [
+        ...expensesToUpload.map(expense => retryOperation(() => syncExpenseToCloud(tripId, expense))),
+        ...(isOwner ? localMembers.map(member => retryOperation(() => syncMemberToCloud(tripId, member))) : []),
+        ...(isOwner ? localHouseholds.map(household => retryOperation(() => syncHouseholdToCloud(tripId, household))) : []),
+        ...(isOwner ? localSettlements.map(settlement => retryOperation(() => syncSettlementToCloud(tripId, settlement))) : [])
+      ];
+
+      await Promise.all(writes);
+
+      if (localExpenses.length > 0) {
+        await db.expenses.bulkPut(localExpenses.map(expense => ({ ...expense, clientSyncStatus: 'synced' as const })));
+      }
+      const syncedTrip = { ...trip, clientSyncStatus: 'synced' as const };
+      await db.trips.put(syncedTrip);
+      setTrips(previous => previous.map(item => item.id === tripId ? syncedTrip : item));
+      if (activeTripId === tripId) {
+        setExpenses(await db.expenses.where('tripId').equals(tripId).toArray());
+      }
+    } catch (error) {
+      const failedTrip = { ...trip, clientSyncStatus: 'failed' as const };
+      await db.trips.put(failedTrip);
+      setTrips(previous => previous.map(item => item.id === tripId ? failedTrip : item));
+      console.warn('[Firestore Sync] Trip share preparation failed:', error);
+      throw new Error('WhoPaid could not finish uploading this trip. Nothing was shared; please check the connection and try again.');
+    }
+  };
+
   const markNotificationRead = async (id: string) => {
     await db.notifications.update(id, { isRead: true });
     await refreshData();
@@ -1700,6 +1806,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         deleteHousehold,
         transferOwnership,
         rotateTripInvite,
+        prepareTripForSharing,
         addExpense,
         updateExpense,
         deleteExpense,

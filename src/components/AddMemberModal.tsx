@@ -3,7 +3,7 @@ import { BottomSheet } from './BottomSheet';
 import { useApp } from '../store/AppContext';
 import { Trip } from '../types';
 import QRCode from 'qrcode';
-import { UserPlus, Copy, Check, Share2, Mail, User } from 'lucide-react';
+import { UserPlus, Copy, Check, Share2, Mail, User, Loader2 } from 'lucide-react';
 import { buildInviteUrl } from '../lib/invite';
 
 interface AddMemberModalProps {
@@ -13,7 +13,7 @@ interface AddMemberModalProps {
 }
 
 export const AddMemberModal: React.FC<AddMemberModalProps> = ({ trip, isOpen, onClose }) => {
-  const { addMember, showAlert } = useApp();
+  const { addMember, prepareTripForSharing, showAlert } = useApp();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -21,25 +21,51 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({ trip, isOpen, on
   // Invite Link & QR state
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copied, setCopied] = useState<boolean>(false);
+  const [isPreparingShare, setIsPreparingShare] = useState(false);
+  const [shareReady, setShareReady] = useState(false);
+  const [shareError, setShareError] = useState('');
+  const [prepareAttempt, setPrepareAttempt] = useState(0);
 
   const inviteUrl = trip?.inviteToken
     ? buildInviteUrl(window.location.origin, import.meta.env.BASE_URL, trip.inviteToken)
     : '';
 
   useEffect(() => {
-    if (inviteUrl && isOpen) {
-      QRCode.toDataURL(inviteUrl, {
-        width: 200,
-        margin: 2,
-        color: {
-          dark: '#0f766e',
-          light: '#ffffff'
-        }
-      })
-        .then(url => setQrDataUrl(url))
-        .catch(err => console.error('QR code error:', err));
+    let cancelled = false;
+    if (!inviteUrl || !trip || !isOpen) {
+      setQrDataUrl('');
+      setShareReady(false);
+      setShareError('');
+      return () => { cancelled = true; };
     }
-  }, [inviteUrl, isOpen]);
+
+    setQrDataUrl('');
+    setShareReady(false);
+    setShareError('');
+    setIsPreparingShare(true);
+    void (async () => {
+      try {
+        await prepareTripForSharing(trip.id);
+        const url = await QRCode.toDataURL(inviteUrl, {
+          width: 200,
+          margin: 2,
+          color: {
+            dark: '#0f766e',
+            light: '#ffffff'
+          }
+        });
+        if (!cancelled) {
+          setQrDataUrl(url);
+          setShareReady(true);
+        }
+      } catch (error) {
+        if (!cancelled) setShareError(error instanceof Error ? error.message : 'This trip is not ready to share.');
+      } finally {
+        if (!cancelled) setIsPreparingShare(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [inviteUrl, isOpen, trip?.id, prepareAttempt]);
 
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,22 +85,38 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({ trip, isOpen, on
     }
   };
 
-  const handleCopyLink = () => {
-    if (!inviteUrl) return;
-    navigator.clipboard.writeText(inviteUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+  const handleCopyLink = async () => {
+    if (!inviteUrl || !shareReady) return false;
+    try {
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+      return true;
+    } catch {
+      showAlert('The invite link could not be copied on this device.', 'Copy Failed', 'warning');
+      return false;
+    }
   };
 
-  const handleShareLink = () => {
+  const handleShareLink = async () => {
+    if (!shareReady) return;
     if (navigator.share && trip) {
-      navigator.share({
-        title: `Join ${trip.name} on WhoPaid`,
-        text: `Split & track shared trip expenses with WhoPaid:`,
-        url: inviteUrl
-      }).catch(() => {});
+      try {
+        await navigator.share({
+          title: `Join ${trip.name} on WhoPaid`,
+          text: `Split & track shared trip expenses with WhoPaid:`,
+          url: inviteUrl
+        });
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          const didCopy = await handleCopyLink();
+          if (didCopy) {
+            showAlert('Native sharing was unavailable, so the verified invite link was copied instead.', 'Link Copied', 'info');
+          }
+        }
+      }
     } else {
-      handleCopyLink();
+      await handleCopyLink();
     }
   };
 
@@ -179,7 +221,23 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({ trip, isOpen, on
           gap: 12,
           textAlign: 'center'
         }}>
-          {qrDataUrl && (
+          {isPreparingShare && (
+            <div style={{ minHeight: 140, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: 'var(--text-secondary)' }}>
+              <Loader2 size={24} className="animate-spin" />
+              <strong style={{ fontSize: '0.82rem' }}>Checking trip expenses…</strong>
+            </div>
+          )}
+
+          {shareError && (
+            <div style={{ width: '100%', padding: '10px 12px', borderRadius: 'var(--radius-md)', background: 'var(--warning-bg)', color: 'var(--warning-text)', fontSize: '0.78rem', lineHeight: 1.4 }}>
+              <div>{shareError}</div>
+              <button type="button" className="btn-secondary" onClick={() => setPrepareAttempt(value => value + 1)} style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}>
+                Try Again
+              </button>
+            </div>
+          )}
+
+          {shareReady && qrDataUrl && (
             <div style={{
               background: '#ffffff',
               padding: 8,
@@ -194,6 +252,7 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({ trip, isOpen, on
             <button
               type="button"
               onClick={handleCopyLink}
+              disabled={!shareReady || isPreparingShare}
               style={{
                 flex: 1,
                 display: 'flex',
@@ -217,6 +276,7 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({ trip, isOpen, on
             <button
               type="button"
               onClick={handleShareLink}
+              disabled={!shareReady || isPreparingShare}
               style={{
                 flex: 1,
                 display: 'flex',

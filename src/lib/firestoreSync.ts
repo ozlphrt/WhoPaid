@@ -429,9 +429,12 @@ export async function fetchUserTripsFromCloud(userId: string, userEmail?: string
   }
 }
 
-export async function fetchTripExpensesFromCloud(tripId: string): Promise<Expense[]> {
+export async function fetchTripExpensesFromCloud(tripId: string, strict = false): Promise<Expense[]> {
   const { db } = getFirebaseInstances();
-  if (!db || !tripId) return [];
+  if (!db || !tripId) {
+    if (strict) throw new Error('Cloud expense access is unavailable.');
+    return [];
+  }
   try {
     const expensesRef = collection(db, 'trips', tripId, 'expenses');
     const snap = await getDocs(expensesRef);
@@ -440,13 +443,17 @@ export async function fetchTripExpensesFromCloud(tripId: string): Promise<Expens
     return list;
   } catch (err) {
     console.warn('[Firestore] Failed to fetch trip expenses from cloud:', err);
+    if (strict) throw err;
     return [];
   }
 }
 
-export async function fetchTripMembersFromCloud(tripId: string): Promise<TripMember[]> {
+export async function fetchTripMembersFromCloud(tripId: string, strict = false): Promise<TripMember[]> {
   const { db } = getFirebaseInstances();
-  if (!db || !tripId) return [];
+  if (!db || !tripId) {
+    if (strict) throw new Error('Cloud member access is unavailable.');
+    return [];
+  }
   try {
     const membersRef = collection(db, 'trips', tripId, 'members');
     const snap = await getDocs(membersRef);
@@ -455,13 +462,17 @@ export async function fetchTripMembersFromCloud(tripId: string): Promise<TripMem
     return list;
   } catch (err) {
     console.warn('[Firestore] Failed to fetch trip members from cloud:', err);
+    if (strict) throw err;
     return [];
   }
 }
 
-export async function fetchTripHouseholdsFromCloud(tripId: string): Promise<Household[]> {
+export async function fetchTripHouseholdsFromCloud(tripId: string, strict = false): Promise<Household[]> {
   const { db } = getFirebaseInstances();
-  if (!db || !tripId) return [];
+  if (!db || !tripId) {
+    if (strict) throw new Error('Cloud household access is unavailable.');
+    return [];
+  }
   try {
     const hRef = collection(db, 'trips', tripId, 'households');
     const snap = await getDocs(hRef);
@@ -470,13 +481,17 @@ export async function fetchTripHouseholdsFromCloud(tripId: string): Promise<Hous
     return list;
   } catch (err) {
     console.warn('[Firestore] Failed to fetch trip households from cloud:', err);
+    if (strict) throw err;
     return [];
   }
 }
 
-export async function fetchTripSettlementsFromCloud(tripId: string): Promise<Settlement[]> {
+export async function fetchTripSettlementsFromCloud(tripId: string, strict = false): Promise<Settlement[]> {
   const { db } = getFirebaseInstances();
-  if (!db || !tripId) return [];
+  if (!db || !tripId) {
+    if (strict) throw new Error('Cloud settlement access is unavailable.');
+    return [];
+  }
   try {
     const sRef = collection(db, 'trips', tripId, 'settlements');
     const snap = await getDocs(sRef);
@@ -485,6 +500,7 @@ export async function fetchTripSettlementsFromCloud(tripId: string): Promise<Set
     return list;
   } catch (err) {
     console.warn('[Firestore] Failed to fetch trip settlements from cloud:', err);
+    if (strict) throw err;
     return [];
   }
 }
