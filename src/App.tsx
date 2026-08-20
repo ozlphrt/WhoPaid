@@ -128,6 +128,19 @@ const AppContent: React.FC<AppContentProps> = () => {
   } = useApp();
   const joiningTripRef = useRef<string | null>(null);
 
+  // Capture ?join= token immediately on mount before OAuth redirects strip the URL
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '');
+    const token = searchParams.get('join') || searchParams.get('tripId') || hashParams.get('join') || hashParams.get('tripId');
+    if (token) {
+      localStorage.setItem('whopaid_pending_join', token);
+      sessionStorage.setItem('whopaid_pending_join', token);
+      // Clean the URL to prevent re-processing on reload
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
   // Start from 'trips' overview screen, or resume where user left off if an active trip is open (never resume into profile)
   const [currentView, setCurrentView] = useState<AppView>(() => {
     // Clear any stale profile view from previous session
@@ -166,19 +179,12 @@ const AppContent: React.FC<AppContentProps> = () => {
     }
   }, [isAuthenticated]);
 
-  // Handle invitation URL if query params exist (?join=... or ?tripId=...)
+  // Process pending invitation after user is fully initialized and authenticated
   useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
-    const hashParams = new URLSearchParams(window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '');
-    
-    const urlJoinId = searchParams.get('join') || searchParams.get('tripId') || hashParams.get('join') || hashParams.get('tripId');
-    if (urlJoinId) {
-      sessionStorage.setItem('whopaid_pending_join', urlJoinId);
-      localStorage.setItem('whopaid_pending_join', urlJoinId);
-    }
+    if (!isInitialized || !isAuthenticated) return;
 
-    const pendingJoin = urlJoinId || sessionStorage.getItem('whopaid_pending_join') || localStorage.getItem('whopaid_pending_join');
-    if (pendingJoin && isAuthenticated && joiningTripRef.current !== pendingJoin) {
+    const pendingJoin = localStorage.getItem('whopaid_pending_join') || sessionStorage.getItem('whopaid_pending_join');
+    if (pendingJoin && joiningTripRef.current !== pendingJoin) {
       joiningTripRef.current = pendingJoin;
       joinTrip(pendingJoin)
         .then(() => {
@@ -186,14 +192,15 @@ const AppContent: React.FC<AppContentProps> = () => {
           localStorage.removeItem('whopaid_pending_join');
           setCurrentView('trip-home');
           localStorage.setItem('whopaid_last_view', 'trip-home');
-          window.history.replaceState({}, '', window.location.pathname);
         })
         .catch((error: unknown) => {
+          // Reset the ref so the join can be retried on next render/refresh
+          joiningTripRef.current = null;
           const message = error instanceof Error ? error.message : 'The trip could not be joined.';
           showAlert(message, 'Could not join trip', 'warning');
         });
     }
-  }, [isAuthenticated, joinTrip, showAlert]);
+  }, [isInitialized, isAuthenticated, joinTrip, showAlert]);
 
   const handleSelectTrip = (tripId: string) => {
     setActiveTripId(tripId);
