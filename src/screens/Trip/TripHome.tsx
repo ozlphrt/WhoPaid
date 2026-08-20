@@ -4,7 +4,7 @@ import { formatMoney, formatAmount, getCurrencySymbol, resolveMemberName } from 
 import { Plus, ChevronRight, Scale, HandCoins, FileSpreadsheet, Settings, AlertCircle, Users, ArrowUpRight, ArrowDownLeft, Receipt, PieChart, UserPlus } from 'lucide-react';
 import { AddExpenseSheet } from '../../components/AddExpenseSheet';
 import { ExpenseDetailModal } from '../../components/ExpenseDetailModal';
-import { AddMemberModal } from '../../components/AddMemberModal';
+import { QRCodeModal } from '../../components/QRCodeModal';
 import { CategoryIcon } from '../../components/CategoryIcon';
 
 interface TripHomeProps {
@@ -24,7 +24,7 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
   } = useApp();
 
   const [isAddOpen, setIsAddOpen] = useState(false);
-  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
+  const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
   const [editingExpenseId, setEditingExpenseId] = useState<string | undefined>(undefined);
 
@@ -222,7 +222,7 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
             <h2 style={{ fontSize: '0.92rem', fontWeight: 800, letterSpacing: '-0.01em' }}>Group Members ({members.length})</h2>
           </div>
           <button
-            onClick={() => setIsAddMemberOpen(true)}
+            onClick={() => setIsInviteOpen(true)}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -237,10 +237,10 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
               cursor: 'pointer',
               transition: 'all 0.15s ease'
             }}
-            title="Add Member to Trip"
+            title="Invite members to this trip"
           >
             <UserPlus size={13} />
-            <span>Add Member</span>
+            <span>Invite</span>
           </button>
         </div>
 
@@ -421,10 +421,10 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
         }}
       />
 
-      <AddMemberModal
+      <QRCodeModal
         trip={activeTrip}
-        isOpen={isAddMemberOpen}
-        onClose={() => setIsAddMemberOpen(false)}
+        isOpen={isInviteOpen}
+        onClose={() => setIsInviteOpen(false)}
       />
 
     </div>
