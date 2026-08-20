@@ -106,16 +106,15 @@ export const AuthScreen: React.FC = () => {
       {/* Top Brand Hero */}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginTop: 6 }}>
         <img 
-          src={`${import.meta.env.BASE_URL}apple-touch-icon.png`} 
+          src={`${import.meta.env.BASE_URL}cards-logo.png`} 
           alt="WhoPaid" 
           className="animate-float-breath"
           style={{
-            width: 68,
-            height: 68,
-            borderRadius: 20,
-            objectFit: 'cover',
-            marginBottom: 10,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.16)'
+            height: 74,
+            width: 'auto',
+            objectFit: 'contain',
+            marginBottom: 8,
+            filter: 'drop-shadow(0 10px 24px rgba(0,0,0,0.22))'
           }}
         />
 

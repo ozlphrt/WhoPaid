@@ -111,15 +111,14 @@ export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
             </button>
           ) : (
             <img 
-              src={`${import.meta.env.BASE_URL}apple-touch-icon.png`} 
-              alt="WhoPaid Icon" 
+              src={`${import.meta.env.BASE_URL}cards-logo.png`} 
+              alt="WhoPaid" 
               style={{
-                width: 32,
-                height: 32,
-                borderRadius: 9,
-                objectFit: 'cover',
+                height: 42,
+                width: 'auto',
+                objectFit: 'contain',
                 flexShrink: 0,
-                boxShadow: '0 2px 6px rgba(0,0,0,0.15)'
+                filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.16))'
               }}
             />
           )}
