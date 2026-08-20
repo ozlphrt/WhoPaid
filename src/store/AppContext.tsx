@@ -1136,44 +1136,51 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTrips(prev => [...prev.filter(trip => trip.id !== remoteTrip.id), remoteTrip]);
     setActiveTripId(tripId);
 
-    // Membership is now authorized, so protected trip data can be loaded.
-    const [remoteMembers, remoteExpenses] = await Promise.all([
-      fetchTripMembersFromCloud(tripId),
-      fetchTripExpensesFromCloud(tripId)
-    ]);
-    if (remoteMembers.length > 0) await db.tripMembers.bulkPut(remoteMembers);
-    if (remoteExpenses.length > 0) await db.expenses.bulkPut(remoteExpenses);
+    // The secure membership index and trip are already persisted. Do not make
+    // the user wait for every member and expense before completing the join.
+    void (async () => {
+      try {
+        const [remoteMembers, remoteExpenses] = await Promise.all([
+          fetchTripMembersFromCloud(tripId),
+          fetchTripExpensesFromCloud(tripId)
+        ]);
+        if (remoteMembers.length > 0) await db.tripMembers.bulkPut(remoteMembers);
+        if (remoteExpenses.length > 0) await db.expenses.bulkPut(remoteExpenses);
 
-    const normalizedEmail = currentUser.email.trim().toLowerCase();
-    const existing = remoteMembers.find(member =>
-      member.userId === currentUser.id ||
-      member.legacyUserIds?.includes(currentUser.id) ||
-      (normalizedEmail && member.email.trim().toLowerCase() === normalizedEmail)
-    );
-    const legacyUserIds = existing && existing.userId !== currentUser.id
-      ? [...new Set([...(existing.legacyUserIds || []), existing.userId])]
-      : existing?.legacyUserIds;
-    const memberRecord: TripMember = {
-      id: existing?.id || createId('member'),
-      tripId,
-      userId: currentUser.id,
-      authUid: currentUser.id,
-      legacyUserIds,
-      name: existing?.name || currentUser.name || 'Member',
-      email: currentUser.email,
-      role: existing?.role === 'owner' && remoteTrip.ownerId === currentUser.id ? 'owner' : 'member',
-      isActive: true,
-      joinedAt: existing?.joinedAt || new Date().toISOString()
-    };
-    await db.tripMembers.put(memberRecord);
-    try {
-      await syncMemberToCloud(tripId, memberRecord);
-    } catch (error) {
-      // The membership index and trip are already persisted. A profile/member
-      // hydration failure should be retried later, not roll back a valid join.
-      console.warn('[Firestore] Joined trip but could not update member profile:', error);
-    }
-    await refreshData();
+        const normalizedEmail = currentUser.email.trim().toLowerCase();
+        const existing = remoteMembers.find(member =>
+          member.userId === currentUser.id ||
+          member.legacyUserIds?.includes(currentUser.id) ||
+          (normalizedEmail && member.email.trim().toLowerCase() === normalizedEmail)
+        );
+        const legacyUserIds = existing && existing.userId !== currentUser.id
+          ? [...new Set([...(existing.legacyUserIds || []), existing.userId])]
+          : existing?.legacyUserIds;
+        const memberRecord: TripMember = {
+          id: existing?.id || createId('member'),
+          tripId,
+          userId: currentUser.id,
+          authUid: currentUser.id,
+          legacyUserIds,
+          name: existing?.name || currentUser.name || 'Member',
+          email: currentUser.email,
+          role: existing?.role === 'owner' && remoteTrip.ownerId === currentUser.id ? 'owner' : 'member',
+          isActive: true,
+          joinedAt: existing?.joinedAt || new Date().toISOString()
+        };
+        await db.tripMembers.put(memberRecord);
+        await syncMemberToCloud(tripId, memberRecord);
+
+        setMembers(await db.tripMembers.where('tripId').equals(tripId).toArray());
+        const hydratedExpenses = await db.expenses.where('tripId').equals(tripId).toArray();
+        hydratedExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setExpenses(hydratedExpenses);
+      } catch (error) {
+        // Membership remains valid and startup sync will retry hydration.
+        console.warn('[Firestore] Joined trip; background hydration will retry later:', error);
+      }
+    })();
+
     showAlert(`You joined ${remoteTrip.name} successfully!`, 'Trip Joined 🎉', 'success');
   };
 

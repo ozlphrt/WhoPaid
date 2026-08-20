@@ -8,7 +8,10 @@ import {
 } from 'firebase/firestore';
 import { 
   getAuth, 
+  initializeAuth,
   Auth, 
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
   signInAnonymously, 
   signInWithPopup, 
   signInWithRedirect,
@@ -127,7 +130,17 @@ export function initFirebase(): {
       firestoreDb = getFirestore(firebaseApp);
     }
 
-    firebaseAuth = getAuth(firebaseApp);
+    try {
+      // Keep authentication across PWA restarts and ordinary browser reloads.
+      // IndexedDB is preferred for installed apps, with localStorage as a
+      // fallback for browsers where IndexedDB persistence is unavailable.
+      firebaseAuth = initializeAuth(firebaseApp, {
+        persistence: [indexedDBLocalPersistence, browserLocalPersistence]
+      });
+    } catch {
+      // Auth may already be initialized during HMR or a repeated init call.
+      firebaseAuth = getAuth(firebaseApp);
+    }
     firebaseStorage = getStorage(firebaseApp);
 
     return {
