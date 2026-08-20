@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../store/AppContext';
-import { ChevronLeft, UserPlus, Sun, Moon } from 'lucide-react';
-import { QRCodeModal } from './QRCodeModal';
+import { ChevronLeft, Sun, Moon } from 'lucide-react';
 
 type ThemeMode = 'light' | 'dark';
 
@@ -12,7 +11,6 @@ interface TopNavProps {
 
 export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
   const { activeTrip, currentUser, isOnline, expenses } = useApp();
-  const [isInviteOpen, setIsInviteOpen] = useState(false);
   
   // Theme state: defaults to dark, with one-tap toggle to light
   const [currentTheme, setCurrentTheme] = useState<ThemeMode>(() => {
@@ -175,18 +173,6 @@ export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
             )}
           </button>
 
-          {/* Direct Invite Button on Trip Home */}
-          {currentView === 'trip-home' && activeTrip && (
-            <button
-              onClick={() => setIsInviteOpen(true)}
-              className="nav-icon-btn"
-              style={{ width: 32, height: 32 }}
-              title="Invite Friends"
-            >
-              <UserPlus size={15} />
-            </button>
-          )}
-
           {/* User Profile Pill with Full Name */}
           <button
             onClick={() => onNavigate('profile')}
@@ -245,12 +231,6 @@ export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
           </button>
         </div>
       </header>
-
-      <QRCodeModal
-        trip={activeTrip}
-        isOpen={isInviteOpen}
-        onClose={() => setIsInviteOpen(false)}
-      />
     </>
   );
 };

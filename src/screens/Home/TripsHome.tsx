@@ -570,44 +570,6 @@ export const TripsHome: React.FC<TripsHomeProps> = ({ onSelectTrip, onOpenArchiv
           </div>
           <ChevronRight size={16} color="var(--text-tertiary)" />
         </button>
-
-        {trips.length > 0 && (
-          <button
-            onClick={() => {
-              showConfirm(
-                "Are you sure you want to delete all trips and reset all expenses? This cannot be undone.",
-                async () => {
-                  await clearAllData();
-                },
-                {
-                  title: "Delete All Trips?",
-                  confirmText: "Delete All",
-                  isDestructive: true
-                }
-              );
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              padding: '13px 16px',
-              background: 'var(--bg-surface)',
-              border: '1px solid rgba(239, 68, 68, 0.35)',
-              borderRadius: 'var(--radius-lg)',
-              color: 'var(--negative-text)',
-              fontWeight: 700,
-              fontSize: '0.84rem',
-              cursor: 'pointer',
-              marginTop: 2,
-              boxShadow: 'var(--shadow-card)',
-              transition: 'all 0.15s ease'
-            }}
-          >
-            <Trash2 size={15} />
-            <span>Delete All Trips</span>
-          </button>
-        )}
       </div>
 
       <CreateTripModal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} />

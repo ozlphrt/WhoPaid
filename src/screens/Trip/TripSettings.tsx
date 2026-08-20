@@ -40,11 +40,6 @@ export const TripSettings: React.FC = () => {
   const [householdName, setHouseholdName] = useState('');
   const [selectedHhMembers, setSelectedHhMembers] = useState<string[]>([]);
   
-  // Direct Add Member
-  const [newMemberName, setNewMemberName] = useState('');
-  const [newMemberEmail, setNewMemberEmail] = useState('');
-  const [showAddMember, setShowAddMember] = useState(false);
-
   // Transfer Ownership
   const [newOwnerId, setNewOwnerId] = useState(activeTrip?.ownerId || '');
 
@@ -63,15 +58,6 @@ export const TripSettings: React.FC = () => {
       mainCurrency
     });
     showAlert('Trip settings updated successfully!', 'Settings Saved', 'success');
-  };
-
-  const handleAddMemberSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMemberName.trim() || !newMemberEmail.trim()) return;
-    await addMember(activeTrip.id, newMemberEmail.trim(), newMemberName.trim());
-    setNewMemberName('');
-    setNewMemberEmail('');
-    setShowAddMember(false);
   };
 
   const handleRemoveMember = (memberId: string, memberName: string) => {
@@ -254,50 +240,28 @@ export const TripSettings: React.FC = () => {
             <h2 style={{ fontSize: '0.95rem', fontWeight: 700 }}>Participants ({members.length})</h2>
           </div>
 
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button
-              onClick={() => setIsInviteOpen(true)}
-              className="btn-secondary"
-              style={{ padding: '5px 8px', fontSize: '0.75rem' }}
-            >
-              <span>Invite Link / QR</span>
-            </button>
-            {isOwner && (
-              <button
-                onClick={() => setShowAddMember(prev => !prev)}
-                className="btn-primary"
-                style={{ width: 'auto', padding: '5px 8px', fontSize: '0.75rem', borderRadius: 'var(--radius-md)' }}
-              >
-                <Plus size={13} />
-                <span>Add</span>
-              </button>
-            )}
-          </div>
+          <button
+            onClick={() => setIsInviteOpen(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              fontSize: '0.76rem',
+              fontWeight: 700,
+              color: 'var(--brand-500, #10b981)',
+              background: 'var(--positive-bg)',
+              border: '1px solid var(--positive-border)',
+              padding: '4px 10px',
+              borderRadius: 'var(--radius-full)',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            title="Invite members to this trip"
+          >
+            <UserPlus size={13} />
+            <span>Invite</span>
+          </button>
         </div>
-
-        {showAddMember && isOwner && (
-          <form onSubmit={handleAddMemberSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 6, background: 'var(--bg-subtle)', padding: 10, borderRadius: 'var(--radius-md)' }}>
-            <input
-              type="text"
-              placeholder="Name (e.g. Sarah)"
-              value={newMemberName}
-              onChange={(e) => setNewMemberName(e.target.value)}
-              className="input-pill"
-              required
-            />
-            <input
-              type="email"
-              placeholder="Email (e.g. sarah@example.com)"
-              value={newMemberEmail}
-              onChange={(e) => setNewMemberEmail(e.target.value)}
-              className="input-pill"
-              required
-            />
-            <button type="submit" className="btn-primary" style={{ padding: '7px 10px', fontSize: '0.8rem' }}>
-              Add Participant
-            </button>
-          </form>
-        )}
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {members.map(m => (

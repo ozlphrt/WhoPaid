@@ -3,7 +3,6 @@ import { useApp } from '../store/AppContext';
 import { BottomSheet } from './BottomSheet';
 import { suggestTripEmoji, POPULAR_EMOJIS } from '../lib/emoji';
 import { CurrencyCode } from '../types';
-import { Plus, Trash2, Calendar, Sparkles } from 'lucide-react';
 
 interface CreateTripModalProps {
   isOpen: boolean;
@@ -25,24 +24,11 @@ export const CreateTripModal: React.FC<CreateTripModalProps> = ({ isOpen, onClos
     return d.toISOString().split('T')[0];
   });
   const [mainCurrency, setMainCurrency] = useState<CurrencyCode>('EUR');
-  const [memberEmails, setMemberEmails] = useState<string[]>(['']);
 
   const handleNameChange = (val: string) => {
     setName(val);
     const autoEmoji = suggestTripEmoji(val);
     setEmoji(autoEmoji);
-  };
-
-  const handleAddEmailField = () => {
-    setMemberEmails(prev => [...prev, '']);
-  };
-
-  const handleEmailChange = (index: number, val: string) => {
-    setMemberEmails(prev => prev.map((e, idx) => idx === index ? val : e));
-  };
-
-  const handleRemoveEmailField = (index: number) => {
-    setMemberEmails(prev => prev.filter((_, idx) => idx !== index));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -63,7 +49,7 @@ export const CreateTripModal: React.FC<CreateTripModalProps> = ({ isOpen, onClos
         isClosed: false,
         isDeleted: false
       },
-      memberEmails
+      []
     );
 
     onClose();
@@ -164,47 +150,6 @@ export const CreateTripModal: React.FC<CreateTripModalProps> = ({ isOpen, onClos
               >
                 {curr}
               </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Invite Participants */}
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-tertiary)' }}>
-              INVITE PARTICIPANTS (EMAILS)
-            </label>
-            <button
-              type="button"
-              onClick={handleAddEmailField}
-              style={{ fontSize: '0.8rem', color: 'var(--accent-primary, #344256)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', cursor: 'pointer' }}
-            >
-              <Plus size={14} />
-              <span>Add another</span>
-            </button>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {memberEmails.map((email, idx) => (
-              <div key={idx} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                <input
-                  type="email"
-                  placeholder="friend@example.com"
-                  value={email}
-                  onChange={(e) => handleEmailChange(idx, e.target.value)}
-                  className="input-pill"
-                />
-                {memberEmails.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveEmailField(idx)}
-                    className="nav-icon-btn"
-                    style={{ width: 36, height: 36 }}
-                  >
-                    <Trash2 size={16} color="var(--negative-text)" />
-                  </button>
-                )}
-              </div>
             ))}
           </div>
         </div>
