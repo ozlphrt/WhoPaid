@@ -17,9 +17,65 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+      .boot-shell {
+        min-height: 100vh;
+        min-height: 100dvh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 16px;
+        padding: 32px;
+        box-sizing: border-box;
+        background: radial-gradient(circle at 50% 38%, rgba(79, 94, 115, 0.22), transparent 34%), #121316;
+        color: #f8fafc;
+        text-align: center;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      .boot-shell img {
+        width: 82px;
+        height: 82px;
+        border-radius: 22px;
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.38);
+      }
+      .boot-shell strong { font-size: 1.35rem; letter-spacing: -0.035em; }
+      .boot-shell span { color: #94a3b8; font-size: 0.82rem; font-weight: 600; }
+      .boot-progress {
+        width: min(260px, 76vw);
+        height: 5px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #232833;
+        border: 1px solid #343b49;
+      }
+      .boot-progress::after {
+        content: "";
+        display: block;
+        width: 42%;
+        height: 100%;
+        border-radius: inherit;
+        background: #63758f;
+        animation: boot-progress 1.15s ease-in-out infinite;
+      }
+      @keyframes boot-progress {
+        from { transform: translateX(-115%); }
+        to { transform: translateX(340%); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot-progress::after { animation: none; width: 68%; }
+      }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="boot-shell" role="status" aria-live="polite">
+        <img src="/WhoPaid/icons/icon-192.png" alt="WhoPaid" />
+        <strong>WhoPaid</strong>
+        <span>Opening your saved trips...</span>
+        <div class="boot-progress" aria-hidden="true"></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

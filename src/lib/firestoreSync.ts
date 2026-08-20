@@ -339,17 +339,18 @@ export async function fetchUserTripsFromCloud(userId: string): Promise<Trip[]> {
   try {
     const tripsRef = collection(db, 'trips');
     const resultById = new Map<string, Trip>();
-    const ownedSnap = await getDocs(query(tripsRef, where('ownerId', '==', userId)));
+    const [ownedSnap, membershipSnap] = await Promise.all([
+      getDocs(query(tripsRef, where('ownerId', '==', userId))),
+      // Older deployed rules may not expose this index. Catch only this read
+      // so owned trips remain available during a staged rules migration.
+      getDocs(collection(db, 'users', userId, 'tripMemberships')).catch(() => null)
+    ]);
     ownedSnap.forEach((tripDoc) => {
       const trip = { id: tripDoc.id, ...tripDoc.data() } as Trip;
       if (!trip.isDeleted) resultById.set(trip.id, trip);
     });
 
-    // Older deployed rules do not expose the membership index. Keep owner
-    // trips usable during the staged rules migration instead of discarding
-    // the successful owner query when this read is denied.
-    try {
-      const membershipSnap = await getDocs(collection(db, 'users', userId, 'tripMemberships'));
+    if (membershipSnap) {
       await Promise.all(membershipSnap.docs.map(async membershipDoc => {
         const tripId = membershipDoc.data().tripId || membershipDoc.id;
         const tripDoc = await getDoc(doc(db, 'trips', tripId));
@@ -357,8 +358,6 @@ export async function fetchUserTripsFromCloud(userId: string): Promise<Trip[]> {
         const trip = { id: tripDoc.id, ...tripDoc.data() } as Trip;
         if (!trip.isDeleted) resultById.set(trip.id, trip);
       }));
-    } catch {
-      // Expected until the new membership-aware rules are deployed.
     }
 
     return [...resultById.values()];

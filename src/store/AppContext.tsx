@@ -51,6 +51,12 @@ interface UndoState {
   timeoutId: any;
 }
 
+export interface StartupStatus {
+  phase: 'loading-local' | 'syncing-cloud' | 'ready' | 'error';
+  message: string;
+  progress: number;
+}
+
 interface AppContextType {
   currentUser: User;
   setCurrentUser: (u: User) => void;
@@ -128,6 +134,7 @@ interface AppContextType {
   isFirebaseActive: boolean;
   cloudSyncStatus: 'offline' | 'connected' | 'syncing' | 'error';
   firebaseUser: any | null;
+  startupStatus: StartupStatus;
   loginAsGuest: () => Promise<void>;
   loginWithGoogleAuth: () => Promise<void>;
   loginWithAppleAuth: () => Promise<void>;
@@ -213,17 +220,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         localExps.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         setExpenses(localExps);
       });
-      // And pull latest cloud expenses if online
-      if (isFirebaseConfigured() && navigator.onLine) {
-        fetchTripExpensesFromCloud(id).then(async (remoteExps) => {
-          if (remoteExps && remoteExps.length > 0) {
-            await db.expenses.bulkPut(remoteExps);
-            const currentLocal = await db.expenses.where('tripId').equals(id).toArray();
-            currentLocal.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-            setExpenses(currentLocal);
-          }
-        }).catch(console.warn);
-      }
     } else {
       localStorage.removeItem('whopaid_active_trip');
     }
@@ -240,9 +236,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [firebaseUser, setFirebaseUser] = useState<any | null>(null);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'offline' | 'connected' | 'syncing' | 'error'>('offline');
+  const [startupStatus, setStartupStatus] = useState<StartupStatus>({
+    phase: 'loading-local',
+    message: 'Opening your saved trips...',
+    progress: 12
+  });
 
   const tripListenersRef = useRef<ActiveTripListeners | null>(null);
-  const isSyncingTripsRef = useRef<boolean>(false);
+  const hasHydratedRef = useRef<boolean>(false);
+  const cloudSyncInFlightRef = useRef<boolean>(false);
 
   // In-App Global Modal Dialog State
   const [dialogState, setDialogState] = useState<DialogOptions | null>(null);
@@ -338,10 +340,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Local IndexedDB & Cloud refresh
   const refreshData = useCallback(async () => {
+    const isInitialHydration = !hasHydratedRef.current;
     try {
+      if (isInitialHydration) {
+        setStartupStatus({
+          phase: 'loading-local',
+          message: 'Loading saved trip data...',
+          progress: 28
+        });
+      }
+
       await seedInitialDataIfNeeded();
 
-      const uList = await db.users.toArray();
+      const [uList, allTrips, allMembers] = await Promise.all([
+        db.users.toArray(),
+        db.trips.toArray(),
+        db.tripMembers.toArray()
+      ]);
       setAllUsers(uList);
 
       if (storedUser) {
@@ -349,8 +364,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (loggedIn) setStoredUser(loggedIn);
       }
 
-      const allTrips = await db.trips.toArray();
-      const allMembers = await db.tripMembers.toArray();
       const memberTripIds = new Set<string>();
       for (const m of allMembers) {
         if (
@@ -374,7 +387,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setTrips(userTrips);
 
       if (activeTripId) {
-        const tripMembers = await db.tripMembers.where('tripId').equals(activeTripId).toArray();
+        const [
+          tripMembers,
+          tripHouseholds,
+          tripExpenses,
+          tripSettlements,
+          tripActivities,
+          tripNotifs
+        ] = await Promise.all([
+          db.tripMembers.where('tripId').equals(activeTripId).toArray(),
+          db.households.where('tripId').equals(activeTripId).toArray(),
+          db.expenses.where('tripId').equals(activeTripId).toArray(),
+          db.settlements.where('tripId').equals(activeTripId).toArray(),
+          db.activities.where('tripId').equals(activeTripId).toArray(),
+          db.notifications.where('userId').equals(currentUser.id).toArray()
+        ]);
         
         // Auto-sync current user's actual email & ID into their member record if placeholder/outdated
         const myMem = tripMembers.find(m => 
@@ -397,101 +424,151 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
 
         setMembers(tripMembers);
-
-        const tripHouseholds = await db.households.where('tripId').equals(activeTripId).toArray();
         setHouseholds(tripHouseholds);
-
-        const tripExpenses = await db.expenses.where('tripId').equals(activeTripId).toArray();
-        // Sort newest first
         tripExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         setExpenses(tripExpenses);
-
-        const tripSettlements = await db.settlements.where('tripId').equals(activeTripId).toArray();
         setSettlements(tripSettlements);
-
-        const tripActivities = await db.activities.where('tripId').equals(activeTripId).toArray();
         tripActivities.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         setActivities(tripActivities);
-
-        const tripNotifs = await db.notifications.where('userId').equals(currentUser.id).toArray();
         setNotifications(tripNotifs);
-      }
-
-      // Full 2-Way Sync: Upload local trips and download cloud trips
-      if (isFirebaseConfigured() && navigator.onLine) {
-        // 1. Upload any local active trips to cloud if present
-        for (const localTrip of allTrips) {
-          if (!localTrip.isDeleted) {
-            if (localTrip.ownerId === currentUser.id) {
-              const migratedTrip = localTrip.inviteToken
-                ? localTrip
-                : { ...localTrip, inviteToken: createId('invite') };
-              await db.trips.put(migratedTrip);
-              try {
-                await syncTripToCloud(migratedTrip);
-                await syncTripInvite(migratedTrip);
-                await syncUserTripMembership(migratedTrip.id, currentUser.id, 'owner');
-              } catch (error) {
-                console.warn('[Firestore Sync] Could not migrate trip access metadata:', error);
-              }
-            }
-            const lMembers = await db.tripMembers.where('tripId').equals(localTrip.id).toArray();
-            for (const lm of lMembers) {
-              syncMemberToCloud(localTrip.id, lm).catch(console.warn);
-            }
-            const lExpenses = await db.expenses.where('tripId').equals(localTrip.id).toArray();
-            for (const le of lExpenses) {
-              syncExpenseToCloud(localTrip.id, le).catch(console.warn);
-            }
-          }
-        }
-
-        // 2. Fetch all user trips from cloud
-        fetchUserTripsFromCloud(currentUser.id).then(async (remoteTrips) => {
-          if (remoteTrips && remoteTrips.length > 0) {
-            for (const rTrip of remoteTrips) {
-              await db.trips.put(rTrip);
-              const rMembers = await fetchTripMembersFromCloud(rTrip.id);
-              if (rMembers.length > 0) {
-                await db.tripMembers.bulkPut(rMembers);
-              }
-              const rExpenses = await fetchTripExpensesFromCloud(rTrip.id);
-              if (rExpenses.length > 0) {
-                await db.expenses.bulkPut(rExpenses);
-              }
-            }
-
-            const freshTrips = await db.trips.toArray();
-            const freshMembers = await db.tripMembers.toArray();
-            const freshMemberTripIds = new Set<string>();
-            for (const m of freshMembers) {
-              if (
-                m.userId === currentUser.id ||
-                m.authUid === currentUser.id ||
-                m.legacyUserIds?.includes(currentUser.id) ||
-                (currentUser.email && m.email && m.email.toLowerCase() === currentUser.email.toLowerCase())
-              ) {
-                freshMemberTripIds.add(m.tripId);
-              }
-            }
-            setTrips(freshTrips.filter(t => !t.isDeleted && (
-              t.ownerId === currentUser.id ||
-              t.memberUids?.includes(currentUser.id) ||
-              freshMemberTripIds.has(t.id)
-            )));
-          }
-        }).catch(console.warn);
       }
     } catch (err) {
       console.warn('IndexedDB initial load error, continuing with fallback:', err);
     } finally {
-      setIsInitialized(true);
+      if (isInitialHydration) {
+        hasHydratedRef.current = true;
+        setStartupStatus({
+          phase: 'ready',
+          message: 'Saved trips loaded',
+          progress: 100
+        });
+        setIsInitialized(true);
+      }
     }
   }, [activeTripId, currentUser.id, currentUser.email, currentUser.name]);
 
   useEffect(() => {
     refreshData();
   }, [refreshData]);
+
+  // Reconcile cloud state after local data is already visible. Cold start must
+  // never wait for network round trips, and already-synced records are not
+  // uploaded again.
+  useEffect(() => {
+    if (
+      !isInitialized ||
+      !isAuthenticated ||
+      !isFirebaseConfigured() ||
+      !isOnline ||
+      cloudSyncInFlightRef.current
+    ) {
+      return;
+    }
+
+    cloudSyncInFlightRef.current = true;
+    setIsSyncing(true);
+    setCloudSyncStatus('syncing');
+    setStartupStatus({
+      phase: 'syncing-cloud',
+      message: 'Checking for trip updates...',
+      progress: 45
+    });
+
+    const reconcileCloud = async () => {
+      try {
+        const localTrips = await db.trips.toArray();
+        const tripsNeedingUpload = localTrips.filter(trip =>
+          !trip.isDeleted &&
+          trip.ownerId === currentUser.id &&
+          (!trip.inviteToken || trip.clientSyncStatus === 'pending' || trip.clientSyncStatus === 'failed')
+        );
+
+        if (tripsNeedingUpload.length > 0) {
+          setStartupStatus({
+            phase: 'syncing-cloud',
+            message: 'Finishing secure trip setup...',
+            progress: 58
+          });
+        }
+
+        await Promise.all(tripsNeedingUpload.map(async localTrip => {
+          const migratedTrip: Trip = localTrip.inviteToken
+            ? localTrip
+            : { ...localTrip, inviteToken: createId('invite') };
+          await db.trips.put(migratedTrip);
+          await Promise.all([
+            syncTripToCloud(migratedTrip),
+            syncTripInvite(migratedTrip),
+            syncUserTripMembership(migratedTrip.id, currentUser.id, 'owner')
+          ]);
+
+          if (localTrip.clientSyncStatus === 'pending' || localTrip.clientSyncStatus === 'failed') {
+            const localMembers = await db.tripMembers.where('tripId').equals(localTrip.id).toArray();
+            await Promise.all(localMembers.map(member => syncMemberToCloud(localTrip.id, member)));
+          }
+
+          await db.trips.put({ ...migratedTrip, clientSyncStatus: 'synced' });
+        }));
+
+        const pendingExpenses = (await db.expenses
+          .where('clientSyncStatus')
+          .anyOf('pending', 'failed')
+          .toArray());
+
+        if (pendingExpenses.length > 0) {
+          setStartupStatus({
+            phase: 'syncing-cloud',
+            message: `Uploading ${pendingExpenses.length} saved expense${pendingExpenses.length === 1 ? '' : 's'}...`,
+            progress: 70
+          });
+          await Promise.all(pendingExpenses.map(async expense => {
+            try {
+              await syncExpenseToCloud(expense.tripId, expense);
+              await db.expenses.put({ ...expense, clientSyncStatus: 'synced' });
+            } catch (error) {
+              await db.expenses.put({ ...expense, clientSyncStatus: 'failed' });
+              throw error;
+            }
+          }));
+        }
+
+        setStartupStatus({
+          phase: 'syncing-cloud',
+          message: 'Downloading the latest trip list...',
+          progress: 84
+        });
+        const remoteTrips = await fetchUserTripsFromCloud(currentUser.id);
+        if (remoteTrips.length > 0) {
+          await db.trips.bulkPut(remoteTrips);
+          setTrips(previous => {
+            const merged = new Map(previous.map(trip => [trip.id, trip]));
+            remoteTrips.forEach(trip => merged.set(trip.id, trip));
+            return [...merged.values()].filter(trip => !trip.isDeleted);
+          });
+        }
+
+        setCloudSyncStatus('connected');
+        setStartupStatus({
+          phase: 'ready',
+          message: 'Everything is up to date',
+          progress: 100
+        });
+      } catch (error) {
+        console.warn('[Firestore Sync] Background reconciliation warning:', error);
+        setCloudSyncStatus('error');
+        setStartupStatus({
+          phase: 'error',
+          message: 'Using saved data - cloud sync will retry',
+          progress: 100
+        });
+      } finally {
+        setIsSyncing(false);
+        cloudSyncInFlightRef.current = false;
+      }
+    };
+
+    reconcileCloud();
+  }, [isInitialized, isAuthenticated, isOnline, currentUser.id]);
 
   // Realtime Firestore Subscriptions for Active Trip
   useEffect(() => {
@@ -1549,6 +1626,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isFirebaseActive: isFirebaseConfigured(),
         cloudSyncStatus,
         firebaseUser,
+        startupStatus,
         loginAsGuest,
         loginWithGoogleAuth,
         loginWithAppleAuth,

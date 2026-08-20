@@ -122,6 +122,187 @@
   transform: scale(0.98);
 }
 
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--negative-bg);
+  color: var(--negative-text);
+  border: 1px solid var(--negative-border);
+  padding: 12px 18px;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  font-size: 0.92rem;
+  transition: all var(--duration-fast) var(--ease-luxury);
+  cursor: pointer;
+}
+
+.btn-danger:hover {
+  border-color: var(--negative-text);
+  filter: brightness(1.08);
+}
+
+.btn-danger:active {
+  transform: scale(0.98);
+}
+
+.btn-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Branded cold-start and background-sync feedback */
+.startup-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 32px 28px;
+  background:
+    radial-gradient(circle at 50% 36%, var(--accent-primary-subtle), transparent 34%),
+    var(--bg-primary);
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.startup-logo {
+  width: 82px;
+  height: 82px;
+  border-radius: 22px;
+  object-fit: cover;
+  box-shadow: var(--shadow-lg);
+}
+
+.startup-copy h1 {
+  margin: 0 0 4px;
+  font-size: 1.55rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.startup-copy p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.startup-progress-track {
+  width: min(280px, 78vw);
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+}
+
+.startup-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent-primary);
+  transition: width 220ms ease-out;
+}
+
+.startup-hint {
+  max-width: 300px;
+  color: var(--text-tertiary);
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.sync-progress-notice {
+  position: fixed;
+  z-index: 45;
+  right: 16px;
+  bottom: calc(92px + env(safe-area-inset-bottom, 0px));
+  width: min(360px, calc(100vw - 32px));
+  padding: 12px 14px 10px;
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--bg-surface) 94%, transparent);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-lg);
+  backdrop-filter: blur(16px);
+}
+
+.sync-progress-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 9px;
+}
+
+.sync-progress-row strong,
+.sync-progress-row span {
+  display: block;
+}
+
+.sync-progress-row strong {
+  color: var(--text-primary);
+  font-size: 0.8rem;
+}
+
+.sync-progress-row div > span {
+  margin-top: 1px;
+  color: var(--text-tertiary);
+  font-size: 0.7rem;
+}
+
+.sync-progress-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--positive-text);
+  box-shadow: 0 0 0 4px var(--positive-bg);
+  animation: sync-pulse 1.4s ease-in-out infinite;
+}
+
+.sync-progress-percent {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+}
+
+.sync-progress-track {
+  height: 3px;
+  margin-top: 9px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: var(--bg-subtle);
+}
+
+.sync-progress-track > div {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--positive-text);
+  transition: width 240ms ease-out;
+}
+
+.sync-progress-notice.is-error .sync-progress-dot,
+.sync-progress-notice.is-error .sync-progress-track > div {
+  background: var(--warning-text);
+}
+
+.sync-progress-notice.is-error .sync-progress-dot {
+  box-shadow: 0 0 0 4px var(--warning-bg);
+  animation: none;
+}
+
+@keyframes sync-pulse {
+  0%, 100% { transform: scale(0.88); opacity: 0.72; }
+  50% { transform: scale(1); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sync-progress-dot { animation: none; }
+  .startup-progress-fill,
+  .sync-progress-track > div { transition: none; }
+}
+
 /* Floating / Hero Action Circle Button */
 .btn-fab-circle {
   display: inline-flex;
@@ -507,4 +688,3 @@
   color: var(--btn-primary-text);
   border-color: var(--btn-primary-border);
 }
-

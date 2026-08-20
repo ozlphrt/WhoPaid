@@ -115,7 +115,16 @@ import { FloatingBottomDock } from './components/FloatingBottomDock';
 interface AppContentProps {}
 
 const AppContent: React.FC<AppContentProps> = () => {
-  const { activeTrip, setActiveTripId, isInitialized, isAuthenticated, currentUser, joinTrip, showAlert } = useApp();
+  const {
+    activeTrip,
+    setActiveTripId,
+    isInitialized,
+    isAuthenticated,
+    currentUser,
+    joinTrip,
+    showAlert,
+    startupStatus
+  } = useApp();
   const joiningTripRef = useRef<string | null>(null);
 
   // Start from 'trips' overview screen, or resume where user left off if an active trip is open (never resume into profile)
@@ -192,33 +201,30 @@ const AppContent: React.FC<AppContentProps> = () => {
 
   if (!isInitialized) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'var(--bg-primary)',
-        color: 'var(--text-primary)',
-        gap: 14
-      }}>
-        <div style={{
-          width: 54,
-          height: 54,
-          borderRadius: 16,
-          background: 'var(--btn-primary-bg)',
-          color: 'var(--btn-primary-text)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontSize: '1.6rem',
-          boxShadow: 'var(--shadow-md)'
-        }}>
-          💳
+      <div className="startup-screen" role="status" aria-live="polite">
+        <img
+          className="startup-logo"
+          src={`${import.meta.env.BASE_URL}icons/icon-192.png`}
+          alt="WhoPaid"
+        />
+        <div className="startup-copy">
+          <h1>WhoPaid</h1>
+          <p>{startupStatus.message}</p>
         </div>
-        <div style={{ fontSize: '1rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
-          WhoPaid
+        <div
+          className="startup-progress-track"
+          role="progressbar"
+          aria-label="Opening WhoPaid"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={startupStatus.progress}
+        >
+          <div
+            className="startup-progress-fill"
+            style={{ width: `${startupStatus.progress}%` }}
+          />
         </div>
+        <span className="startup-hint">Saved data opens first. Cloud updates continue in the background.</span>
       </div>
     );
   }
@@ -277,6 +283,26 @@ const AppContent: React.FC<AppContentProps> = () => {
           currentView={currentView}
           onNavigate={handleNavigate}
         />
+      )}
+
+      {(startupStatus.phase === 'syncing-cloud' || startupStatus.phase === 'error') && (
+        <div
+          className={`sync-progress-notice${startupStatus.phase === 'error' ? ' is-error' : ''}`}
+          role="status"
+          aria-live="polite"
+        >
+          <div className="sync-progress-row">
+            <span className="sync-progress-dot" aria-hidden="true" />
+            <div>
+              <strong>{startupStatus.phase === 'error' ? 'Saved data is ready' : 'Syncing your trips'}</strong>
+              <span>{startupStatus.message}</span>
+            </div>
+            <span className="sync-progress-percent">{startupStatus.progress}%</span>
+          </div>
+          <div className="sync-progress-track" aria-hidden="true">
+            <div style={{ width: `${startupStatus.progress}%` }} />
+          </div>
+        </div>
       )}
 
       <UndoToast />
