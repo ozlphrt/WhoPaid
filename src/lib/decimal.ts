@@ -33,13 +33,13 @@ export function roundMoney(val: number | string, decimals = 2): number {
   return toDecimal(val).toDecimalPlaces(decimals, Decimal.ROUND_HALF_UP).toNumber();
 }
 
-export function formatMoney(amount: number, currency: string = 'EUR', showSign: boolean = false): string {
-  const rounded = roundMoney(amount, 2);
+export function formatMoney(amount: number, currency: string = 'EUR', showSign: boolean = false, includeDecimals: boolean = false): string {
+  const rounded = includeDecimals ? roundMoney(amount, 2) : Math.round(amount);
   const formatted = new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: currency,
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: includeDecimals ? 2 : 0,
+    maximumFractionDigits: includeDecimals ? 2 : 0,
   }).format(Math.abs(rounded));
 
   if (showSign) {
@@ -47,6 +47,17 @@ export function formatMoney(amount: number, currency: string = 'EUR', showSign: 
     if (rounded < -0.005) return `-${formatted}`;
   }
   return rounded < -0.005 ? `-${formatted}` : formatted;
+}
+
+export function formatAmount(amount: number, currency?: string): string {
+  const isWhole = Math.abs(amount % 1) < 0.005;
+  const numStr = isWhole
+    ? Math.round(amount).toLocaleString('en-US')
+    : amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (currency) {
+    return `${getCurrencySymbol(currency)}${numStr}`;
+  }
+  return numStr;
 }
 
 export function getCurrencySymbol(currency: string): string {

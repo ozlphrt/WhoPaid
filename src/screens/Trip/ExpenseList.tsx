@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useApp } from '../../store/AppContext';
 import { CATEGORIES } from '../../lib/category';
-import { formatMoney, getCurrencySymbol, resolveMemberName } from '../../lib/decimal';
+import { formatMoney, formatAmount, getCurrencySymbol, resolveMemberName } from '../../lib/decimal';
 import { Search, Plus, AlertCircle, X } from 'lucide-react';
 import { ExpenseDetailModal } from '../../components/ExpenseDetailModal';
 import { AddExpenseSheet } from '../../components/AddExpenseSheet';
@@ -341,7 +341,7 @@ export const ExpenseList: React.FC = () => {
 
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{ fontSize: '1rem', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                      {getCurrencySymbol(exp.originalCurrency)}{exp.originalAmount.toFixed(2)}
+                      {formatAmount(exp.originalAmount, exp.originalCurrency)}
                     </div>
                     {exp.originalCurrency !== exp.mainCurrency && (
                       <span style={{ fontSize: '0.74rem', color: 'var(--text-tertiary)' }}>

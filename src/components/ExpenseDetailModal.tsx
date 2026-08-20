@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../store/AppContext';
 import { BottomSheet } from './BottomSheet';
 import { CategoryIcon } from './CategoryIcon';
-import { formatMoney, getCurrencySymbol, resolveMemberName } from '../lib/decimal';
+import { formatMoney, formatAmount, getCurrencySymbol, resolveMemberName } from '../lib/decimal';
 import { formatHumanExchangeRate } from '../lib/fx';
 import { Calendar, Clock, Edit2, Trash2, Flag, AlertCircle, Info, ChevronRight, X } from 'lucide-react';
 import { Expense } from '../types';
@@ -89,7 +89,7 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
 
           <div style={{ textAlign: 'right', flexShrink: 0 }}>
             <div style={{ fontSize: '1.35rem', fontWeight: 800, fontFamily: 'var(--font-mono)', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-              {getCurrencySymbol(exp.originalCurrency)}{exp.originalAmount.toFixed(2)}
+              {formatAmount(exp.originalAmount, exp.originalCurrency)}
             </div>
             {exp.originalCurrency !== exp.mainCurrency && (
               <div style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
@@ -108,27 +108,22 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
             borderRadius: 'var(--radius-md)',
             padding: '10px 12px',
             fontSize: '0.82rem',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8
+            lineHeight: 1.4
           }}>
-            <AlertCircle size={16} style={{ flexShrink: 0 }} />
-            <span>
-              Flagged as <strong>"{exp.flaggedReason}"</strong> by {memberMap.get(exp.flaggedByUserId || '') || 'a participant'}.
-            </span>
+            <strong style={{ display: 'block', fontWeight: 700, marginBottom: 2 }}>⚠️ Flagged as Incorrect</strong>
+            <span>{exp.flaggedReason || 'A member flagged this expense.'}</span>
           </div>
         )}
 
         {/* Metadata Grid */}
         <div style={{
-          background: 'var(--bg-subtle)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: 'var(--radius-lg)',
-          padding: '14px 16px',
           display: 'grid',
           gridTemplateColumns: 'repeat(2, 1fr)',
-          gap: 12,
-          fontSize: '0.85rem'
+          gap: '12px 16px',
+          background: 'var(--bg-surface)',
+          border: '1px solid var(--border-subtle)',
+          padding: '14px 16px',
+          borderRadius: 'var(--radius-lg)'
         }}>
           <div>
             <span style={{ display: 'block', color: 'var(--text-tertiary)', fontWeight: 800, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
@@ -136,7 +131,7 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
             </span>
             <strong style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
               {exp.payers && exp.payers.length > 1 
-                ? exp.payers.map(p => `${resolveMemberName(p.userId, members, currentUser)} (${getCurrencySymbol(exp.originalCurrency)}${p.amount.toFixed(2)})`).join(', ')
+                ? exp.payers.map(p => `${resolveMemberName(p.userId, members, currentUser)} (${formatAmount(p.amount, exp.originalCurrency)})`).join(', ')
                 : resolveMemberName(exp.paidByUserId, members, currentUser)}
             </strong>
           </div>
@@ -201,7 +196,7 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
                   {resolveMemberName(part.userId, members, currentUser)} {(part.userId === currentUser.id || part.userId === currentUser.email) && '(You)'}
                 </span>
                 <span style={{ fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
-                  {getCurrencySymbol(exp.originalCurrency)}{part.amount.toFixed(2)}
+                  {formatAmount(part.amount, exp.originalCurrency)}
                 </span>
               </div>
             ))}

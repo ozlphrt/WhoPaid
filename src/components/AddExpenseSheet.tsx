@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../store/AppContext';
 import { BottomSheet } from './BottomSheet';
 import { CATEGORIES, suggestCategory } from '../lib/category';
-import { getCurrencySymbol, roundMoney, add, sub, mul } from '../lib/decimal';
+import { getCurrencySymbol, formatAmount, roundMoney, add, sub, mul } from '../lib/decimal';
 import { CurrencyCode, ExpenseCategory, ExpensePayer, ExpenseParticipant } from '../types';
 import { 
   ChevronDown, 
@@ -748,7 +748,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             borderRadius: 'var(--radius-md)'
           }}
         >
-          <span>Save Expense {parsedAmount > 0 ? `• ${getCurrencySymbol(currency)}${parsedAmount.toFixed(2)}` : ''}</span>
+          <span>Save Expense {parsedAmount > 0 ? `• ${formatAmount(parsedAmount, currency)}` : ''}</span>
         </button>
 
       </form>

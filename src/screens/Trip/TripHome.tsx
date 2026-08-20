@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../store/AppContext';
-import { formatMoney, getCurrencySymbol, resolveMemberName } from '../../lib/decimal';
+import { formatMoney, formatAmount, getCurrencySymbol, resolveMemberName } from '../../lib/decimal';
 import { Plus, ChevronRight, Scale, HandCoins, FileSpreadsheet, Settings, AlertCircle, Users, ArrowUpRight, ArrowDownLeft, Receipt, PieChart } from 'lucide-react';
 import { AddExpenseSheet } from '../../components/AddExpenseSheet';
 import { ExpenseDetailModal } from '../../components/ExpenseDetailModal';
@@ -143,7 +143,7 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
               ) : owes ? (
                 <span>−{formatMoney(Math.abs(userNetBalance), activeTrip.mainCurrency)}</span>
               ) : (
-                <span style={{ fontSize: '2rem', color: 'var(--text-primary)' }}>€0.00</span>
+                <span style={{ fontSize: '2rem', color: 'var(--text-primary)' }}>{formatMoney(0, activeTrip.mainCurrency)}</span>
               )}
             </div>
           </div>
@@ -366,7 +366,7 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
 
                           <div style={{ textAlign: 'right', flexShrink: 0 }}>
                             <div style={{ fontSize: '1.05rem', fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
-                              {getCurrencySymbol(exp.originalCurrency)}{exp.originalAmount.toFixed(2)}
+                              {formatAmount(exp.originalAmount, exp.originalCurrency)}
                             </div>
                             {exp.originalCurrency !== exp.mainCurrency && (
                               <span style={{ fontSize: '0.76rem', color: 'var(--text-tertiary)' }}>
