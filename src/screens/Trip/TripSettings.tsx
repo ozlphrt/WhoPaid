@@ -240,27 +240,29 @@ export const TripSettings: React.FC = () => {
             <h2 style={{ fontSize: '0.95rem', fontWeight: 700 }}>Participants ({members.length})</h2>
           </div>
 
-          <button
-            onClick={() => setIsInviteOpen(true)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              fontSize: '0.76rem',
-              fontWeight: 700,
-              color: 'var(--brand-500, #10b981)',
-              background: 'var(--positive-bg)',
-              border: '1px solid var(--positive-border)',
-              padding: '4px 10px',
-              borderRadius: 'var(--radius-full)',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease'
-            }}
-            title="Invite members to this trip"
-          >
-            <UserPlus size={13} />
-            <span>Invite</span>
-          </button>
+          {isOwner && (
+            <button
+              onClick={() => setIsInviteOpen(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: '0.76rem',
+                fontWeight: 700,
+                color: 'var(--brand-500, #10b981)',
+                background: 'var(--positive-bg)',
+                border: '1px solid var(--positive-border)',
+                padding: '4px 10px',
+                borderRadius: 'var(--radius-full)',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              title="Invite members to this trip"
+            >
+              <UserPlus size={13} />
+              <span>Invite</span>
+            </button>
+          )}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
