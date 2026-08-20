@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../store/AppContext';
-import { ChevronLeft, Sun, Moon, RotateCw } from 'lucide-react';
+import { ChevronLeft, Sun, Moon } from 'lucide-react';
 
 type ThemeMode = 'light' | 'dark';
 
@@ -175,19 +175,29 @@ export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
 
         {/* Right Actions */}
         <div className="nav-actions" style={{ flexShrink: 0, gap: 8, alignItems: 'center' }}>
-          {/* Instant Sync / Refresh Button */}
+          {/* Instant Sync / Refresh Label Button */}
           <button
             onClick={handleManualRefresh}
-            className="nav-icon-btn"
-            style={{ width: 32, height: 32 }}
+            style={{
+              height: 32,
+              padding: '0 10px',
+              borderRadius: 'var(--radius-full)',
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border-subtle)',
+              color: isRefreshing ? 'var(--brand-500, #10b981)' : 'var(--text-secondary)',
+              fontWeight: 700,
+              fontSize: '0.78rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              boxShadow: 'var(--shadow-sm)',
+              transition: 'all 0.15s ease'
+            }}
             title="Sync & Refresh Data"
-            aria-label="Refresh"
+            aria-label="Sync Data"
           >
-            <RotateCw 
-              size={15} 
-              className={isRefreshing ? 'animate-spin' : ''} 
-              style={{ transition: 'transform 0.3s ease' }} 
-            />
+            <span>{isRefreshing ? 'Syncing...' : 'Sync'}</span>
           </button>
 
           {/* Light / Dark Mode Toggle Button */}
