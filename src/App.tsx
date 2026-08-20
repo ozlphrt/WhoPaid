@@ -9,6 +9,7 @@ import { Settle } from './screens/Trip/Settle';
 import { ProfileScreen } from './screens/Profile/ProfileScreen';
 import { AuthScreen } from './screens/Auth/AuthScreen';
 import { UndoToast } from './components/UndoToast';
+import { PWAUpdateModal } from './components/PWAUpdateModal';
 import { db } from './lib/db';
 import './styles/global.css';
 import './styles/components.css';
@@ -279,6 +280,7 @@ const AppContent: React.FC<AppContentProps> = () => {
       )}
 
       <UndoToast />
+      <PWAUpdateModal />
     </div>
   );
 };
