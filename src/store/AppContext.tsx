@@ -541,9 +541,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       })();
 
-      // Allow up to 15 seconds for shared trip discovery (multiple Firestore queries)
+      // Fast, responsive sync timeout (6s maximum)
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Cloud sync timed out')), 15000)
+        setTimeout(() => reject(new Error('Cloud sync timed out')), 6000)
       );
 
       await Promise.race([syncPromise, timeoutPromise]);
@@ -1162,6 +1162,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setTrips(prev => [...prev.filter(trip => trip.id !== remoteTrip.id), remoteTrip]);
     setActiveTripId(tripId);
     await refreshData();
+    showAlert(`You joined ${remoteTrip.name} successfully!`, 'Trip Joined 🎉', 'success');
   };
 
   const updateTrip = async (trip: Trip) => {

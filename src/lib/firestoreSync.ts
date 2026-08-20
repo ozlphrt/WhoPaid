@@ -341,19 +341,11 @@ export async function fetchUserTripsFromCloud(userId: string, userEmail?: string
     const tripsRef = collection(db, 'trips');
     const resultById = new Map<string, Trip>();
 
-    const queries: Promise<any>[] = [
+    // 1. Instant Direct Queries: Owned Trips & User Memberships (no index required, <100ms)
+    const [ownedSnap, membershipSnap] = await Promise.all([
       getDocs(query(tripsRef, where('ownerId', '==', userId))).catch(() => null),
-      getDocs(collection(db, 'users', userId, 'tripMemberships')).catch(() => null),
-      getDocs(query(collectionGroup(db, 'members'), where('userId', '==', userId))).catch(() => null)
-    ];
-
-    if (userEmail) {
-      queries.push(
-        getDocs(query(collectionGroup(db, 'members'), where('email', '==', userEmail.toLowerCase()))).catch(() => null)
-      );
-    }
-
-    const [ownedSnap, membershipSnap, memberUidSnap, memberEmailSnap] = await Promise.all(queries);
+      getDocs(collection(db, 'users', userId, 'tripMemberships')).catch(() => null)
+    ]);
 
     if (ownedSnap) {
       ownedSnap.forEach((tripDoc: any) => {
@@ -362,8 +354,8 @@ export async function fetchUserTripsFromCloud(userId: string, userEmail?: string
       });
     }
 
-    if (membershipSnap) {
-      await Promise.all(membershipSnap.docs.map(async (membershipDoc: any) => {
+    if (membershipSnap && membershipSnap.docs.length > 0) {
+      const membershipTripFetches = membershipSnap.docs.map(async (membershipDoc: any) => {
         const tripId = membershipDoc.data().tripId || membershipDoc.id;
         if (!resultById.has(tripId)) {
           const tripDoc = await getDoc(doc(db, 'trips', tripId)).catch(() => null);
@@ -372,28 +364,42 @@ export async function fetchUserTripsFromCloud(userId: string, userEmail?: string
             if (!trip.isDeleted) resultById.set(trip.id, trip);
           }
         }
-      }));
+      });
+      await Promise.all(membershipTripFetches);
     }
 
-    // Process collectionGroup member matches for shared trips
-    const memberSnaps = [memberUidSnap, memberEmailSnap].filter(Boolean);
-    for (const snap of memberSnaps) {
-      if (snap) {
-        await Promise.all(snap.docs.map(async (mDoc: any) => {
-          const parentTripRef = mDoc.ref.parent?.parent;
-          if (parentTripRef && !resultById.has(parentTripRef.id)) {
-            const tripDoc = await getDoc(parentTripRef).catch(() => null);
-            if (tripDoc && tripDoc.exists()) {
-              const trip = { id: tripDoc.id, ...(tripDoc.data() as any) } as Trip;
-              if (!trip.isDeleted) {
-                resultById.set(trip.id, trip);
-                syncUserTripMembership(trip.id, userId, 'member').catch(() => {});
+    // 2. Optional auxiliary query (with strict 2s timeout so it never hangs)
+    const auxPromise = (async () => {
+      const memberQueries: Promise<any>[] = [
+        getDocs(query(collectionGroup(db, 'members'), where('userId', '==', userId))).catch(() => null)
+      ];
+      if (userEmail) {
+        memberQueries.push(
+          getDocs(query(collectionGroup(db, 'members'), where('email', '==', userEmail.toLowerCase()))).catch(() => null)
+        );
+      }
+      const snaps = await Promise.all(memberQueries);
+      for (const snap of snaps.filter(Boolean)) {
+        if (snap) {
+          await Promise.all(snap.docs.map(async (mDoc: any) => {
+            const parentTripRef = mDoc.ref.parent?.parent;
+            if (parentTripRef && !resultById.has(parentTripRef.id)) {
+              const tripDoc = await getDoc(parentTripRef).catch(() => null);
+              if (tripDoc && tripDoc.exists()) {
+                const trip = { id: tripDoc.id, ...(tripDoc.data() as any) } as Trip;
+                if (!trip.isDeleted) {
+                  resultById.set(trip.id, trip);
+                  syncUserTripMembership(trip.id, userId, 'member').catch(() => {});
+                }
               }
             }
-          }
-        }));
+          }));
+        }
       }
-    }
+    })();
+
+    const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 2000));
+    await Promise.race([auxPromise, timeoutPromise]);
 
     return [...resultById.values()];
   } catch (err) {
