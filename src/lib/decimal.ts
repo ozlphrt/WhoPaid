@@ -49,11 +49,10 @@ export function formatMoney(amount: number, currency: string = 'EUR', showSign: 
   return rounded < -0.005 ? `-${formatted}` : formatted;
 }
 
-export function formatAmount(amount: number, currency?: string): string {
-  const isWhole = Math.abs(amount % 1) < 0.005;
-  const numStr = isWhole
-    ? Math.round(amount).toLocaleString('en-US')
-    : amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export function formatAmount(amount: number, currency?: string, includeDecimals: boolean = false): string {
+  const numStr = includeDecimals
+    ? amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : Math.round(amount).toLocaleString('en-US');
   if (currency) {
     return `${getCurrencySymbol(currency)}${numStr}`;
   }
