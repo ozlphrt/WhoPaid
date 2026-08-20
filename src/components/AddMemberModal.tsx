@@ -4,6 +4,7 @@ import { useApp } from '../store/AppContext';
 import { Trip } from '../types';
 import QRCode from 'qrcode';
 import { UserPlus, Copy, Check, Share2, Mail, User } from 'lucide-react';
+import { buildInviteUrl } from '../lib/invite';
 
 interface AddMemberModalProps {
   trip: Trip | null;
@@ -21,8 +22,9 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({ trip, isOpen, on
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copied, setCopied] = useState<boolean>(false);
 
-  const baseUrl = `${window.location.origin}${window.location.pathname.replace(/\/$/, '')}`;
-  const inviteUrl = trip?.inviteToken ? `${baseUrl}/?join=${encodeURIComponent(trip.inviteToken)}` : '';
+  const inviteUrl = trip?.inviteToken
+    ? buildInviteUrl(window.location.origin, import.meta.env.BASE_URL, trip.inviteToken)
+    : '';
 
   useEffect(() => {
     if (inviteUrl && isOpen) {

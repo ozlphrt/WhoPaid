@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { PENDING_INVITE_KEY, readInviteToken } from '../../lib/invite';
 import { useApp } from '../../store/AppContext';
 import { ShieldCheck, Loader2, Mail, Lock, User as UserIcon, ArrowRight } from 'lucide-react';
 
@@ -20,14 +21,11 @@ export const AuthScreen: React.FC = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [hasPendingInvite] = useState(() => {
-    const searchParams = new URLSearchParams(window.location.search);
-    const hashParams = new URLSearchParams(window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '');
-    return Boolean(searchParams.get('join') ||
-      searchParams.get('tripId') ||
-      hashParams.get('join') ||
-      hashParams.get('tripId') ||
-      sessionStorage.getItem('whopaid_pending_join') ||
-      localStorage.getItem('whopaid_pending_join'));
+    return Boolean(
+      readInviteToken(window.location.href) ||
+      sessionStorage.getItem(PENDING_INVITE_KEY) ||
+      localStorage.getItem(PENDING_INVITE_KEY)
+    );
   });
 
   const handleGoogleSignIn = async () => {

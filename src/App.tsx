@@ -11,6 +11,7 @@ import { AuthScreen } from './screens/Auth/AuthScreen';
 import { UndoToast } from './components/UndoToast';
 import { PWAUpdateModal } from './components/PWAUpdateModal';
 import { db } from './lib/db';
+import { PENDING_INVITE_KEY } from './lib/invite';
 import './styles/global.css';
 import './styles/components.css';
 
@@ -124,22 +125,10 @@ const AppContent: React.FC<AppContentProps> = () => {
     currentUser,
     joinTrip,
     showAlert,
-    startupStatus
+    startupStatus,
+    firebaseUser
   } = useApp();
   const joiningTripRef = useRef<string | null>(null);
-
-  // Capture ?join= token immediately on mount before OAuth redirects strip the URL
-  useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
-    const hashParams = new URLSearchParams(window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '');
-    const token = searchParams.get('join') || searchParams.get('tripId') || hashParams.get('join') || hashParams.get('tripId');
-    if (token) {
-      localStorage.setItem('whopaid_pending_join', token);
-      sessionStorage.setItem('whopaid_pending_join', token);
-      // Clean the URL to prevent re-processing on reload
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-  }, []);
 
   // Start from 'trips' overview screen, or resume where user left off if an active trip is open (never resume into profile)
   const [currentView, setCurrentView] = useState<AppView>(() => {
@@ -181,15 +170,15 @@ const AppContent: React.FC<AppContentProps> = () => {
 
   // Process pending invitation after user is fully initialized and authenticated
   useEffect(() => {
-    if (!isInitialized || !isAuthenticated) return;
+    if (!isInitialized || !isAuthenticated || !firebaseUser) return;
 
-    const pendingJoin = localStorage.getItem('whopaid_pending_join') || sessionStorage.getItem('whopaid_pending_join');
+    const pendingJoin = localStorage.getItem(PENDING_INVITE_KEY) || sessionStorage.getItem(PENDING_INVITE_KEY);
     if (pendingJoin && joiningTripRef.current !== pendingJoin) {
       joiningTripRef.current = pendingJoin;
       joinTrip(pendingJoin)
         .then(() => {
-          sessionStorage.removeItem('whopaid_pending_join');
-          localStorage.removeItem('whopaid_pending_join');
+          sessionStorage.removeItem(PENDING_INVITE_KEY);
+          localStorage.removeItem(PENDING_INVITE_KEY);
           setCurrentView('trip-home');
           localStorage.setItem('whopaid_last_view', 'trip-home');
         })
@@ -200,7 +189,7 @@ const AppContent: React.FC<AppContentProps> = () => {
           showAlert(message, 'Could not join trip', 'warning');
         });
     }
-  }, [isInitialized, isAuthenticated, joinTrip, showAlert]);
+  }, [isInitialized, isAuthenticated, firebaseUser, joinTrip, showAlert]);
 
   const handleSelectTrip = (tripId: string) => {
     setActiveTripId(tripId);

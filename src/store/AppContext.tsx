@@ -1127,6 +1127,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const tripId = remoteTrip.id;
     await db.trips.put(remoteTrip);
 
+    // Publish the successful cloud join immediately. Secondary hydration must
+    // not prevent the trip from appearing in the user's list.
+    setTrips(prev => [...prev.filter(trip => trip.id !== remoteTrip.id), remoteTrip]);
+    setActiveTripId(tripId);
+
     // Membership is now authorized, so protected trip data can be loaded.
     const [remoteMembers, remoteExpenses] = await Promise.all([
       fetchTripMembersFromCloud(tripId),
@@ -1157,10 +1162,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       joinedAt: existing?.joinedAt || new Date().toISOString()
     };
     await db.tripMembers.put(memberRecord);
-    await syncMemberToCloud(tripId, memberRecord);
-
-    setTrips(prev => [...prev.filter(trip => trip.id !== remoteTrip.id), remoteTrip]);
-    setActiveTripId(tripId);
+    try {
+      await syncMemberToCloud(tripId, memberRecord);
+    } catch (error) {
+      // The membership index and trip are already persisted. A profile/member
+      // hydration failure should be retried later, not roll back a valid join.
+      console.warn('[Firestore] Joined trip but could not update member profile:', error);
+    }
     await refreshData();
     showAlert(`You joined ${remoteTrip.name} successfully!`, 'Trip Joined 🎉', 'success');
   };

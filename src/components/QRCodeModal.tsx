@@ -3,6 +3,7 @@ import { BottomSheet } from './BottomSheet';
 import QRCode from 'qrcode';
 import { Copy, Check, Share2, Sparkles } from 'lucide-react';
 import { Trip } from '../types';
+import { buildInviteUrl } from '../lib/invite';
 
 interface QRCodeModalProps {
   trip: Trip | null;
@@ -14,9 +15,9 @@ export const QRCodeModal: React.FC<QRCodeModalProps> = ({ trip, isOpen, onClose 
   const [qrDataUrl, setQrDataUrl] = useState<string>('');
   const [copied, setCopied] = useState<boolean>(false);
 
-  // Clean base URL handling for GitHub Pages & Localhost
-  const baseUrl = `${window.location.origin}${window.location.pathname.replace(/\/$/, '')}`;
-  const inviteUrl = trip?.inviteToken ? `${baseUrl}/?join=${encodeURIComponent(trip.inviteToken)}` : '';
+  const inviteUrl = trip?.inviteToken
+    ? buildInviteUrl(window.location.origin, import.meta.env.BASE_URL, trip.inviteToken)
+    : '';
 
   useEffect(() => {
     if (inviteUrl && isOpen) {
