@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../../store/AppContext';
 import { Trip } from '../../types';
 import { formatMoney } from '../../lib/decimal';
@@ -313,7 +313,7 @@ const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
 
         {/* Net Balance Amount Display */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-          {tripBal && (
+          {tripBal ? (
             <div style={{ textAlign: 'right' }}>
               <div style={{
                 fontSize: '0.98rem',
@@ -354,6 +354,11 @@ const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
                   : 'All settled'}
               </div>
             </div>
+          ) : (
+            <div style={{ textAlign: 'right', color: 'var(--text-tertiary)' }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 700 }}>Updating…</div>
+              <div style={{ fontSize: '0.65rem', marginTop: 2 }}>Trip amount</div>
+            </div>
           )}
 
           <ChevronRight size={18} color="var(--text-tertiary)" />
@@ -370,7 +375,10 @@ export const TripsHome: React.FC<TripsHomeProps> = ({ onSelectTrip, onOpenArchiv
   const [openTripId, setOpenTripId] = useState<string | null>(null);
   const [tripBalances, setTripBalances] = useState<Record<string, { net: number; hasExpenses: boolean }>>({});
 
-  const activeTrips = trips.filter(t => !t.isClosed && !t.isDeleted);
+  const activeTrips = useMemo(
+    () => trips.filter(t => !t.isClosed && !t.isDeleted),
+    [trips]
+  );
 
   // Automatically refresh cloud data on overview mount
   useEffect(() => {

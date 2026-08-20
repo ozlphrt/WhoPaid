@@ -41,6 +41,8 @@ import {
   fetchUserTripsFromCloud,
   fetchTripExpensesFromCloud,
   fetchTripMembersFromCloud,
+  fetchTripHouseholdsFromCloud,
+  fetchTripSettlementsFromCloud,
   ActiveTripListeners
 } from '../lib/firestoreSync';
 import { sendLocalNotification, requestNotificationPermission, isNotificationGranted } from '../lib/notifications';
@@ -249,6 +251,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const tripListenersRef = useRef<ActiveTripListeners | null>(null);
   const hasHydratedRef = useRef<boolean>(false);
   const cloudSyncInFlightRef = useRef<boolean>(false);
+  const summaryHydrationInFlightRef = useRef<Promise<void> | null>(null);
 
   // In-App Global Modal Dialog State
   const [dialogState, setDialogState] = useState<DialogOptions | null>(null);
@@ -542,6 +545,50 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             remoteTrips.forEach(trip => merged.set(trip.id, trip));
             return [...merged.values()].filter(trip => !trip.isDeleted);
           });
+
+          // Home balances need members, expenses, settlements, and households.
+          // Hydrate them after the trip list is visible, with limited
+          // concurrency so a fresh device stays responsive.
+          if (!summaryHydrationInFlightRef.current) {
+            const summaryTrips = remoteTrips.filter(trip => !trip.isDeleted && !trip.isClosed);
+            const hydrationPromise = (async () => {
+              const queue = [...summaryTrips];
+              const workerCount = Math.min(3, queue.length);
+              const workers = Array.from({ length: workerCount }, async () => {
+                while (queue.length > 0) {
+                  const trip = queue.shift();
+                  if (!trip) return;
+                  try {
+                    const [tripMembers, tripExpenses, tripSettlements, tripHouseholds] = await Promise.all([
+                      fetchTripMembersFromCloud(trip.id),
+                      fetchTripExpensesFromCloud(trip.id),
+                      fetchTripSettlementsFromCloud(trip.id),
+                      fetchTripHouseholdsFromCloud(trip.id)
+                    ]);
+                    await Promise.all([
+                      tripMembers.length > 0 ? db.tripMembers.bulkPut(tripMembers) : Promise.resolve(),
+                      tripExpenses.length > 0 ? db.expenses.bulkPut(tripExpenses) : Promise.resolve(),
+                      tripSettlements.length > 0 ? db.settlements.bulkPut(tripSettlements) : Promise.resolve(),
+                      tripHouseholds.length > 0 ? db.households.bulkPut(tripHouseholds) : Promise.resolve()
+                    ]);
+                  } catch (error) {
+                    console.warn('[Firestore Sync] Home summary hydration will retry:', error);
+                  }
+                }
+              });
+              await Promise.all(workers);
+
+              // Re-publish once so TripsHome recalculates all balances from the
+              // newly populated IndexedDB collections.
+              setTrips(previous => [...previous]);
+            })();
+            summaryHydrationInFlightRef.current = hydrationPromise;
+            void hydrationPromise.finally(() => {
+              if (summaryHydrationInFlightRef.current === hydrationPromise) {
+                summaryHydrationInFlightRef.current = null;
+              }
+            });
+          }
         }
       })();
 
