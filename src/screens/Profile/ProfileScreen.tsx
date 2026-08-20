@@ -320,39 +320,6 @@ export const ProfileScreen: React.FC = () => {
         <span>Sign Out ({currentUser.email || currentUser.name})</span>
       </button>
 
-      {/* Clear / Reset All Data for testing */}
-      <button
-        type="button"
-        onClick={() => {
-          showConfirm(
-            'Are you sure you want to delete all trips and test expenses to start fresh?',
-            async () => {
-              await clearAllData();
-              showAlert('All trips and test data have been wiped clean.', 'Data Reset', 'success');
-            },
-            {
-              title: 'Reset All Data?',
-              confirmText: 'Reset Data',
-              isDestructive: true
-            }
-          );
-        }}
-        style={{
-          width: '100%',
-          padding: '10px 14px',
-          borderRadius: 'var(--radius-lg)',
-          background: 'transparent',
-          color: 'var(--text-tertiary)',
-          border: '1px dashed var(--border-subtle)',
-          fontSize: '0.78rem',
-          fontWeight: 600,
-          cursor: 'pointer',
-          textAlign: 'center'
-        }}
-      >
-        🗑️ Clear All Trips & Data (Start Fresh)
-      </button>
-
     </div>
   );
 };
