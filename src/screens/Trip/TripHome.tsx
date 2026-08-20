@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useApp } from '../../store/AppContext';
 import { formatMoney, formatAmount, getCurrencySymbol, resolveMemberName } from '../../lib/decimal';
-import { Plus, ChevronRight, Scale, HandCoins, FileSpreadsheet, Settings, AlertCircle, Users, ArrowUpRight, ArrowDownLeft, Receipt, PieChart } from 'lucide-react';
+import { Plus, ChevronRight, Scale, HandCoins, FileSpreadsheet, Settings, AlertCircle, Users, ArrowUpRight, ArrowDownLeft, Receipt, PieChart, UserPlus } from 'lucide-react';
 import { AddExpenseSheet } from '../../components/AddExpenseSheet';
 import { ExpenseDetailModal } from '../../components/ExpenseDetailModal';
+import { AddMemberModal } from '../../components/AddMemberModal';
 import { CategoryIcon } from '../../components/CategoryIcon';
 
 interface TripHomeProps {
@@ -23,6 +24,7 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
   } = useApp();
 
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
   const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
   const [editingExpenseId, setEditingExpenseId] = useState<string | undefined>(undefined);
 
@@ -220,11 +222,25 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
             <h2 style={{ fontSize: '0.92rem', fontWeight: 800, letterSpacing: '-0.01em' }}>Group Members ({members.length})</h2>
           </div>
           <button
-            onClick={() => onNavigateTab('report')}
-            style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 2 }}
+            onClick={() => setIsAddMemberOpen(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              fontSize: '0.76rem',
+              fontWeight: 700,
+              color: 'var(--brand-500, #10b981)',
+              background: 'var(--positive-bg)',
+              border: '1px solid var(--positive-border)',
+              padding: '4px 10px',
+              borderRadius: 'var(--radius-full)',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+            title="Add Member to Trip"
           >
-            <span>Breakdown</span>
-            <ChevronRight size={13} />
+            <UserPlus size={13} />
+            <span>Add Member</span>
           </button>
         </div>
 
@@ -403,6 +419,12 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
           setEditingExpenseId(id);
           setIsAddOpen(true);
         }}
+      />
+
+      <AddMemberModal
+        trip={activeTrip}
+        isOpen={isAddMemberOpen}
+        onClose={() => setIsAddMemberOpen(false)}
       />
 
     </div>
