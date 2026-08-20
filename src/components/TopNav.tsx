@@ -10,7 +10,7 @@ interface TopNavProps {
 }
 
 export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
-  const { activeTrip, currentUser, isOnline, expenses, refreshData } = useApp();
+  const { activeTrip, currentUser, isOnline, expenses, refreshData, syncWithCloud } = useApp();
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Theme state: defaults to dark, with one-tap toggle to light
@@ -30,7 +30,8 @@ export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await refreshData();
+      // Full cloud sync – fetches shared trips from Firestore, not just local DB
+      await syncWithCloud();
       // On standalone PWA, check for service worker updates
       if ('serviceWorker' in navigator) {
         const reg = await navigator.serviceWorker.getRegistration();
