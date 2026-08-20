@@ -365,26 +365,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         if (loggedIn) setStoredUser(loggedIn);
       }
 
-      const memberTripIds = new Set<string>();
-      for (const m of allMembers) {
-        if (
-          m.userId === currentUser.id ||
-          m.authUid === currentUser.id ||
-          m.legacyUserIds?.includes(currentUser.id) ||
-          (currentUser.email && m.email && m.email.toLowerCase() === currentUser.email.toLowerCase())
-        ) {
-          memberTripIds.add(m.tripId);
-        }
-      }
-
-      // Filter active non-deleted trips for THIS user only
-      const userTrips = allTrips.filter(t => 
-        !t.isDeleted && (
-          t.ownerId === currentUser.id || 
-          t.memberUids?.includes(currentUser.id) ||
-          memberTripIds.has(t.id)
-        )
-      );
+      // Display all active non-deleted trips stored in this user's database
+      const userTrips = allTrips.filter(t => !t.isDeleted);
       setTrips(userTrips);
 
       if (activeTripId) {
