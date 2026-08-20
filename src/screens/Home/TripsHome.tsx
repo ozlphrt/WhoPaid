@@ -48,11 +48,13 @@ const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
   const isOwed = tripBal?.hasExpenses && tripBal.net > 0.009;
   const owes = tripBal?.hasExpenses && tripBal.net < -0.009;
 
-  const currentTranslateX = isOwner && dragOffset !== null ? dragOffset : (isOwner && isOpen ? -ACTION_WIDTH : 0);
+  // Owners get 152px (Archive + Delete); Shared members get 76px (Archive/Hide only)
+  const actionWidth = isOwner ? 152 : 76;
 
-  // Touch Handlers (Only active for trip owner)
+  const currentTranslateX = dragOffset !== null ? dragOffset : (isOpen ? -actionWidth : 0);
+
+  // Touch Handlers
   const handleTouchStart = (e: React.TouchEvent) => {
-    if (!isOwner) return;
     startX.current = e.touches[0].clientX;
     startY.current = e.touches[0].clientY;
     isHorizontalSwipe.current = null;
@@ -60,7 +62,7 @@ const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (!isOwner || !isDragging) return;
+    if (!isDragging) return;
     const diffX = e.touches[0].clientX - startX.current;
     const diffY = e.touches[0].clientY - startY.current;
 
@@ -72,12 +74,12 @@ const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
 
     if (!isHorizontalSwipe.current) return;
 
-    const base = isOpen ? -ACTION_WIDTH : 0;
+    const base = isOpen ? -actionWidth : 0;
     const raw = base + diffX;
 
     if (raw <= 0) {
-      if (raw < -ACTION_WIDTH) {
-        setDragOffset(-ACTION_WIDTH + (raw + ACTION_WIDTH) * 0.25);
+      if (raw < -actionWidth) {
+        setDragOffset(-actionWidth + (raw + actionWidth) * 0.25);
       } else {
         setDragOffset(raw);
       }
@@ -87,25 +89,24 @@ const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
   };
 
   const handleTouchEnd = () => {
-    if (!isOwner || !isDragging) return;
+    if (!isDragging) return;
     setIsDragging(false);
 
     if (isHorizontalSwipe.current) {
-      const current = dragOffset ?? (isOpen ? -ACTION_WIDTH : 0);
+      const current = dragOffset ?? (isOpen ? -actionWidth : 0);
       if (isOpen) {
-        if (current > -ACTION_WIDTH + 35) onClose();
+        if (current > -actionWidth + 30) onClose();
         else onOpen();
       } else {
-        if (current < -40) onOpen();
+        if (current < -30) onOpen();
         else onClose();
       }
     }
     setDragOffset(null);
   };
 
-  // Mouse Drag Support (Only active for trip owner)
+  // Mouse Drag Support
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (!isOwner) return;
     startX.current = e.clientX;
     startY.current = e.clientY;
     isHorizontalSwipe.current = null;
@@ -123,10 +124,10 @@ const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
 
       if (!isHorizontalSwipe.current) return;
 
-      const base = isOpen ? -ACTION_WIDTH : 0;
+      const base = isOpen ? -actionWidth : 0;
       const raw = base + diffX;
       if (raw <= 0) {
-        setDragOffset(raw < -ACTION_WIDTH ? -ACTION_WIDTH + (raw + ACTION_WIDTH) * 0.25 : raw);
+        setDragOffset(raw < -actionWidth ? -actionWidth + (raw + actionWidth) * 0.25 : raw);
       } else {
         setDragOffset(raw * 0.2);
       }
@@ -140,10 +141,10 @@ const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
       setDragOffset((curr) => {
         if (curr !== null && isHorizontalSwipe.current) {
           if (isOpen) {
-            if (curr > -ACTION_WIDTH + 35) onClose();
+            if (curr > -actionWidth + 30) onClose();
             else onOpen();
           } else {
-            if (curr < -40) onOpen();
+            if (curr < -30) onOpen();
             else onClose();
           }
         }
@@ -156,7 +157,7 @@ const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
   };
 
   const handleCardClick = (e: React.MouseEvent) => {
-    if (isOwner && isOpen) {
+    if (isOpen) {
       e.stopPropagation();
       onClose();
     } else {
@@ -169,53 +170,54 @@ const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
       position: 'relative',
       borderRadius: 'var(--radius-xl)',
       overflow: 'hidden',
-      touchAction: isOwner ? 'pan-y' : 'auto'
+      touchAction: 'pan-y'
     }}>
       
-      {/* Background Revealed Action Buttons (Only for Trip Owner) */}
-      {isOwner && (
-        <div style={{
-          position: 'absolute',
-          top: 0,
-          bottom: 0,
-          right: 0,
-          width: ACTION_WIDTH,
-          display: 'flex',
-          alignItems: 'stretch',
-          zIndex: 1,
-          borderRadius: 'var(--radius-xl)',
-          overflow: 'hidden'
-        }}>
-          {/* Archive / Close Button */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onArchiveTrip(trip);
-            }}
-            style={{
-              flex: 1,
-              background: 'var(--accent-primary, #344256)',
-              color: '#ffffff',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 4,
-              cursor: 'pointer',
-              padding: '0 8px',
-              border: 'none',
-              outline: 'none',
-              transition: 'background 0.15s ease'
-            }}
-          >
-            <Archive size={19} color="#ffffff" />
-            <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
-              Archive
-            </span>
-          </button>
+      {/* Background Revealed Action Buttons */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        right: 0,
+        width: actionWidth,
+        display: 'flex',
+        alignItems: 'stretch',
+        zIndex: 1,
+        borderRadius: 'var(--radius-xl)',
+        overflow: 'hidden'
+      }}>
+        {/* Archive / Hide Button (Available for both Owner and Shared) */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onArchiveTrip(trip);
+          }}
+          style={{
+            flex: 1,
+            background: 'var(--accent-primary, #344256)',
+            color: '#ffffff',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 4,
+            cursor: 'pointer',
+            padding: '0 8px',
+            border: 'none',
+            outline: 'none',
+            transition: 'background 0.15s ease'
+          }}
+          title={isOwner ? "Archive Trip" : "Hide Trip in Archive"}
+        >
+          <Archive size={19} color="#ffffff" />
+          <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
+            {isOwner ? 'Archive' : 'Hide'}
+          </span>
+        </button>
 
-          {/* Delete Button */}
+        {/* Delete Button (Strictly for Trip Owner only) */}
+        {isOwner && (
           <button
             type="button"
             onClick={(e) => {
@@ -237,14 +239,15 @@ const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
               outline: 'none',
               transition: 'background 0.15s ease'
             }}
+            title="Delete Trip"
           >
             <Trash2 size={19} color="#ffffff" />
             <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.02em', textTransform: 'uppercase' }}>
               Delete
             </span>
           </button>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Foreground Front Card */}
       <div
@@ -424,16 +427,23 @@ export const TripsHome: React.FC<TripsHomeProps> = ({ onSelectTrip, onOpenArchiv
   };
 
   const handleArchiveTrip = (trip: Trip) => {
+    const isOwner = trip.ownerId === currentUser.id;
     showConfirm(
-      `Are you sure you want to close and archive "${trip.name}"? You can reopen it anytime from the Archive.`,
+      isOwner
+        ? `Are you sure you want to close and archive "${trip.name}"? You can reopen it anytime from the Archive.`
+        : `Are you sure you want to hide "${trip.name}"? You can access it anytime from Archived & Closed Trips.`,
       async () => {
         await closeTrip(trip.id);
         setOpenTripId(null);
-        showAlert(`"${trip.name}" has been moved to Archive.`, 'Trip Archived', 'success');
+        showAlert(
+          isOwner ? `"${trip.name}" has been moved to Archive.` : `"${trip.name}" is now hidden in Archive.`,
+          isOwner ? 'Trip Archived' : 'Trip Hidden',
+          'success'
+        );
       },
       {
-        title: 'Archive Trip?',
-        confirmText: 'Archive Trip',
+        title: isOwner ? 'Archive Trip?' : 'Hide Trip?',
+        confirmText: isOwner ? 'Archive Trip' : 'Hide Trip',
         isDestructive: false
       }
     );
