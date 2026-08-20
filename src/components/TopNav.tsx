@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../store/AppContext';
-import { ChevronLeft, Sun, Moon } from 'lucide-react';
+import { ChevronLeft, Sun, Moon, RotateCw } from 'lucide-react';
 
 type ThemeMode = 'light' | 'dark';
 
@@ -10,7 +10,8 @@ interface TopNavProps {
 }
 
 export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
-  const { activeTrip, currentUser, isOnline, expenses } = useApp();
+  const { activeTrip, currentUser, isOnline, expenses, refreshData } = useApp();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Theme state: defaults to dark, with one-tap toggle to light
   const [currentTheme, setCurrentTheme] = useState<ThemeMode>(() => {
@@ -24,6 +25,22 @@ export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
 
   const toggleTheme = () => {
     setCurrentTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+
+  const handleManualRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await refreshData();
+      // On standalone PWA, check for service worker updates
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg) await reg.update();
+      }
+    } catch (err) {
+      console.warn('Manual refresh warning:', err);
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 600);
+    }
   };
 
   const handleBack = () => {
@@ -158,6 +175,21 @@ export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
 
         {/* Right Actions */}
         <div className="nav-actions" style={{ flexShrink: 0, gap: 8, alignItems: 'center' }}>
+          {/* Instant Sync / Refresh Button */}
+          <button
+            onClick={handleManualRefresh}
+            className="nav-icon-btn"
+            style={{ width: 32, height: 32 }}
+            title="Sync & Refresh Data"
+            aria-label="Refresh"
+          >
+            <RotateCw 
+              size={15} 
+              className={isRefreshing ? 'animate-spin' : ''} 
+              style={{ transition: 'transform 0.3s ease' }} 
+            />
+          </button>
+
           {/* Light / Dark Mode Toggle Button */}
           <button
             onClick={toggleTheme}
