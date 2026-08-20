@@ -13,7 +13,7 @@ import {
   Unsubscribe 
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { getFirebaseInstances } from './firebase';
+import { getFirebaseConfig, getFirebaseInstances } from './firebase';
 import { Trip, TripMember, Household, Expense, Settlement, Activity } from '../types';
 import { createId } from './id';
 
@@ -189,22 +189,86 @@ export async function syncUserTripMembership(
 
 /** Accept a bearer invitation without exposing the underlying trip document. */
 export async function joinTripInCloud(inviteToken: string, userId: string): Promise<Trip> {
-  const { db } = getFirebaseInstances();
-  if (!db) throw new Error('Cloud sync is unavailable.');
+  const { auth } = getFirebaseInstances();
+  const config = getFirebaseConfig();
+  if (!auth?.currentUser || !config?.projectId) throw new Error('Cloud authentication is unavailable.');
+  if (auth.currentUser.uid !== userId) throw new Error('Please sign in again before joining this trip.');
   if (!inviteToken || !userId) throw new Error('An invitation and signed-in user are required.');
 
-  const inviteSnap = await getDoc(doc(db, 'tripInvites', inviteToken));
-  if (!inviteSnap.exists()) throw new Error('This invitation is invalid or has expired.');
-  const invite = inviteSnap.data() as { tripId?: string; revoked?: boolean };
-  if (!invite.tripId || invite.revoked) throw new Error('This invitation is no longer active.');
+  const idToken = await auth.currentUser.getIdToken();
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 8_000);
+  const baseUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(config.projectId)}/databases/(default)/documents`;
+  const headers = { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/json' };
 
-  const tripRef = doc(db, 'trips', invite.tripId);
-  await syncUserTripMembership(invite.tripId, userId, 'member', inviteToken);
-  const tripSnap = await getDoc(tripRef);
-  if (!tripSnap.exists()) throw new Error('The trip is no longer available.');
-  const trip = { id: tripSnap.id, ...tripSnap.data() } as Trip;
-  if (trip.isClosed || trip.isDeleted) throw new Error('This trip is no longer accepting members.');
-  return trip;
+  const decodeValue = (value: any): any => {
+    if (!value || typeof value !== 'object') return undefined;
+    if ('nullValue' in value) return null;
+    if ('stringValue' in value) return value.stringValue;
+    if ('booleanValue' in value) return value.booleanValue;
+    if ('integerValue' in value) return Number(value.integerValue);
+    if ('doubleValue' in value) return Number(value.doubleValue);
+    if ('timestampValue' in value) return value.timestampValue;
+    if ('arrayValue' in value) return (value.arrayValue.values || []).map(decodeValue);
+    if ('mapValue' in value) {
+      return Object.fromEntries(
+        Object.entries(value.mapValue.fields || {}).map(([key, nested]) => [key, decodeValue(nested)])
+      );
+    }
+    return undefined;
+  };
+  const decodeFields = (fields: Record<string, any> = {}) => Object.fromEntries(
+    Object.entries(fields).map(([key, value]) => [key, decodeValue(value)])
+  );
+  const readJson = async (url: string, init?: RequestInit): Promise<{ response: Response; body: any }> => {
+    const response = await fetch(url, { ...init, headers: { ...headers, ...(init?.headers || {}) }, signal: controller.signal });
+    const body = await response.json().catch(() => ({}));
+    return { response, body };
+  };
+
+  try {
+    const inviteResult = await readJson(`${baseUrl}/tripInvites/${encodeURIComponent(inviteToken)}`);
+    if (inviteResult.response.status === 404) throw new Error('This invitation is invalid or has expired.');
+    if (!inviteResult.response.ok) throw new Error(inviteResult.body?.error?.message || 'The invitation could not be checked.');
+    const invite = decodeFields(inviteResult.body.fields) as { tripId?: string; revoked?: boolean };
+    if (!invite.tripId || invite.revoked) throw new Error('This invitation is no longer active.');
+
+    const tripUrl = `${baseUrl}/trips/${encodeURIComponent(invite.tripId)}`;
+    let tripResult = await readJson(tripUrl);
+
+    // Existing members already have read access, so no membership rewrite is
+    // needed. This makes repeated scans and recovery refreshes idempotent.
+    if (tripResult.response.status === 403) {
+      const membershipBody = JSON.stringify({
+        fields: {
+          tripId: { stringValue: invite.tripId },
+          userId: { stringValue: userId },
+          role: { stringValue: 'member' },
+          inviteToken: { stringValue: inviteToken },
+          joinedAt: { stringValue: new Date().toISOString() }
+        }
+      });
+      const membershipUrl = `${baseUrl}/users/${encodeURIComponent(userId)}/tripMemberships/${encodeURIComponent(invite.tripId)}`;
+      const membershipResult = await readJson(membershipUrl, { method: 'PATCH', body: membershipBody });
+      if (!membershipResult.response.ok) {
+        throw new Error(membershipResult.body?.error?.message || 'The trip membership could not be created.');
+      }
+      tripResult = await readJson(tripUrl);
+    }
+
+    if (tripResult.response.status === 404) throw new Error('The trip is no longer available.');
+    if (!tripResult.response.ok) throw new Error(tripResult.body?.error?.message || 'The trip could not be opened.');
+    const trip = { id: invite.tripId, ...decodeFields(tripResult.body.fields) } as Trip;
+    if (trip.isClosed || trip.isDeleted) throw new Error('This trip is no longer accepting members.');
+    return trip;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('Joining timed out. Please check your connection and try once more.');
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 export async function removeUserFromTripAccess(tripId: string, userId: string): Promise<void> {
