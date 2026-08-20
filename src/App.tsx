@@ -126,9 +126,11 @@ const AppContent: React.FC<AppContentProps> = () => {
     joinTrip,
     showAlert,
     startupStatus,
-    firebaseUser
+    firebaseUser,
+    isFirebaseAuthReady
   } = useApp();
   const joiningTripRef = useRef<string | null>(null);
+  const [isJoiningTrip, setIsJoiningTrip] = useState(false);
 
   // Start from 'trips' overview screen, or resume where user left off if an active trip is open (never resume into profile)
   const [currentView, setCurrentView] = useState<AppView>(() => {
@@ -170,11 +172,12 @@ const AppContent: React.FC<AppContentProps> = () => {
 
   // Process pending invitation after user is fully initialized and authenticated
   useEffect(() => {
-    if (!isInitialized || !isAuthenticated || !firebaseUser) return;
+    if (!isInitialized || !isFirebaseAuthReady || !isAuthenticated || !firebaseUser) return;
 
     const pendingJoin = localStorage.getItem(PENDING_INVITE_KEY) || sessionStorage.getItem(PENDING_INVITE_KEY);
     if (pendingJoin && joiningTripRef.current !== pendingJoin) {
       joiningTripRef.current = pendingJoin;
+      setIsJoiningTrip(true);
       joinTrip(pendingJoin)
         .then(() => {
           sessionStorage.removeItem(PENDING_INVITE_KEY);
@@ -187,9 +190,12 @@ const AppContent: React.FC<AppContentProps> = () => {
           joiningTripRef.current = null;
           const message = error instanceof Error ? error.message : 'The trip could not be joined.';
           showAlert(message, 'Could not join trip', 'warning');
+        })
+        .finally(() => {
+          setIsJoiningTrip(false);
         });
     }
-  }, [isInitialized, isAuthenticated, firebaseUser, joinTrip, showAlert]);
+  }, [isInitialized, isFirebaseAuthReady, isAuthenticated, firebaseUser, joinTrip, showAlert]);
 
   const handleSelectTrip = (tripId: string) => {
     setActiveTripId(tripId);
@@ -212,9 +218,34 @@ const AppContent: React.FC<AppContentProps> = () => {
     );
   }
 
-  // If not signed in, show Auth Gate
-  if (!isAuthenticated || !currentUser) {
+  const hasPendingInvitation = Boolean(
+    localStorage.getItem(PENDING_INVITE_KEY) || sessionStorage.getItem(PENDING_INVITE_KEY)
+  );
+
+  // A local cached profile is sufficient for offline use, but accepting an
+  // invitation requires a real Firebase session in this browser/PWA context.
+  if (
+    !isAuthenticated ||
+    !currentUser ||
+    (hasPendingInvitation && isFirebaseAuthReady && !firebaseUser)
+  ) {
     return <AuthScreen />;
+  }
+
+  if (isJoiningTrip) {
+    return (
+      <div className="startup-screen" role="status" aria-live="polite">
+        <h1 className="startup-wordmark">WhoPaid</h1>
+        <div className="startup-ring is-indeterminate" aria-hidden="true">
+          <span>•••</span>
+        </div>
+        <div className="startup-copy">
+          <h2>Joining your trip</h2>
+          <p>Confirming the invitation and adding it to your trip list...</p>
+        </div>
+        <span className="startup-hint">Please keep WhoPaid open for a moment.</span>
+      </div>
+    );
   }
 
   const showTripDock = Boolean(

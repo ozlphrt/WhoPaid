@@ -135,6 +135,7 @@ interface AppContextType {
   isFirebaseActive: boolean;
   cloudSyncStatus: 'offline' | 'connected' | 'syncing' | 'error';
   firebaseUser: any | null;
+  isFirebaseAuthReady: boolean;
   startupStatus: StartupStatus;
   loginAsGuest: () => Promise<void>;
   loginWithGoogleAuth: () => Promise<void>;
@@ -237,6 +238,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [firebaseUser, setFirebaseUser] = useState<any | null>(null);
+  const [isFirebaseAuthReady, setIsFirebaseAuthReady] = useState<boolean>(false);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'offline' | 'connected' | 'syncing' | 'error'>('offline');
   const [startupStatus, setStartupStatus] = useState<StartupStatus>({
     phase: 'loading-local',
@@ -294,12 +296,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     if (!isFirebaseConfigured()) {
       setCloudSyncStatus('offline');
+      setIsFirebaseAuthReady(true);
       return;
     }
 
     setCloudSyncStatus('connected');
     const unsubscribeAuth = subscribeToAuthChanges(async (fbUser) => {
       setFirebaseUser(fbUser);
+      setIsFirebaseAuthReady(true);
       if (fbUser) {
         // Retrieve customized display name and currency if previously saved
         const localExisting = await db.users.get(fbUser.uid);
@@ -1655,6 +1659,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         isFirebaseActive: isFirebaseConfigured(),
         cloudSyncStatus,
         firebaseUser,
+        isFirebaseAuthReady,
         startupStatus,
         loginAsGuest,
         loginWithGoogleAuth,
