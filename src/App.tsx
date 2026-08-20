@@ -10,7 +10,12 @@ import { ProfileScreen } from './screens/Profile/ProfileScreen';
 import { AuthScreen } from './screens/Auth/AuthScreen';
 import { UndoToast } from './components/UndoToast';
 import { db } from './lib/db';
-import { PENDING_INVITE_KEY } from './lib/invite';
+import {
+  PENDING_INVITE_KEY,
+  clearPendingInvite,
+  markPendingInviteAttempt,
+  wasPendingInviteAttempted
+} from './lib/invite';
 import './styles/global.css';
 import './styles/components.css';
 
@@ -180,13 +185,26 @@ const AppContent: React.FC<AppContentProps> = () => {
       ? trips.find(trip => trip.inviteToken === pendingJoin && !trip.isDeleted)
       : undefined;
 
+    // A reload can interrupt an in-flight request before its catch handler
+    // runs. Never let that stale token take over every future app startup.
+    if (pendingJoin && wasPendingInviteAttempted(pendingJoin)) {
+      clearPendingInvite();
+      joiningTripRef.current = pendingJoin;
+      setIsJoiningTrip(false);
+      showAlert(
+        'The previous invitation attempt did not finish. Open or scan the invitation again if the trip is not already in your list.',
+        'Invitation Reset',
+        'info'
+      );
+      return;
+    }
+
     if (pendingJoin && alreadyJoinedTrip) {
       if (slowJoinTimerRef.current !== null) {
         window.clearTimeout(slowJoinTimerRef.current);
         slowJoinTimerRef.current = null;
       }
-      sessionStorage.removeItem(PENDING_INVITE_KEY);
-      localStorage.removeItem(PENDING_INVITE_KEY);
+      clearPendingInvite();
       joiningTripRef.current = pendingJoin;
       setIsJoiningTrip(false);
       setActiveTripId(alreadyJoinedTrip.id);
@@ -197,6 +215,7 @@ const AppContent: React.FC<AppContentProps> = () => {
 
     if (pendingJoin && joiningTripRef.current !== pendingJoin) {
       joiningTripRef.current = pendingJoin;
+      markPendingInviteAttempt(pendingJoin);
       setIsJoiningTrip(true);
       slowJoinTimerRef.current = window.setTimeout(() => {
         setIsJoiningTrip(false);
@@ -208,15 +227,14 @@ const AppContent: React.FC<AppContentProps> = () => {
       }, 10_000);
       joinTrip(pendingJoin)
         .then(() => {
-          sessionStorage.removeItem(PENDING_INVITE_KEY);
-          localStorage.removeItem(PENDING_INVITE_KEY);
+          clearPendingInvite();
           setCurrentView('trip-home');
           localStorage.setItem('whopaid_last_view', 'trip-home');
         })
         .catch((error: unknown) => {
-          // Keep this attempt marked as handled to avoid an automatic retry
-          // loop. The pending token remains stored, so reopening WhoPaid can
-          // retry a transient failure.
+          // A failed token must not hijack every subsequent app refresh. A
+          // user can explicitly retry by reopening or rescanning the link.
+          clearPendingInvite();
           const message = error instanceof Error ? error.message : 'The trip could not be joined.';
           showAlert(message, 'Could not join trip', 'warning');
         })
