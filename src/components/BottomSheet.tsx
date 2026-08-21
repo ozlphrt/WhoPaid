@@ -7,6 +7,7 @@ interface BottomSheetProps {
   title?: string;
   children: React.ReactNode;
   showClose?: boolean;
+  fullScreen?: boolean;
 }
 
 export const BottomSheet: React.FC<BottomSheetProps> = ({
@@ -14,7 +15,8 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   onClose,
   title,
   children,
-  showClose = true
+  showClose = true,
+  fullScreen = false
 }) => {
   const closeSheet = () => {
     if (document.activeElement instanceof HTMLElement) {
@@ -42,7 +44,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   return (
     <div className="sheet-backdrop" onClick={closeSheet}>
       <div 
-        className="sheet-content animate-slide-up" 
+        className={`sheet-content animate-slide-up ${fullScreen ? 'sheet-fullscreen' : ''}`}
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"

@@ -16,13 +16,15 @@ import {
   Camera, 
   X, 
   Loader2, 
-  Keyboard
+  Keyboard,
+  SlidersHorizontal
 } from 'lucide-react';
 import { checkForDuplicateExpense } from '../lib/duplicate';
 import { compressAndUploadReceipt } from '../lib/supabaseSync';
 import { parseReceiptText } from '../lib/receiptOcr';
 import { NumericKeypad } from './NumericKeypad';
 import { acquireSingleFlight, releaseSingleFlight } from '../lib/asyncReliability';
+import { fetchHistoricalExchangeRate } from '../lib/fx';
 
 interface AddExpenseSheetProps {
   isOpen: boolean;
@@ -30,7 +32,28 @@ interface AddExpenseSheetProps {
   editExpenseId?: string;
 }
 
-const COMMON_CURRENCIES: CurrencyCode[] = ['EUR', 'USD', 'TRY', 'GBP', 'CHF', 'CAD', 'AUD', 'JPY'];
+const COMMON_CURRENCIES: CurrencyCode[] = ['EUR', 'USD', 'TRY', 'GBP', 'CHF', 'CAD', 'AUD', 'JPY', 'SEK', 'NOK', 'DKK', 'PLN'];
+
+const AVATAR_PALETTES = [
+  { bg: 'rgba(99, 117, 143, 0.25)', border: '#63758f', text: '#cbd5e1' },
+  { bg: 'rgba(59, 130, 246, 0.22)', border: '#3b82f6', text: '#93c5fd' },
+  { bg: 'rgba(16, 185, 129, 0.22)', border: '#10b981', text: '#6ee7b7' },
+  { bg: 'rgba(245, 158, 11, 0.22)', border: '#f59e0b', text: '#fcd34d' },
+  { bg: 'rgba(139, 92, 246, 0.22)', border: '#8b5cf6', text: '#c4b5fd' },
+  { bg: 'rgba(236, 72, 153, 0.22)', border: '#ec4899', text: '#f472b6' },
+  { bg: 'rgba(20, 184, 166, 0.22)', border: '#14b8a6', text: '#5eead4' },
+];
+
+function getMemberAvatarPalette(index: number) {
+  return AVATAR_PALETTES[index % AVATAR_PALETTES.length];
+}
+
+function getMemberInitials(name: string) {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
 export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   isOpen,
@@ -63,6 +86,9 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   const [note, setNote] = useState<string>('');
   const [receiptUrl, setReceiptUrl] = useState<string | undefined>(undefined);
   
+  // Toolbelt active drawer state: 'none' | 'date' | 'note'
+  const [activeToolDrawer, setActiveToolDrawer] = useState<'none' | 'date' | 'note'>('none');
+
   // Advanced State
   const [showMoreOptions, setShowMoreOptions] = useState<boolean>(false);
   const [isMultiPayer, setIsMultiPayer] = useState<boolean>(false);
@@ -76,12 +102,35 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   const [activeModal, setActiveModal] = useState<'none' | 'category' | 'paidBy' | 'splitWith' | 'currency'>('none');
   const [useNativeKeyboard, setUseNativeKeyboard] = useState<boolean>(false);
 
-  // FX Manual Override
+  // FX Conversion State
+  const [autoFxRate, setAutoFxRate] = useState<number>(1);
   const [isManualFx, setIsManualFx] = useState<boolean>(false);
   const [manualFxRate, setManualFxRate] = useState<string>('1.00');
 
   // Autocomplete Suggestions
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
+
+  // FX Rate Fetching for foreign currencies
+  useEffect(() => {
+    if (!activeTrip || currency === activeTrip.mainCurrency) {
+      setAutoFxRate(1);
+      return;
+    }
+    let isMounted = true;
+    const fetchRate = async () => {
+      try {
+        const dateStr = date ? date.slice(0, 10) : new Date().toISOString().slice(0, 10);
+        const res = await fetchHistoricalExchangeRate(currency, activeTrip.mainCurrency, dateStr);
+        if (isMounted && res.rate) {
+          setAutoFxRate(res.rate);
+        }
+      } catch (err) {
+        console.warn('FX fetch failed in AddExpenseSheet:', err);
+      }
+    };
+    fetchRate();
+    return () => { isMounted = false; };
+  }, [currency, activeTrip, date]);
 
   const handleReceiptFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -119,6 +168,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   useEffect(() => {
     if (!isOpen) {
       setActiveModal('none');
+      setActiveToolDrawer('none');
       return;
     }
 
@@ -170,7 +220,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     setCustomShares({});
     setIsManualFx(false);
     setManualFxRate('1.00');
-    setShowMoreOptions(false);
+    setActiveToolDrawer('none');
     setActiveModal('none');
   }, [isOpen, editExpenseId, expenses, lastUsedCurrency, currentUser.id, activeMembers]);
 
@@ -269,6 +319,24 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     }
   };
 
+  // Direct toggle member in avatar strip
+  const handleToggleMember = (userId: string) => {
+    if (splitMode === 'custom') {
+      setActiveModal('splitWith');
+      return;
+    }
+    setIncludedUserIds(prev => {
+      if (prev.includes(userId)) {
+        if (prev.length <= 1) {
+          showAlert('At least one member must be included in the split.', 'Split Requirement', 'info');
+          return prev;
+        }
+        return prev.filter(id => id !== userId);
+      }
+      return [...prev, userId];
+    });
+  };
+
   // Save Expense
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -278,7 +346,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
       return;
     }
     if (!description.trim()) {
-      showAlert('Please enter an expense name (e.g. Dinner, Taxi).', 'Missing Expense Name', 'warning');
+      showAlert('Please enter an expense title (e.g. Dinner, Taxi).', 'Missing Title', 'warning');
       return;
     }
     if (includedUserIds.length === 0) {
@@ -296,7 +364,6 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
 
     if (effectiveSplitMode === 'custom') {
       if (customSharesTotal <= 0) {
-        // If no custom amounts were typed, safely default to equal split
         effectiveSplitMode = 'equal';
       } else if (Math.abs(customSharesTotal - parsedAmount) > 0.01) {
         showAlert(`Custom shares (${currency} ${customSharesTotal.toFixed(2)}) must equal total amount (${currency} ${parsedAmount.toFixed(2)}).`, 'Custom Share Mismatch', 'warning');
@@ -367,22 +434,32 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   };
 
   const payerName = isMultiPayer
-    ? 'Multiple'
+    ? 'Multiple Payers'
     : (activeMembers.find(m => m.userId === paidByUserId)?.name || (paidByUserId === currentUser.id ? 'You' : 'Member'));
 
-  const splitLabel = includedUserIds.length === activeMembers.length
-    ? `Everyone (${activeMembers.length})`
-    : `${includedUserIds.length} Person${includedUserIds.length > 1 ? 's' : ''}`;
+  const activeCount = includedUserIds.length;
+  const perPersonShare = parsedAmount > 0 && activeCount > 0
+    ? roundMoney(parsedAmount / activeCount, 2)
+    : 0;
 
-  const currentCategoryObj = CATEGORIES.find(c => c.id === category) || CATEGORIES[0];
+  const isForeignCurrency = activeTrip && currency !== activeTrip.mainCurrency;
+  const convertedAmount = isForeignCurrency
+    ? roundMoney(parsedAmount * (isManualFx ? (parseFloat(manualFxRate) || 1) : autoFxRate), 2)
+    : 0;
+
+  const dateObj = new Date(date);
+  const isToday = new Date().toDateString() === dateObj.toDateString();
+  const formattedTime = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const dateToolLabel = isToday ? `Today, ${formattedTime}` : dateObj.toLocaleDateString([], { month: 'short', day: 'numeric' });
 
   return (
     <BottomSheet 
       isOpen={isOpen} 
       onClose={onClose} 
+      fullScreen={true}
       title={editExpenseId ? 'Edit Expense' : 'Add Expense'}
     >
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
         
         {/* Possible Duplicate Warning */}
         {duplicateCheck.isDuplicate && (
@@ -402,16 +479,16 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
           </div>
         )}
 
-        {/* 1. Centered Hero Amount Display */}
+        {/* 1. Hero Amount & Live Split Display */}
         <div style={{
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: '12px 16px 8px',
+          padding: '6px 12px 4px',
           position: 'relative'
         }}>
-          {/* Floating Currency Pill (Top Right) */}
+          {/* Floating Currency Pill & Native Keyboard Switcher (Top Right) */}
           <div style={{ position: 'absolute', top: 0, right: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
             <button 
               type="button"
@@ -422,19 +499,18 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                 gap: 4, 
                 background: 'var(--bg-subtle)', 
                 border: '1px solid var(--border-subtle)',
-                padding: '4px 9px', 
+                padding: '4px 10px', 
                 borderRadius: 'var(--radius-full)',
-                fontSize: '0.78rem',
+                fontSize: '0.8rem',
                 fontWeight: 700,
                 color: 'var(--text-primary)',
                 cursor: 'pointer'
               }}
             >
               <span>{currency}</span>
-              <ChevronDown size={11} color="var(--text-tertiary)" />
+              <ChevronDown size={12} color="var(--text-tertiary)" />
             </button>
 
-            {/* Keyboard Switcher */}
             <button
               type="button"
               onClick={() => setUseNativeKeyboard(prev => !prev)}
@@ -444,18 +520,18 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                 border: 'none',
                 color: useNativeKeyboard ? 'var(--brand-500)' : 'var(--text-tertiary)',
                 cursor: 'pointer',
-                padding: 2,
+                padding: 4,
                 display: 'flex',
                 alignItems: 'center'
               }}
             >
-              <Keyboard size={14} />
+              <Keyboard size={16} />
             </button>
           </div>
 
-          {/* Centered Large Typography */}
+          {/* Centered Hero Monetary Typography */}
           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 6, marginTop: 4 }}>
-            <span style={{ fontSize: '1.6rem', fontWeight: 700, color: 'var(--text-tertiary)' }}>
+            <span style={{ fontSize: '1.7rem', fontWeight: 700, color: 'var(--text-tertiary)' }}>
               {getCurrencySymbol(currency)}
             </span>
             {useNativeKeyboard ? (
@@ -468,10 +544,10 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                   if (/^\d*\.?\d*$/.test(e.target.value)) setAmountStr(e.target.value);
                 }}
                 style={{
-                  fontSize: '2.6rem',
+                  fontSize: '2.7rem',
                   fontWeight: 800,
                   color: 'var(--text-primary)',
-                  width: '180px',
+                  width: '200px',
                   textAlign: 'center',
                   border: 'none',
                   outline: 'none',
@@ -483,7 +559,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             ) : (
               <div 
                 style={{
-                  fontSize: '2.6rem',
+                  fontSize: '2.7rem',
                   fontWeight: 800,
                   color: amountStr ? 'var(--text-primary)' : 'var(--text-tertiary)',
                   fontFamily: 'var(--font-mono)',
@@ -495,9 +571,50 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
               </div>
             )}
           </div>
+
+          {/* Dynamic Live Split Breakdown Badge */}
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            marginTop: 4,
+            padding: '3px 10px',
+            borderRadius: 'var(--radius-full)',
+            background: parsedAmount > 0 ? 'var(--positive-bg)' : 'var(--bg-subtle)',
+            border: `1px solid ${parsedAmount > 0 ? 'var(--positive-border)' : 'var(--border-subtle)'}`,
+            color: parsedAmount > 0 ? 'var(--positive-text)' : 'var(--text-tertiary)',
+            fontSize: '0.78rem',
+            fontWeight: 700,
+            transition: 'all 0.15s ease'
+          }}>
+            <Users size={12} />
+            <span>
+              {parsedAmount > 0 
+                ? splitMode === 'custom' 
+                  ? `Custom split • ${activeCount} members`
+                  : `€${perPersonShare.toFixed(2)} each • ${activeCount} included`
+                : `Split with ${activeCount === activeMembers.length ? `Everyone (${activeMembers.length})` : `${activeCount} members`}`
+              }
+            </span>
+          </div>
+
+          {/* Foreign Currency FX Badge */}
+          {isForeignCurrency && parsedAmount > 0 && (
+            <div style={{
+              fontSize: '0.72rem',
+              color: 'var(--text-tertiary)',
+              marginTop: 4,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4
+            }}>
+              <span>≈ {formatAmount(convertedAmount, activeTrip.mainCurrency)}</span>
+              <span>(1 {currency} = {isManualFx ? manualFxRate : autoFxRate.toFixed(3)} {activeTrip.mainCurrency})</span>
+            </div>
+          )}
         </div>
 
-        {/* 2. Grouped Info Card (Title Input + 3 Config Pills) */}
+        {/* 2. Expense Title Input & 1-Tap Category Emoji Strip */}
         <div style={{
           background: 'var(--bg-subtle)',
           border: '1px solid var(--border-subtle)',
@@ -507,11 +624,10 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
           flexDirection: 'column',
           gap: 6
         }}>
-          {/* Title Input */}
           <div style={{ position: 'relative' }}>
             <input
               type="text"
-              placeholder="Expense title (e.g. Dinner, Taxi, Drinks)"
+              placeholder="Expense title (e.g. Dinner, Taxi, Groceries)"
               value={description}
               onChange={(e) => handleDescriptionChange(e.target.value)}
               onFocus={() => setShowSuggestions(true)}
@@ -522,7 +638,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                 background: 'var(--bg-surface)',
                 border: '1px solid var(--border-subtle)',
                 color: 'var(--text-primary)',
-                fontSize: '0.88rem',
+                fontSize: '0.9rem',
                 fontWeight: 600,
                 outline: 'none'
               }}
@@ -570,51 +686,277 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             )}
           </div>
 
-          {/* 3 Config Pills */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 5 }}>
-            <button
-              type="button"
-              onClick={() => setActiveModal('category')}
-              className="config-pill-btn"
-              style={{ padding: '6px 8px', fontSize: '0.78rem', justifyContent: 'center' }}
-            >
-              <span>{currentCategoryObj.emoji}</span>
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentCategoryObj.label}</span>
-              <ChevronDown size={11} color="var(--text-tertiary)" />
-            </button>
+          {/* 1-Tap Category Emoji Strip */}
+          <div className="category-emoji-strip">
+            {CATEGORIES.map(cat => {
+              const isSelected = category === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setCategory(cat.id)}
+                  className={`category-pill-chip ${isSelected ? 'active' : ''}`}
+                >
+                  <span>{cat.emoji}</span>
+                  <span>{cat.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-            <button
-              type="button"
-              onClick={() => setActiveModal('paidBy')}
-              className="config-pill-btn"
-              style={{ padding: '6px 8px', fontSize: '0.78rem', justifyContent: 'center' }}
-            >
-              <User size={12} color="var(--text-tertiary)" />
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{payerName}</span>
-              <ChevronDown size={11} color="var(--text-tertiary)" />
-            </button>
+        {/* 3. Direct-Tap Member Avatar Strip */}
+        <div style={{
+          background: 'var(--bg-subtle)',
+          border: '1px solid var(--border-subtle)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '8px 10px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 6
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
+                Split With
+              </span>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)' }}>
+                {splitMode === 'custom' ? '• Custom Amounts' : '• Tap to toggle'}
+              </span>
+            </div>
 
             <button
               type="button"
               onClick={() => setActiveModal('splitWith')}
-              className="config-pill-btn"
-              style={{ padding: '6px 8px', fontSize: '0.78rem', justifyContent: 'center' }}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: splitMode === 'custom' ? 'var(--brand-500)' : 'var(--accent-primary)',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 3,
+                padding: '2px 4px'
+              }}
             >
-              <Users size={12} color="var(--text-tertiary)" />
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{splitLabel}</span>
-              <ChevronDown size={11} color="var(--text-tertiary)" />
+              <SlidersHorizontal size={11} />
+              <span>{splitMode === 'custom' ? 'Edit Shares' : 'Custom Split'}</span>
             </button>
+          </div>
+
+          {/* Interactive Member Avatars */}
+          <div className="avatar-strip-container">
+            {activeMembers.map((m, idx) => {
+              const isIncluded = includedUserIds.includes(m.userId);
+              const palette = getMemberAvatarPalette(idx);
+              const initials = getMemberInitials(m.name);
+              const isPayer = !isMultiPayer && paidByUserId === m.userId;
+
+              return (
+                <button
+                  key={m.userId}
+                  type="button"
+                  onClick={() => handleToggleMember(m.userId)}
+                  className={`avatar-member-chip ${isIncluded ? 'active' : ''}`}
+                  title={`${m.name} (${isIncluded ? 'Included in split' : 'Excluded'})`}
+                >
+                  <div 
+                    className={`avatar-bubble ${isIncluded ? 'included' : 'excluded'}`}
+                    style={{
+                      backgroundColor: palette.bg,
+                      color: palette.text
+                    }}
+                  >
+                    <span>{initials}</span>
+                    {isIncluded && (
+                      <div className="avatar-check-badge">
+                        <Check size={10} strokeWidth={3} />
+                      </div>
+                    )}
+                  </div>
+                  <span className="avatar-name-label">
+                    {m.userId === currentUser.id ? 'You' : m.name}
+                  </span>
+                  {isPayer && (
+                    <span style={{ fontSize: '0.62rem', color: 'var(--accent-primary)', fontWeight: 800, marginTop: -3 }}>
+                      (Payer)
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
-        {/* 3. In-App Numeric Keypad (Compact Oval Keys) */}
+        {/* 4. Paid By Selector Row */}
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button
+            type="button"
+            onClick={() => setActiveModal('paidBy')}
+            className="config-pill-btn"
+            style={{ 
+              flex: 1, 
+              justifyContent: 'space-between', 
+              padding: '8px 12px',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--bg-subtle)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <User size={13} color="var(--text-tertiary)" />
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>Paid by:</span>
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>{payerName}</span>
+            </div>
+            <ChevronDown size={12} color="var(--text-tertiary)" />
+          </button>
+        </div>
+
+        {/* 5. Surfaced Quick Toolbelt (Scan Receipt, Date, Note) */}
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleReceiptFile}
+            style={{ display: 'none' }}
+          />
+
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploadingReceipt}
+            className={`toolbelt-btn ${receiptUrl ? 'active' : ''}`}
+            title="Attach Receipt Photo"
+          >
+            {isUploadingReceipt ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
+            <span>{isUploadingReceipt ? 'Uploading...' : receiptUrl ? 'Receipt Attached ✓' : 'Scan Receipt'}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveToolDrawer(prev => prev === 'date' ? 'none' : 'date')}
+            className={`toolbelt-btn ${activeToolDrawer === 'date' ? 'active' : ''}`}
+          >
+            <Calendar size={13} />
+            <span>{dateToolLabel}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveToolDrawer(prev => prev === 'note' ? 'none' : 'note')}
+            className={`toolbelt-btn ${note.trim() ? 'active' : ''}`}
+          >
+            <FileText size={13} />
+            <span>{note.trim() ? 'Note Added' : 'Add Note'}</span>
+          </button>
+        </div>
+
+        {/* Expandable Tool Drawer (Date or Note) */}
+        {activeToolDrawer === 'date' && (
+          <div style={{
+            background: 'var(--bg-subtle)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-md)',
+            padding: 8,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
+                Date & Time
+              </span>
+              <button 
+                type="button"
+                onClick={() => setDate(new Date().toISOString().slice(0, 16))}
+                style={{ fontSize: '0.72rem', color: 'var(--brand-500)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 700 }}
+              >
+                Set to Now
+              </button>
+            </div>
+            <input
+              type="datetime-local"
+              className="input-pill"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              style={{ fontSize: '0.85rem', padding: '6px 10px' }}
+            />
+          </div>
+        )}
+
+        {activeToolDrawer === 'note' && (
+          <div style={{
+            background: 'var(--bg-subtle)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-md)',
+            padding: 8,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase' }}>
+                Expense Notes
+              </span>
+              {note.trim() && (
+                <button 
+                  type="button" 
+                  onClick={() => setNote('')}
+                  style={{ fontSize: '0.72rem', color: 'var(--text-tertiary)', background: 'none', border: 'none', cursor: 'pointer' }}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <textarea
+              rows={2}
+              placeholder="Add extra details, order breakdown or comments..."
+              className="input-pill"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              style={{ borderRadius: 'var(--radius-sm)', resize: 'none', fontSize: '0.82rem', padding: '6px 10px' }}
+            />
+          </div>
+        )}
+
+        {/* Receipt Attached Preview Bar */}
+        {receiptUrl && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'var(--bg-subtle)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-md)',
+            padding: '4px 8px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 28, height: 28, borderRadius: 4, overflow: 'hidden', border: '1px solid var(--border-strong)' }}>
+                <img src={receiptUrl} alt="Receipt" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: 600 }}>Receipt attached</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReceiptUrl(undefined)}
+              style={{ background: 'none', border: 'none', color: 'var(--negative-text)', cursor: 'pointer', padding: 4 }}
+              title="Remove receipt"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
+        {/* 6. Clean In-App 3-Column Numeric Keypad */}
         {!useNativeKeyboard && (
           <div style={{
             background: 'var(--bg-subtle)',
             padding: 5,
             borderRadius: 'var(--radius-lg)',
             border: '1px solid var(--border-subtle)',
-            marginTop: 2
+            marginTop: 'auto'
           }}>
             <NumericKeypad
               value={amountStr}
@@ -623,148 +965,32 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
           </div>
         )}
 
-        {/* 5. More Options Toggle (Date, Note, Receipt, FX) */}
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
-          <button
-            type="button"
-            onClick={() => setShowMoreOptions(prev => !prev)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 4,
-              color: 'var(--text-tertiary)',
-              fontWeight: 600,
-              fontSize: '0.74rem',
-              padding: '2px 6px',
-              cursor: 'pointer',
-              background: 'none',
-              border: 'none'
-            }}
-          >
-            <span>{showMoreOptions ? 'Hide details' : '+ More options (date, receipt photo, notes)'}</span>
-            {showMoreOptions ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-          </button>
-        </div>
-
-        {/* Expanded Options Drawer */}
-        {showMoreOptions && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, borderTop: '1px solid var(--border-subtle)', paddingTop: 8 }}>
-            
-            {/* Date Time */}
-            <div>
-              <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: 2 }}>
-                Date & Time
-              </label>
-              <input
-                type="datetime-local"
-                className="input-pill"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                style={{ fontSize: '0.82rem', padding: '6px 10px' }}
-              />
-            </div>
-
-            {/* Receipt Photo */}
-            <div>
-              <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: 2 }}>
-                Receipt Photo
-              </label>
-              
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleReceiptFile}
-                style={{ display: 'none' }}
-              />
-
-              {receiptUrl ? (
-                <div style={{ position: 'relative', width: 70, height: 70, borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-strong)' }}>
-                  <img src={receiptUrl} alt="Receipt" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  <button
-                    type="button"
-                    onClick={() => setReceiptUrl(undefined)}
-                    style={{
-                      position: 'absolute',
-                      top: 2,
-                      right: 2,
-                      background: 'rgba(0,0,0,0.65)',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: '50%',
-                      width: 20,
-                      height: 20,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploadingReceipt}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '6px 10px',
-                    borderRadius: 'var(--radius-md)',
-                    background: 'var(--bg-subtle)',
-                    border: '1px dashed var(--border-strong)',
-                    color: 'var(--text-secondary)',
-                    fontSize: '0.78rem',
-                    fontWeight: 600,
-                    cursor: 'pointer'
-                  }}
-                >
-                  {isUploadingReceipt ? <Loader2 size={13} className="animate-spin" /> : <Camera size={13} />}
-                  <span>{isUploadingReceipt ? 'Uploading...' : 'Attach Receipt'}</span>
-                </button>
-              )}
-            </div>
-
-            {/* Note */}
-            <div>
-              <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', marginBottom: 2 }}>
-                Note
-              </label>
-              <textarea
-                rows={2}
-                placeholder="Add details, notes or order items..."
-                className="input-pill"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                style={{ borderRadius: 'var(--radius-md)', resize: 'vertical', fontSize: '0.82rem', padding: '6px 10px' }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Primary Save Button */}
+        {/* 7. Primary Action Button */}
         <button
           type="submit"
           disabled={isSubmitting || isUploadingReceipt}
           className="btn-primary"
           style={{
-            padding: '11px',
-            fontSize: '0.92rem',
+            padding: '12px',
+            fontSize: '0.95rem',
             fontWeight: 800,
-            borderRadius: 'var(--radius-md)'
+            borderRadius: 'var(--radius-md)',
+            marginTop: useNativeKeyboard ? 'auto' : 2
           }}
         >
           {isSubmitting && <Loader2 size={16} className="animate-spin" />}
-          <span>{isSubmitting ? 'Saving Expense…' : `Save Expense ${parsedAmount > 0 ? `• ${formatAmount(parsedAmount, currency)}` : ''}`}</span>
+          <span>
+            {isSubmitting 
+              ? 'Saving Expense…' 
+              : `Save Expense ${parsedAmount > 0 ? `• ${formatAmount(parsedAmount, currency)}` : ''}`
+            }
+          </span>
         </button>
 
       </form>
 
       {/* ========================================================================= */}
-      {/* 6. Focused Sub-Modals (Clean, Non-Cluttered Focused Selection)            */}
+      {/* 8. Sub-Modals (Category, Paid By, Custom Split, Currency)                  */}
       {/* ========================================================================= */}
 
       {/* Modal A: Category Selector */}
@@ -824,8 +1050,10 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {activeMembers.map(m => {
+              {activeMembers.map((m, idx) => {
                 const isSelected = !isMultiPayer && paidByUserId === m.userId;
+                const palette = getMemberAvatarPalette(idx);
+                const initials = getMemberInitials(m.name);
                 return (
                   <button
                     key={m.userId}
@@ -839,7 +1067,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      padding: '12px 14px',
+                      padding: '10px 14px',
                       borderRadius: 'var(--radius-md)',
                       background: isSelected ? 'var(--btn-primary-bg)' : 'var(--bg-subtle)',
                       color: isSelected ? 'var(--btn-primary-text)' : 'var(--text-primary)',
@@ -849,7 +1077,24 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                       cursor: 'pointer'
                     }}
                   >
-                    <span>{m.name} {m.userId === currentUser.id && '(You)'}</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{
+                        width: 30,
+                        height: 30,
+                        borderRadius: '50%',
+                        background: palette.bg,
+                        color: palette.text,
+                        border: `1.5px solid ${palette.border}`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.72rem',
+                        fontWeight: 800
+                      }}>
+                        {initials}
+                      </div>
+                      <span>{m.name} {m.userId === currentUser.id && '(You)'}</span>
+                    </div>
                     {isSelected && <Check size={16} />}
                   </button>
                 );
@@ -874,7 +1119,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                   padding: '12px 14px',
                   borderRadius: 'var(--radius-md)',
                   background: isMultiPayer ? 'var(--bg-surface)' : 'transparent',
-                  color: isMultiPayer ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                  color: isMultiPayer ? 'var(--brand-500)' : 'var(--text-secondary)',
                   border: '1px dashed var(--border-strong)',
                   fontSize: '0.88rem',
                   fontWeight: 700,
@@ -896,7 +1141,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                   <button
                     type="button"
                     onClick={handleSplitPaidEqually}
-                    style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--brand-600)', background: 'none', border: 'none', cursor: 'pointer' }}
+                    style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--brand-500)', background: 'none', border: 'none', cursor: 'pointer' }}
                   >
                     Split Equally
                   </button>
@@ -948,7 +1193,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
         </div>
       )}
 
-      {/* Modal C: Split With Selector */}
+      {/* Modal C: Split With Selector & Custom Shares */}
       {activeModal === 'splitWith' && (
         <div className="sheet-backdrop" onClick={() => setActiveModal('none')}>
           <div className="sheet-content animate-slide-up" onClick={e => e.stopPropagation()} style={{ maxWidth: 440 }}>
@@ -1030,7 +1275,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                 }}
               >
                 <span>Select Everyone ({activeMembers.length})</span>
-                {includedUserIds.length === activeMembers.length && <Check size={16} color="var(--brand-600)" />}
+                {includedUserIds.length === activeMembers.length && <Check size={16} color="var(--brand-500)" />}
               </button>
 
               {activeMembers.map(m => {
@@ -1064,8 +1309,8 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                         width: 20,
                         height: 20,
                         borderRadius: 4,
-                        border: `1.5px solid ${isIncluded ? 'var(--brand-600)' : 'var(--border-strong)'}`,
-                        background: isIncluded ? 'var(--brand-600)' : 'transparent',
+                        border: `1.5px solid ${isIncluded ? 'var(--brand-500)' : 'var(--border-strong)'}`,
+                        background: isIncluded ? 'var(--brand-500)' : 'transparent',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
