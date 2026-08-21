@@ -24,6 +24,10 @@ export interface Trip {
   memberUids?: string[];
   /** Cryptographically random bearer token used by share links. */
   inviteToken?: string;
+  /** Content counts captured when the owner last prepared an invitation. */
+  shareMemberCount?: number;
+  shareExpenseCount?: number;
+  sharePreparedAt?: string;
   isClosed: boolean;
   closedAt?: string;
   isDeleted: boolean;

@@ -236,7 +236,11 @@ const AppContent: React.FC<AppContentProps> = () => {
           // user can explicitly retry by reopening or rescanning the link.
           clearPendingInvite();
           const message = error instanceof Error ? error.message : 'The trip could not be joined.';
-          showAlert(message, 'Could not join trip', 'warning');
+          showAlert(
+            message,
+            message.startsWith('Trip access was added') ? 'Trip Content Not Synced' : 'Could Not Join Trip',
+            'warning'
+          );
         })
         .finally(() => {
           if (slowJoinTimerRef.current !== null) {

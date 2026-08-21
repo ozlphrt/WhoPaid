@@ -48,6 +48,7 @@ import {
 import { sendLocalNotification, requestNotificationPermission, isNotificationGranted } from '../lib/notifications';
 import { createId } from '../lib/id';
 import { retryOperation } from '../lib/asyncReliability';
+import { assertTripContentsHydrated } from '../lib/tripHydration';
 
 interface UndoState {
   expense: Expense;
@@ -1222,58 +1223,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.warn('[IndexedDB] Joined trip will be persisted by background sync:', error);
     });
 
-    // The secure membership index and trip are already persisted. Do not make
-    // the user wait for every member and expense before completing the join.
-    void (async () => {
-      try {
-        const [remoteMembers, remoteExpenses, remoteHouseholds, remoteSettlements] = await retryOperation(
-          () => Promise.all([
+    // A join is complete only when its critical contents are available. This
+    // keeps the success message honest and prevents an empty trip shell from
+    // being mistaken for a successful synchronization.
+    try {
+      const [remoteMembers, remoteExpenses, remoteHouseholds, remoteSettlements] = await retryOperation(
+        async () => {
+          const bundle = await Promise.all([
             fetchTripMembersFromCloud(tripId, true),
             fetchTripExpensesFromCloud(tripId, true),
             fetchTripHouseholdsFromCloud(tripId, true),
             fetchTripSettlementsFromCloud(tripId, true)
-          ])
-        );
-        if (remoteMembers.length > 0) await db.tripMembers.bulkPut(remoteMembers);
-        if (remoteExpenses.length > 0) await db.expenses.bulkPut(remoteExpenses);
-        if (remoteHouseholds.length > 0) await db.households.bulkPut(remoteHouseholds);
-        if (remoteSettlements.length > 0) await db.settlements.bulkPut(remoteSettlements);
+          ]);
+          assertTripContentsHydrated(remoteTrip, bundle[0], bundle[1]);
+          return bundle;
+        }
+      );
+      if (remoteMembers.length > 0) await db.tripMembers.bulkPut(remoteMembers);
+      if (remoteExpenses.length > 0) await db.expenses.bulkPut(remoteExpenses);
+      if (remoteHouseholds.length > 0) await db.households.bulkPut(remoteHouseholds);
+      if (remoteSettlements.length > 0) await db.settlements.bulkPut(remoteSettlements);
 
-        const normalizedEmail = currentUser.email.trim().toLowerCase();
-        const existing = remoteMembers.find(member =>
-          member.userId === currentUser.id ||
-          member.legacyUserIds?.includes(currentUser.id) ||
-          (normalizedEmail && member.email.trim().toLowerCase() === normalizedEmail)
-        );
-        const legacyUserIds = existing && existing.userId !== currentUser.id
-          ? [...new Set([...(existing.legacyUserIds || []), existing.userId])]
-          : existing?.legacyUserIds;
-        const memberRecord: TripMember = {
-          id: existing?.id || createId('member'),
-          tripId,
-          userId: currentUser.id,
-          authUid: currentUser.id,
-          legacyUserIds,
-          name: existing?.name || currentUser.name || 'Member',
-          email: currentUser.email,
-          role: existing?.role === 'owner' && remoteTrip.ownerId === currentUser.id ? 'owner' : 'member',
-          isActive: true,
-          joinedAt: existing?.joinedAt || new Date().toISOString()
-        };
-        await db.tripMembers.put(memberRecord);
-        setMembers(await db.tripMembers.where('tripId').equals(tripId).toArray());
-        const hydratedExpenses = await db.expenses.where('tripId').equals(tripId).toArray();
-        hydratedExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-        setExpenses(hydratedExpenses);
-        setHouseholds(await db.households.where('tripId').equals(tripId).toArray());
-        setSettlements(await db.settlements.where('tripId').equals(tripId).toArray());
-        setTrips(previous => [...previous]);
-        await retryOperation(() => syncMemberToCloud(tripId, memberRecord));
-      } catch (error) {
-        // Membership remains valid and startup sync will retry hydration.
-        console.warn('[Firestore] Joined trip; background hydration will retry later:', error);
-      }
-    })();
+      const normalizedEmail = currentUser.email.trim().toLowerCase();
+      const existing = remoteMembers.find(member =>
+        member.userId === currentUser.id ||
+        member.legacyUserIds?.includes(currentUser.id) ||
+        (normalizedEmail && member.email.trim().toLowerCase() === normalizedEmail)
+      );
+      const legacyUserIds = existing && existing.userId !== currentUser.id
+        ? [...new Set([...(existing.legacyUserIds || []), existing.userId])]
+        : existing?.legacyUserIds;
+      const memberRecord: TripMember = {
+        id: existing?.id || createId('member'),
+        tripId,
+        userId: currentUser.id,
+        authUid: currentUser.id,
+        legacyUserIds,
+        name: existing?.name || currentUser.name || 'Member',
+        email: currentUser.email,
+        role: existing?.role === 'owner' && remoteTrip.ownerId === currentUser.id ? 'owner' : 'member',
+        isActive: true,
+        joinedAt: existing?.joinedAt || new Date().toISOString()
+      };
+      await db.tripMembers.put(memberRecord);
+      await retryOperation(() => syncMemberToCloud(tripId, memberRecord));
+
+      setMembers(await db.tripMembers.where('tripId').equals(tripId).toArray());
+      const hydratedExpenses = await db.expenses.where('tripId').equals(tripId).toArray();
+      hydratedExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setExpenses(hydratedExpenses);
+      setHouseholds(await db.households.where('tripId').equals(tripId).toArray());
+      setSettlements(await db.settlements.where('tripId').equals(tripId).toArray());
+      setTrips(previous => [...previous]);
+    } catch (error) {
+      console.warn('[Firestore] Trip membership created but content hydration failed:', error);
+      throw new Error(
+        `Trip access was added, but its participants and expenses could not be synchronized. ${error instanceof Error ? error.message : 'Please reopen WhoPaid and use Sync.'}`
+      );
+    }
 
     showAlert(`You joined ${remoteTrip.name} successfully!`, 'Trip Joined 🎉', 'success');
   };
@@ -1567,11 +1574,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         await retryOperation(() => syncUserTripMembership(tripId, currentUser.id, 'owner'));
       }
 
-      const [localMembers, localHouseholds, localExpenses, localSettlements, remoteExpenses] = await Promise.all([
+      const [localMembers, localHouseholds, localExpenses, localSettlements, remoteMembers, remoteExpenses] = await Promise.all([
         db.tripMembers.where('tripId').equals(tripId).toArray(),
         db.households.where('tripId').equals(tripId).toArray(),
         db.expenses.where('tripId').equals(tripId).toArray(),
         db.settlements.where('tripId').equals(tripId).toArray(),
+        fetchTripMembersFromCloud(tripId, true),
         fetchTripExpensesFromCloud(tripId, true)
       ]);
 
@@ -1593,10 +1601,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       await Promise.all(writes);
 
+      const preparedTrip: Trip = {
+        ...trip,
+        shareMemberCount: new Set([...remoteMembers.map(member => member.id), ...localMembers.map(member => member.id)]).size,
+        shareExpenseCount: new Set([...remoteExpenses.map(expense => expense.id), ...localExpenses.map(expense => expense.id)]).size,
+        sharePreparedAt: new Date().toISOString(),
+        clientSyncStatus: 'synced'
+      };
+      if (isOwner) await retryOperation(() => syncTripToCloud(preparedTrip));
+
       if (localExpenses.length > 0) {
         await db.expenses.bulkPut(localExpenses.map(expense => ({ ...expense, clientSyncStatus: 'synced' as const })));
       }
-      const syncedTrip = { ...trip, clientSyncStatus: 'synced' as const };
+      const syncedTrip = isOwner ? preparedTrip : { ...trip, clientSyncStatus: 'synced' as const };
       await db.trips.put(syncedTrip);
       setTrips(previous => previous.map(item => item.id === tripId ? syncedTrip : item));
       if (activeTripId === tripId) {
