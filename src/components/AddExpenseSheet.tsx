@@ -530,8 +530,13 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
           </div>
 
           {/* Centered Hero Monetary Typography */}
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 6, marginTop: 4 }}>
-            <span style={{ fontSize: '1.7rem', fontWeight: 700, color: 'var(--text-tertiary)' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 6, marginTop: 4, width: '100%', maxWidth: 360 }}>
+            <span style={{ 
+              fontSize: amountStr.length > 7 ? 'clamp(1.3rem, 4.2vw, 1.6rem)' : amountStr.length > 4 ? 'clamp(1.5rem, 5vw, 1.9rem)' : 'clamp(1.8rem, 6vw, 2.3rem)', 
+              fontWeight: 800, 
+              color: 'var(--text-tertiary)',
+              transition: 'all 0.12s ease'
+            }}>
               {getCurrencySymbol(currency)}
             </span>
             {useNativeKeyboard ? (
@@ -544,27 +549,52 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                   if (/^\d*\.?\d*$/.test(e.target.value)) setAmountStr(e.target.value);
                 }}
                 style={{
-                  fontSize: '2.7rem',
-                  fontWeight: 800,
+                  fontSize: (amountStr || '0.00').length <= 4 
+                    ? 'clamp(3.1rem, 10.5vw, 3.9rem)' 
+                    : (amountStr || '0.00').length <= 6 
+                      ? 'clamp(2.6rem, 8.8vw, 3.3rem)' 
+                      : (amountStr || '0.00').length <= 8 
+                        ? 'clamp(2.1rem, 7.2vw, 2.7rem)' 
+                        : (amountStr || '0.00').length <= 10 
+                          ? 'clamp(1.75rem, 5.8vw, 2.2rem)' 
+                          : 'clamp(1.4rem, 4.8vw, 1.8rem)',
+                  fontWeight: 900,
                   color: 'var(--text-primary)',
-                  width: '200px',
+                  width: '100%',
                   textAlign: 'center',
                   border: 'none',
                   outline: 'none',
                   background: 'transparent',
-                  fontFamily: 'var(--font-mono)',
-                  letterSpacing: '-0.03em'
+                  fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Rounded', 'Segoe UI Rounded', 'Quicksand', Roboto, sans-serif",
+                  letterSpacing: '-0.04em',
+                  lineHeight: 1
                 }}
               />
             ) : (
               <div 
                 style={{
-                  fontSize: '2.7rem',
-                  fontWeight: 800,
+                  fontSize: (amountStr || '0.00').length <= 4 
+                    ? 'clamp(3.1rem, 10.5vw, 3.9rem)' 
+                    : (amountStr || '0.00').length <= 6 
+                      ? 'clamp(2.6rem, 8.8vw, 3.3rem)' 
+                      : (amountStr || '0.00').length <= 8 
+                        ? 'clamp(2.1rem, 7.2vw, 2.7rem)' 
+                        : (amountStr || '0.00').length <= 10 
+                          ? 'clamp(1.75rem, 5.8vw, 2.2rem)' 
+                          : 'clamp(1.4rem, 4.8vw, 1.8rem)',
+                  fontWeight: 900,
                   color: amountStr ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                  fontFamily: 'var(--font-mono)',
-                  letterSpacing: '-0.03em',
-                  cursor: 'pointer'
+                  fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Rounded', 'Segoe UI Rounded', 'Quicksand', Roboto, sans-serif",
+                  letterSpacing: '-0.04em',
+                  lineHeight: 1,
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  maxWidth: '100%',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  textShadow: amountStr ? '0 0 24px rgba(255, 255, 255, 0.16)' : 'none',
+                  transition: 'all 0.12s ease'
                 }}
               >
                 {amountStr || '0.00'}
@@ -577,17 +607,17 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             display: 'inline-flex',
             alignItems: 'center',
             gap: 6,
-            marginTop: 4,
-            padding: '3px 10px',
+            marginTop: 6,
+            padding: '4px 12px',
             borderRadius: 'var(--radius-full)',
             background: parsedAmount > 0 ? 'var(--positive-bg)' : 'var(--bg-subtle)',
             border: `1px solid ${parsedAmount > 0 ? 'var(--positive-border)' : 'var(--border-subtle)'}`,
             color: parsedAmount > 0 ? 'var(--positive-text)' : 'var(--text-tertiary)',
-            fontSize: '0.78rem',
-            fontWeight: 700,
+            fontSize: '0.8rem',
+            fontWeight: 800,
             transition: 'all 0.15s ease'
           }}>
-            <Users size={12} />
+            <Users size={13} />
             <span>
               {parsedAmount > 0 
                 ? splitMode === 'custom' 
@@ -760,29 +790,36 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                   type="button"
                   onClick={() => handleToggleMember(m.userId)}
                   className={`avatar-member-chip ${isIncluded ? 'active' : ''}`}
-                  title={`${m.name} (${isIncluded ? 'Included in split' : 'Excluded'})`}
+                  title={`${m.name} (${isPayer ? 'Payer • ' : ''}${isIncluded ? 'Included in split' : 'Excluded'})`}
                 >
                   <div 
-                    className={`avatar-bubble ${isIncluded ? 'included' : 'excluded'}`}
+                    className={`avatar-bubble ${isPayer ? 'is-payer' : isIncluded ? 'included' : 'excluded'}`}
                     style={{
-                      backgroundColor: palette.bg,
-                      color: palette.text
+                      backgroundColor: isPayer ? 'rgba(56, 189, 248, 0.25)' : palette.bg,
+                      color: isPayer ? '#e0f2fe' : palette.text
                     }}
                   >
                     <span>{initials}</span>
+                    {isPayer && (
+                      <div className="avatar-payer-badge" title="Payer">
+                        💳
+                      </div>
+                    )}
                     {isIncluded && (
                       <div className="avatar-check-badge">
                         <Check size={10} strokeWidth={3} />
                       </div>
                     )}
                   </div>
-                  <span className="avatar-name-label">
+                  <span className="avatar-name-label" style={{ fontWeight: isPayer ? 800 : 700, color: isPayer ? '#38bdf8' : undefined }}>
                     {m.userId === currentUser.id ? 'You' : m.name}
                   </span>
-                  {isPayer && (
-                    <span style={{ fontSize: '0.62rem', color: 'var(--accent-primary)', fontWeight: 800, marginTop: -3 }}>
-                      (Payer)
+                  {isPayer ? (
+                    <span className="payer-pill-tag">
+                      Payer
                     </span>
+                  ) : (
+                    <span style={{ height: 15 }} />
                   )}
                 </button>
               );
@@ -801,15 +838,36 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
               justifyContent: 'space-between', 
               padding: '8px 12px',
               borderRadius: 'var(--radius-md)',
-              background: 'var(--bg-subtle)'
+              background: isMultiPayer ? 'var(--bg-subtle)' : 'rgba(56, 189, 248, 0.08)',
+              border: isMultiPayer ? '1px solid var(--border-subtle)' : '1px solid rgba(56, 189, 248, 0.35)'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <User size={13} color="var(--text-tertiary)" />
-              <span style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>Paid by:</span>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-primary)' }}>{payerName}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{
+                width: 26,
+                height: 26,
+                borderRadius: '50%',
+                background: isMultiPayer ? 'var(--bg-elevated)' : 'rgba(56, 189, 248, 0.22)',
+                border: `1.5px solid ${isMultiPayer ? 'var(--border-strong)' : '#38bdf8'}`,
+                color: isMultiPayer ? 'var(--text-secondary)' : '#e0f2fe',
+                fontSize: '0.68rem',
+                fontWeight: 800,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                {isMultiPayer ? <Users size={12} /> : getMemberInitials(payerName)}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ fontSize: '0.78rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>Paid by:</span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)' }}>{payerName}</span>
+              </div>
             </div>
-            <ChevronDown size={12} color="var(--text-tertiary)" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span className="payer-pill-tag" style={{ fontSize: '0.62rem', padding: '1px 6px' }}>Change</span>
+              <ChevronDown size={12} color="var(--text-tertiary)" />
+            </div>
           </button>
         </div>
 
