@@ -14,6 +14,7 @@ import {
   PENDING_INVITE_KEY,
   clearPendingInvite,
   markPendingInviteAttempt,
+  shouldResetInterruptedInvite,
   wasPendingInviteAttempted
 } from './lib/invite';
 import './styles/global.css';
@@ -184,22 +185,9 @@ const AppContent: React.FC<AppContentProps> = () => {
     const alreadyJoinedTrip = pendingJoin
       ? trips.find(trip => trip.inviteToken === pendingJoin && !trip.isDeleted)
       : undefined;
+    const joinAlreadyRunning = Boolean(pendingJoin && joiningTripRef.current === pendingJoin);
 
-    // A reload can interrupt an in-flight request before its catch handler
-    // runs. Never let that stale token take over every future app startup.
-    if (pendingJoin && wasPendingInviteAttempted(pendingJoin)) {
-      clearPendingInvite();
-      joiningTripRef.current = pendingJoin;
-      setIsJoiningTrip(false);
-      showAlert(
-        'The previous invitation attempt did not finish. Open or scan the invitation again if the trip is not already in your list.',
-        'Invitation Reset',
-        'info'
-      );
-      return;
-    }
-
-    if (pendingJoin && alreadyJoinedTrip) {
+    if (pendingJoin && alreadyJoinedTrip && !joinAlreadyRunning) {
       if (slowJoinTimerRef.current !== null) {
         window.clearTimeout(slowJoinTimerRef.current);
         slowJoinTimerRef.current = null;
@@ -213,7 +201,25 @@ const AppContent: React.FC<AppContentProps> = () => {
       return;
     }
 
-    if (pendingJoin && joiningTripRef.current !== pendingJoin) {
+    // A reload can interrupt an in-flight request before its catch handler
+    // runs. Never let that stale token take over every future app startup.
+    if (pendingJoin && shouldResetInterruptedInvite(
+      pendingJoin,
+      joiningTripRef.current,
+      wasPendingInviteAttempted(pendingJoin)
+    )) {
+      clearPendingInvite();
+      joiningTripRef.current = pendingJoin;
+      setIsJoiningTrip(false);
+      showAlert(
+        'The previous invitation attempt did not finish. Open or scan the invitation again if the trip is not already in your list.',
+        'Invitation Reset',
+        'info'
+      );
+      return;
+    }
+
+    if (pendingJoin && !joinAlreadyRunning) {
       joiningTripRef.current = pendingJoin;
       markPendingInviteAttempt(pendingJoin);
       setIsJoiningTrip(true);

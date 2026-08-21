@@ -7,6 +7,7 @@ import {
   hasFreshPendingInvite,
   markPendingInviteAttempt,
   readInviteToken,
+  shouldResetInterruptedInvite,
   wasPendingInviteAttempted
 } from './invite';
 
@@ -83,5 +84,11 @@ describe('trip invitation URLs', () => {
     window.location.href = 'https://example.test/WhoPaid/';
     expect(capturePendingInviteFromBrowser()).toBeNull();
     expect(localStorage.getItem(PENDING_INVITE_KEY)).toBe('fresh-invite');
+  });
+
+  it('does not reset the invitation that is actively joining in this session', () => {
+    expect(shouldResetInterruptedInvite('invite-123', 'invite-123', true)).toBe(false);
+    expect(shouldResetInterruptedInvite('invite-123', null, true)).toBe(true);
+    expect(shouldResetInterruptedInvite('invite-123', null, false)).toBe(false);
   });
 });

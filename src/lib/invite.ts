@@ -22,6 +22,14 @@ export function wasPendingInviteAttempted(inviteToken: string): boolean {
     localStorage.getItem(PENDING_INVITE_ATTEMPT_KEY) === inviteToken;
 }
 
+export function shouldResetInterruptedInvite(
+  pendingToken: string,
+  activeJoinToken: string | null,
+  wasAttempted: boolean
+): boolean {
+  return wasAttempted && activeJoinToken !== pendingToken;
+}
+
 export function hasFreshPendingInvite(now = Date.now()): boolean {
   const rawCapturedAt = sessionStorage.getItem(PENDING_INVITE_CAPTURED_AT_KEY) ||
     localStorage.getItem(PENDING_INVITE_CAPTURED_AT_KEY);

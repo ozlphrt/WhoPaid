@@ -1213,15 +1213,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const remoteTrip = await joinTripInCloud(inviteToken, currentUser.id);
     const tripId = remoteTrip.id;
 
-    // Publish the successful cloud join immediately. Secondary hydration must
-    // not prevent the trip from appearing in the user's list. Local database
-    // persistence is also non-blocking because another PWA/browser instance
-    // may temporarily hold the IndexedDB connection.
+    // Persist before publishing. Otherwise an overlapping refresh can read
+    // IndexedDB before this write finishes and remove the newly joined trip
+    // from the home list again.
+    await db.trips.put(remoteTrip);
     setTrips(prev => [...prev.filter(trip => trip.id !== remoteTrip.id), remoteTrip]);
     setActiveTripId(tripId);
-    void db.trips.put(remoteTrip).catch(error => {
-      console.warn('[IndexedDB] Joined trip will be persisted by background sync:', error);
-    });
 
     // A join is complete only when its critical contents are available. This
     // keeps the success message honest and prevents an empty trip shell from
@@ -1274,7 +1271,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setExpenses(hydratedExpenses);
       setHouseholds(await db.households.where('tripId').equals(tripId).toArray());
       setSettlements(await db.settlements.where('tripId').equals(tripId).toArray());
-      setTrips(previous => [...previous]);
+      setTrips(previous => [...previous.filter(trip => trip.id !== remoteTrip.id), remoteTrip]);
     } catch (error) {
       console.warn('[Firestore] Trip membership created but content hydration failed:', error);
       throw new Error(
