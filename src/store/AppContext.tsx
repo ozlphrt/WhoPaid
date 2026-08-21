@@ -10,11 +10,7 @@ import { GlobalDialog, DialogOptions } from '../components/GlobalDialog';
 import {
   isSupabaseConfigured,
   subscribeToAuthChanges, 
-  loginAnonymously, 
   loginWithGoogle as cloudLoginGoogle,
-  loginApple as cloudLoginApple,
-  loginMicrosoft as cloudLoginMicrosoft,
-  loginFacebook as cloudLoginFacebook,
   loginEmail as cloudLoginEmail,
   signupEmail as cloudSignupEmail,
   logoutSupabase as cloudLogout
@@ -50,6 +46,8 @@ import { sendLocalNotification, requestNotificationPermission, isNotificationGra
 import { createId } from '../lib/id';
 import { retryOperation } from '../lib/asyncReliability';
 import { assertTripContentsHydrated } from '../lib/tripHydration';
+import { consolidateTripMembers, hasMemberWithEmail, isGuestMemberEmail, normalizeMemberEmail, uniqueInvitedEmails } from '../lib/memberIdentity';
+import { memberPaidExpense, redistributeExpenseAfterMemberRemoval } from '../lib/memberRemoval';
 
 interface UndoState {
   expense: Expense;
@@ -143,11 +141,7 @@ interface AppContextType {
   authUser: any | null;
   isAuthReady: boolean;
   startupStatus: StartupStatus;
-  loginAsGuest: () => Promise<void>;
   loginWithGoogleAuth: () => Promise<void>;
-  loginWithAppleAuth: () => Promise<void>;
-  loginWithMicrosoftAuth: () => Promise<void>;
-  loginWithFacebookAuth: () => Promise<void>;
   loginWithEmailAuth: (email: string, pass: string) => Promise<void>;
   signUpWithEmailAuth: (email: string, pass: string, name: string) => Promise<void>;
   logoutUser: () => Promise<void>;
@@ -156,7 +150,7 @@ interface AppContextType {
   isInitialized: boolean;
   refreshData: () => Promise<void>;
   syncWithCloud: () => Promise<void>;
-  showAlert: (message: string, title?: string, type?: 'info' | 'success' | 'warning' | 'danger') => void;
+  showAlert: (message: string, title?: string, type?: 'info' | 'success' | 'warning' | 'danger', highlight?: string) => void;
   showConfirm: (message: string, onConfirm: () => void | Promise<void>, options?: { title?: string; confirmText?: string; cancelText?: string; isDestructive?: boolean }) => void;
 }
 
@@ -174,12 +168,24 @@ if (import.meta.env.DEV) {
   appContextGlobal.__whopaidAppContext = AppContext;
 }
 
-const DEFAULT_USER: User = {
-  id: 'guest',
-  name: 'Guest',
-  email: 'guest@whopaid.app',
+const SIGNED_OUT_USER: User = {
+  id: 'signed-out',
+  name: '',
+  email: '',
   defaultCurrency: 'EUR'
 };
+
+async function removeTripFromLocalCache(tripId: string): Promise<void> {
+  await Promise.all([
+    db.tripMembers.where('tripId').equals(tripId).delete(),
+    db.households.where('tripId').equals(tripId).delete(),
+    db.expenses.where('tripId').equals(tripId).delete(),
+    db.settlements.where('tripId').equals(tripId).delete(),
+    db.activities.where('tripId').equals(tripId).delete(),
+    db.notifications.where('tripId').equals(tripId).delete(),
+    db.trips.delete(tripId)
+  ]);
+}
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -192,7 +198,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
-  const currentUser: User = storedUser || DEFAULT_USER;
+  const currentUser: User = storedUser || SIGNED_OUT_USER;
   const isAuthenticated = storedUser !== null;
 
   const setCurrentUser = (u: User) => {
@@ -267,16 +273,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const tripListenersRef = useRef<ActiveTripListeners | null>(null);
   const hasHydratedRef = useRef<boolean>(false);
   const cloudSyncInFlightRef = useRef<Promise<void> | null>(null);
-  const summaryHydrationInFlightRef = useRef<Promise<void> | null>(null);
 
   // In-App Global Modal Dialog State
   const [dialogState, setDialogState] = useState<DialogOptions | null>(null);
 
-  const showAlert = useCallback((message: string, title?: string, type: 'info' | 'success' | 'warning' | 'danger' = 'info') => {
+  const showAlert = useCallback((message: string, title?: string, type: 'info' | 'success' | 'warning' | 'danger' = 'info', highlight?: string) => {
     setDialogState({
       message,
       title,
       type,
+      highlight,
       confirmText: 'OK'
     });
   }, []);
@@ -469,7 +475,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }
         }
 
-        setMembers(tripMembers);
+        setMembers(consolidateTripMembers(tripMembers));
         setHouseholds(tripHouseholds);
         tripExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         setExpenses(tripExpenses);
@@ -523,10 +529,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       syncPromise = (async () => {
         const localTrips = await db.trips.toArray();
-        // 1. Sync owned trips and ensure invite token exists
-        const ownedTrips = localTrips.filter(trip =>
+        // Read the server first. A previously synced local row is only a cache,
+        // so it must never recreate a trip that was deleted on another device.
+        // Only explicitly pending/failed local creations may bootstrap a row
+        // that does not exist remotely yet.
+        const initialRemoteTrips = await fetchUserTripsFromCloud(currentUser.id, true, true);
+        const initialRemoteTripIds = new Set(initialRemoteTrips.map(trip => trip.id));
+        const staleCachedTrips = localTrips.filter(trip =>
+          !initialRemoteTripIds.has(trip.id) &&
+          trip.clientSyncStatus !== 'pending' &&
+          trip.clientSyncStatus !== 'failed'
+        );
+
+        for (const trip of staleCachedTrips) {
+          await removeTripFromLocalCache(trip.id);
+        }
+
+        const staleCachedTripIds = new Set(staleCachedTrips.map(trip => trip.id));
+        const retainedLocalTrips = localTrips.filter(trip => !staleCachedTripIds.has(trip.id));
+
+        // Sync remote-owned trips plus genuinely new/failed local creations.
+        const ownedTrips = retainedLocalTrips.filter(trip =>
           !trip.isDeleted &&
-          trip.ownerId === currentUser.id
+          trip.ownerId === currentUser.id &&
+          (initialRemoteTripIds.has(trip.id) ||
+            trip.clientSyncStatus === 'pending' ||
+            trip.clientSyncStatus === 'failed')
         );
 
         await Promise.all(ownedTrips.map(async localTrip => {
@@ -561,6 +589,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               };
               await db.tripMembers.put(repairedOwner);
               localMembers = [...localMembers, repairedOwner];
+            }
+            const consolidatedMembers = consolidateTripMembers(localMembers);
+            const canonicalMemberIds = new Set(consolidatedMembers.map(member => member.id));
+            const duplicateMemberIds = localMembers
+              .filter(member => !canonicalMemberIds.has(member.id))
+              .map(member => member.id);
+            await db.tripMembers.bulkPut(consolidatedMembers);
+            if (duplicateMemberIds.length > 0) {
+              await Promise.all(duplicateMemberIds.map(memberId => deleteMemberFromCloud(localTrip.id, memberId)));
+              await db.tripMembers.bulkDelete(duplicateMemberIds);
+              localMembers = consolidatedMembers;
             }
             await Promise.all(localMembers.flatMap(member => {
               const writes: Promise<void>[] = [syncMemberToCloud(localTrip.id, member)];
@@ -605,77 +644,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // A successful strict fetch is authoritative for shared-trip access.
         // Trips absent from this response were deleted or access was revoked;
         // retain only locally owned rows so owners can restore soft deletions.
-        const remoteTrips = await fetchUserTripsFromCloud(currentUser.id, true);
+        const remoteTrips = await fetchUserTripsFromCloud(currentUser.id, true, true);
         const remoteTripIds = new Set(remoteTrips.map(trip => trip.id));
         const cachedTrips = await db.trips.toArray();
-        const inaccessibleSharedTrips = cachedTrips.filter(trip =>
-          trip.ownerId !== currentUser.id && !remoteTripIds.has(trip.id)
+        const inaccessibleTrips = cachedTrips.filter(trip =>
+          !remoteTripIds.has(trip.id) &&
+          trip.clientSyncStatus !== 'pending' &&
+          trip.clientSyncStatus !== 'failed'
         );
 
-        for (const trip of inaccessibleSharedTrips) {
-          await Promise.all([
-            db.tripMembers.where('tripId').equals(trip.id).delete(),
-            db.households.where('tripId').equals(trip.id).delete(),
-            db.expenses.where('tripId').equals(trip.id).delete(),
-            db.settlements.where('tripId').equals(trip.id).delete(),
-            db.activities.where('tripId').equals(trip.id).delete(),
-            db.notifications.where('tripId').equals(trip.id).delete(),
-            db.trips.delete(trip.id)
-          ]);
+        for (const trip of inaccessibleTrips) {
+          await removeTripFromLocalCache(trip.id);
         }
 
         if (remoteTrips.length > 0) await db.trips.bulkPut(remoteTrips);
 
-        const retainedOwnedTrips = cachedTrips.filter(trip => trip.ownerId === currentUser.id);
-        const visibleTrips = new Map(retainedOwnedTrips.map(trip => [trip.id, trip]));
+        const retainedPendingTrips = retainedLocalTrips.filter(trip =>
+          (trip.clientSyncStatus === 'pending' || trip.clientSyncStatus === 'failed') &&
+          !remoteTripIds.has(trip.id)
+        );
+        const visibleTrips = new Map(retainedPendingTrips.map(trip => [trip.id, trip]));
         remoteTrips.forEach(trip => visibleTrips.set(trip.id, trip));
         setTrips([...visibleTrips.values()].filter(trip => !trip.isDeleted));
 
-        if (remoteTrips.length > 0) {
-          // Home balances need members, expenses, settlements, and households.
-          // Hydrate them after the trip list is visible, with limited
-          // concurrency so a fresh device stays responsive.
-          if (!summaryHydrationInFlightRef.current) {
-            const summaryTrips = remoteTrips.filter(trip => !trip.isDeleted && !trip.isClosed);
-            const hydrationPromise = (async () => {
-              const queue = [...summaryTrips];
-              const workerCount = Math.min(3, queue.length);
-              const workers = Array.from({ length: workerCount }, async () => {
-                while (queue.length > 0) {
-                  const trip = queue.shift();
-                  if (!trip) return;
-                  try {
-                    const [tripMembers, tripExpenses, tripSettlements, tripHouseholds] = await Promise.all([
-                      fetchTripMembersFromCloud(trip.id),
-                      fetchTripExpensesFromCloud(trip.id),
-                      fetchTripSettlementsFromCloud(trip.id),
-                      fetchTripHouseholdsFromCloud(trip.id)
-                    ]);
-                    await Promise.all([
-                      tripMembers.length > 0 ? db.tripMembers.bulkPut(tripMembers) : Promise.resolve(),
-                      tripExpenses.length > 0 ? db.expenses.bulkPut(tripExpenses) : Promise.resolve(),
-                      tripSettlements.length > 0 ? db.settlements.bulkPut(tripSettlements) : Promise.resolve(),
-                      tripHouseholds.length > 0 ? db.households.bulkPut(tripHouseholds) : Promise.resolve()
-                    ]);
-                  } catch (error) {
-                    console.warn('[Supabase Sync] Home summary hydration will retry:', error);
-                  }
-                }
-              });
-              await Promise.all(workers);
-
-              // Re-publish once so TripsHome recalculates all balances from the
-              // newly populated IndexedDB collections.
-              setTrips(previous => [...previous]);
-            })();
-            summaryHydrationInFlightRef.current = hydrationPromise;
-            void hydrationPromise.finally(() => {
-              if (summaryHydrationInFlightRef.current === hydrationPromise) {
-                summaryHydrationInFlightRef.current = null;
-              }
-            });
-          }
-        }
       })();
       cloudSyncInFlightRef.current = syncPromise;
 
@@ -784,7 +775,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
         if (remoteMembers.length > 0) await db.tripMembers.bulkPut(remoteMembers);
         const currentLocalMembers = await db.tripMembers.where('tripId').equals(activeTripId).toArray();
-        setMembers(currentLocalMembers);
+        setMembers(consolidateTripMembers(currentLocalMembers));
       },
       onHouseholdsUpdate: async (remoteHouseholds) => {
         const local = await db.households.where('tripId').equals(activeTripId).toArray();
@@ -1278,9 +1269,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await db.tripMembers.put(ownerMember);
 
     // Add initial invited members
-    for (const email of memberEmails) {
-      if (!email.trim() || email.trim() === currentUser.email) continue;
-      const cleanEmail = email.trim();
+    for (const cleanEmail of uniqueInvitedEmails(memberEmails, currentUser.email)) {
       const name = cleanEmail.split('@')[0];
       const memberId = createId('member');
       const memberUserId = `user_${name.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
@@ -1338,7 +1327,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const joinTrip = async (inviteToken: string) => {
-    if (!currentUser.id || currentUser.id === 'guest') throw new Error('Sign in before joining a trip.');
+    if (!isAuthenticated) throw new Error('Sign in before joining a trip.');
     if (!isSupabaseConfigured() || !isOnline) throw new Error('An internet connection is required to join a trip.');
 
     const remoteTrip = await joinTripInCloud(inviteToken, currentUser.id);
@@ -1373,11 +1362,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (remoteSettlements.length > 0) await db.settlements.bulkPut(remoteSettlements);
 
       const normalizedEmail = currentUser.email.trim().toLowerCase();
-      const existing = remoteMembers.find(member =>
+      const exactExisting = remoteMembers.find(member =>
         member.userId === currentUser.id ||
         member.legacyUserIds?.includes(currentUser.id) ||
         (normalizedEmail && member.email.trim().toLowerCase() === normalizedEmail)
       );
+      const normalizedName = currentUser.name.trim().toLowerCase();
+      const guestNameMatches = remoteMembers.filter(member =>
+        isGuestMemberEmail(member.email) &&
+        normalizedName &&
+        member.name.trim().toLowerCase() === normalizedName
+      );
+      const existing = exactExisting || (guestNameMatches.length === 1 ? guestNameMatches[0] : undefined);
       const legacyUserIds = existing && existing.userId !== currentUser.id
         ? [...new Set([...(existing.legacyUserIds || []), existing.userId])]
         : existing?.legacyUserIds;
@@ -1396,7 +1392,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await db.tripMembers.put(memberRecord);
       await retryOperation(() => syncMemberToCloud(tripId, memberRecord));
 
-      setMembers(await db.tripMembers.where('tripId').equals(tripId).toArray());
+      setMembers(consolidateTripMembers(await db.tripMembers.where('tripId').equals(tripId).toArray()));
       const hydratedExpenses = await db.expenses.where('tripId').equals(tripId).toArray();
       hydratedExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       setExpenses(hydratedExpenses);
@@ -1410,7 +1406,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
     }
 
-    showAlert(`You joined ${remoteTrip.name} successfully!`, 'Trip Joined 🎉', 'success');
+    showAlert('You now have access to this trip and its shared expenses.', 'Trip Joined 🎉', 'success', remoteTrip.name);
   };
 
   const updateTrip = async (trip: Trip) => {
@@ -1514,11 +1510,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addMember = async (tripId: string, email: string, name: string) => {
     const now = new Date().toISOString();
+    const cleanEmail = email.trim();
+    if (!normalizeMemberEmail(cleanEmail)) {
+      throw new Error('Enter an email address for this participant.');
+    }
+
+    const tripMembers = await db.tripMembers.where('tripId').equals(tripId).toArray();
+    if (hasMemberWithEmail(tripMembers, cleanEmail)) {
+      throw new Error('A participant with this email is already in the trip.');
+    }
+
     const userId = createId(`user_${name.toLowerCase().replace(/[^a-z0-9]/g, '') || 'member'}`);
     await db.users.put({
       id: userId,
       name,
-      email,
+      email: cleanEmail,
       defaultCurrency: activeTrip?.mainCurrency || 'EUR'
     });
 
@@ -1527,14 +1533,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       tripId,
       userId,
       name,
-      email,
+      email: cleanEmail,
       role: 'member',
       isActive: true,
       joinedAt: now
     };
     await db.tripMembers.put(member);
     if (isSupabaseConfigured() && isOnline) {
-      syncMemberToCloud(tripId, member).catch(console.warn);
+      try {
+        await syncMemberToCloud(tripId, member);
+      } catch (error) {
+        if ((error as { code?: string } | null)?.code === '23505') {
+          await db.tripMembers.delete(member.id);
+          await db.users.delete(userId);
+          throw new Error('A participant with this email is already in the trip.');
+        }
+        console.warn('[Supabase] Member remains local after upload failure:', error);
+      }
     }
     await addActivity('member_joined', `${name} joined the trip`);
     await refreshData();
@@ -1560,6 +1575,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (m.role === 'owner' || m.userId === activeTrip.ownerId) {
       showAlert('The trip owner cannot be removed. Transfer ownership first if needed.', 'Action Not Allowed', 'warning');
       return;
+    }
+
+    const memberUserIds = new Set([m.userId, m.authUid, ...(m.legacyUserIds || [])].filter(Boolean) as string[]);
+    const tripExpenses = await db.expenses.where('tripId').equals(activeTrip.id).toArray();
+    const paidExpense = tripExpenses.find(expense => memberPaidExpense(expense, memberUserIds));
+    if (paidExpense) {
+      showAlert(
+        `${m.name} paid “${paidExpense.description}”. Reassign that expense’s payer before removing this member.`,
+        'Payer Must Be Reassigned',
+        'warning'
+      );
+      return;
+    }
+
+    const remainingMemberIds = (await db.tripMembers.where('tripId').equals(activeTrip.id).toArray())
+      .filter(member => member.id !== memberId && member.isActive)
+      .map(member => member.userId);
+    const revisedExpenses = tripExpenses
+      .map(expense => redistributeExpenseAfterMemberRemoval(expense, memberUserIds, remainingMemberIds))
+      .filter((expense): expense is Expense => expense !== null);
+
+    if (isSupabaseConfigured() && isOnline && revisedExpenses.length > 0) {
+      try {
+        await Promise.all(revisedExpenses.map(expense => retryOperation(() => syncExpenseToCloud(activeTrip.id, expense))));
+      } catch (error) {
+        console.warn('[Supabase] Member removal redistribution failed:', error);
+        showAlert(
+          'The affected expenses could not be updated in the cloud. The member was not removed; please try again.',
+          'Removal Not Completed',
+          'warning'
+        );
+        return;
+      }
+    }
+
+    if (revisedExpenses.length > 0) {
+      await db.expenses.bulkPut(revisedExpenses.map(expense => ({
+        ...expense,
+        clientSyncStatus: isSupabaseConfigured() && isOnline ? 'synced' as const : expense.clientSyncStatus
+      })));
     }
 
     // Remove member from households in this trip
@@ -1602,7 +1657,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setTrips(prev => prev.map(trip => trip.id === updatedTrip.id ? updatedTrip : trip));
     }
 
-    await addActivity('member_left', `${m.name} was removed from the trip by the owner.`);
+    await addActivity(
+      'member_left',
+      `${m.name} was removed from the trip by the owner.${revisedExpenses.length > 0 ? ` ${revisedExpenses.length} expense${revisedExpenses.length === 1 ? '' : 's'} redistributed.` : ''}`
+    );
     await refreshData();
   };
 
@@ -1767,14 +1825,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Auth Operations
-  const loginAsGuest = async () => {
-    try {
-      await loginAnonymously();
-    } catch (err) {
-      console.error('Guest login failed:', err);
-    }
-  };
-
   const handlePostLogin = async (cloudUser: any) => {
     if (!cloudUser) return;
     try {
@@ -1831,36 +1881,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const loginWithAppleAuth = async () => {
-    try {
-      const cloudUser = await cloudLoginApple();
-      await handlePostLogin(cloudUser);
-    } catch (err: any) {
-      console.error('Apple login failed:', err);
-      throw err;
-    }
-  };
-
-  const loginWithMicrosoftAuth = async () => {
-    try {
-      const cloudUser = await cloudLoginMicrosoft();
-      await handlePostLogin(cloudUser);
-    } catch (err: any) {
-      console.error('Microsoft login failed:', err);
-      throw err;
-    }
-  };
-
-  const loginWithFacebookAuth = async () => {
-    try {
-      const cloudUser = await cloudLoginFacebook();
-      await handlePostLogin(cloudUser);
-    } catch (err: any) {
-      console.error('Facebook login failed:', err);
-      throw err;
-    }
-  };
-
   const loginWithEmailAuth = async (email: string, pass: string) => {
     try {
       const cloudUser = await cloudLoginEmail(email, pass);
@@ -1910,7 +1930,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logoutUser = async () => {
-    if (currentUser.id && currentUser.id !== 'guest') {
+    if (isAuthenticated && currentUser.id) {
       localStorage.setItem('whopaid_last_auth_uid', currentUser.id);
     }
     try {
@@ -1989,11 +2009,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         authUser,
         isAuthReady,
         startupStatus,
-        loginAsGuest,
         loginWithGoogleAuth,
-        loginWithAppleAuth,
-        loginWithMicrosoftAuth,
-        loginWithFacebookAuth,
         loginWithEmailAuth,
         signUpWithEmailAuth,
         logoutUser,

@@ -44,13 +44,7 @@ function oauthRedirectUrl(): string {
   return `${window.location.origin}${import.meta.env.BASE_URL}`;
 }
 
-export async function loginAnonymously(): Promise<SupabaseUser | null> {
-  const { data, error } = await requireClient().auth.signInAnonymously();
-  if (error) throw error;
-  return data.user;
-}
-
-async function loginWithOAuth(provider: 'google' | 'apple' | 'azure' | 'facebook'): Promise<null> {
+async function loginWithGoogleOAuth(): Promise<null> {
   const options: {
     redirectTo: string;
     scopes?: string;
@@ -59,21 +53,14 @@ async function loginWithOAuth(provider: 'google' | 'apple' | 'azure' | 'facebook
     redirectTo: oauthRedirectUrl()
   };
 
-  if (provider === 'google') {
-    options.scopes = 'openid email profile';
-    options.queryParams = { prompt: 'select_account' };
-  } else if (provider === 'azure') {
-    options.queryParams = { prompt: 'select_account' };
-  }
-  const { error } = await requireClient().auth.signInWithOAuth({ provider, options });
+  options.scopes = 'openid email profile';
+  options.queryParams = { prompt: 'select_account' };
+  const { error } = await requireClient().auth.signInWithOAuth({ provider: 'google', options });
   if (error) throw error;
   return null;
 }
 
-export const loginWithGoogle = () => loginWithOAuth('google');
-export const loginApple = () => loginWithOAuth('apple');
-export const loginMicrosoft = () => loginWithOAuth('azure');
-export const loginFacebook = () => loginWithOAuth('facebook');
+export const loginWithGoogle = () => loginWithGoogleOAuth();
 
 export async function loginEmail(email: string, password: string): Promise<SupabaseUser> {
   const { data, error } = await requireClient().auth.signInWithPassword({

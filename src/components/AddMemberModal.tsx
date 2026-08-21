@@ -69,17 +69,21 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({ trip, isOpen, on
 
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !trip) return;
+    if (!name.trim() || !email.trim() || !trip) return;
     setIsSubmitting(true);
     try {
-      const generatedEmail = email.trim() || `${name.trim().toLowerCase().replace(/[^a-z0-9]/g, '')}@whopaid.guest`;
-      await addMember(trip.id, generatedEmail, name.trim());
+      await addMember(trip.id, email.trim(), name.trim());
       showAlert(`${name.trim()} added to ${trip.name}!`, 'Member Added', 'success');
       setName('');
       setEmail('');
       onClose();
     } catch (err) {
       console.error('Failed to add member:', err);
+      showAlert(
+        err instanceof Error ? err.message : 'This participant could not be added.',
+        'Member Not Added',
+        'warning'
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -157,7 +161,7 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({ trip, isOpen, on
 
           <div>
             <label style={{ display: 'block', fontSize: '0.74rem', fontWeight: 800, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 5 }}>
-              Email Address <span style={{ fontWeight: 500, textTransform: 'none', color: 'var(--text-tertiary)' }}>(optional)</span>
+              Email Address *
             </label>
             <div style={{ position: 'relative' }}>
               <Mail size={15} color="var(--text-tertiary)" style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)' }} />
@@ -166,6 +170,7 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({ trip, isOpen, on
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 placeholder="alex@example.com"
+                required
                 style={{
                   width: '100%',
                   padding: '10px 12px 10px 34px',
@@ -181,7 +186,7 @@ export const AddMemberModal: React.FC<AddMemberModalProps> = ({ trip, isOpen, on
 
           <button
             type="submit"
-            disabled={!name.trim() || isSubmitting}
+            disabled={!name.trim() || !email.trim() || isSubmitting}
             className="btn-primary"
             style={{
               display: 'flex',

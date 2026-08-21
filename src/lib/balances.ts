@@ -1,5 +1,6 @@
 import { Expense, TripMember, Household, Settlement, ParticipantBalance, HouseholdBalance, User } from '../types';
 import { add, sub, mul, div, roundMoney } from './decimal';
+import { consolidateTripMembers } from './memberIdentity';
 
 export function resolveCurrentMemberUserId(
   user: Pick<User, 'id' | 'email' | 'name'>,
@@ -86,6 +87,8 @@ export function calculateParticipantBalances(
   householdBalances: HouseholdBalance[];
   totalSpend: number;
 } {
+  members = consolidateTripMembers(members);
+
   // Map of canonical userId -> { paid: Decimal, share: Decimal }
   const paidMap = new Map<string, number>();
   const shareMap = new Map<string, number>();

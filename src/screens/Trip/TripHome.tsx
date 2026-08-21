@@ -218,7 +218,7 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <Users size={16} color="var(--text-secondary)" />
-            <h2 style={{ fontSize: '0.92rem', fontWeight: 800, letterSpacing: '-0.01em' }}>Group Members ({members.length})</h2>
+            <h2 style={{ fontSize: '0.92rem', fontWeight: 800, letterSpacing: '-0.01em' }}>Group Members ({balances.individualBalances.length})</h2>
           </div>
           {isOwner && (
             <button

@@ -1,9 +1,17 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../../store/AppContext';
-import { Trip } from '../../types';
+import { Expense, Household, Settlement, Trip, TripMember } from '../../types';
 import { formatMoney } from '../../lib/decimal';
 import { db } from '../../lib/db';
 import { calculateParticipantBalances, resolveCurrentMemberUserId } from '../../lib/balances';
+import { isSupabaseConfigured } from '../../lib/supabase';
+import {
+  fetchTripExpensesFromCloud,
+  fetchTripHouseholdsFromCloud,
+  fetchTripMembersFromCloud,
+  fetchTripSettlementsFromCloud
+} from '../../lib/supabaseSync';
+import { consolidateTripMembers } from '../../lib/memberIdentity';
 import { Plus, Calendar, ChevronRight, Archive, Trash2 } from 'lucide-react';
 import { CreateTripModal } from '../../components/CreateTripModal';
 
@@ -370,7 +378,7 @@ const SwipeableTripItem: React.FC<SwipeableTripItemProps> = ({
 };
 
 export const TripsHome: React.FC<TripsHomeProps> = ({ onSelectTrip, onOpenArchive }) => {
-  const { trips, currentUser, refreshData, closeTrip, deleteTrip, showAlert, clearAllData, showConfirm } = useApp();
+  const { trips, currentUser, isAuthenticated, refreshData, closeTrip, deleteTrip, showAlert, clearAllData, showConfirm } = useApp();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [openTripId, setOpenTripId] = useState<string | null>(null);
   const [tripBalances, setTripBalances] = useState<Record<string, { net: number; hasExpenses: boolean }>>({});
@@ -390,33 +398,89 @@ export const TripsHome: React.FC<TripsHomeProps> = ({ onSelectTrip, onOpenArchiv
 
     const loadAllTripBalances = async () => {
       const allKnownUsers = await db.users.toArray();
-      const results: Record<string, { net: number; hasExpenses: boolean }> = {};
-      for (const trip of activeTrips) {
-        const tripMems = await db.tripMembers.where('tripId').equals(trip.id).toArray();
-        const tripExps = await db.expenses.where('tripId').equals(trip.id).toArray();
-        const tripSettlements = await db.settlements.where('tripId').equals(trip.id).toArray();
-        const tripHouseholds = await db.households.where('tripId').equals(trip.id).toArray();
-
-        const activeExps = tripExps.filter(e => !e.isDeleted);
-        const b = calculateParticipantBalances(tripMems, tripExps, tripSettlements, tripHouseholds, allKnownUsers);
+      const calculateSummary = (tripMems: TripMember[], tripExps: Expense[], tripSettlements: Settlement[], tripHouseholds: Household[]) => {
+        tripMems = consolidateTripMembers(tripMems);
+        const activeExps = tripExps.filter(expense => !expense.isDeleted);
+        const balances = calculateParticipantBalances(tripMems, tripExps, tripSettlements, tripHouseholds, allKnownUsers);
         const currentMemberUserId = resolveCurrentMemberUserId(currentUser, tripMems);
-        const myBal = b.individualBalances.find(ib => ib.userId === currentMemberUserId);
-        results[trip.id] = {
-          net: myBal ? myBal.net : 0,
+        const myBalance = balances.individualBalances.find(balance => balance.userId === currentMemberUserId);
+        return {
+          net: myBalance?.net ?? 0,
           hasExpenses: activeExps.length > 0
         };
-      }
-      if (isMounted) {
-        setTripBalances(results);
-      }
+      };
+
+      const publishSummary = (tripId: string, summary: { net: number; hasExpenses: boolean }) => {
+        if (!isMounted) return;
+        setTripBalances(previous => ({ ...previous, [tripId]: summary }));
+      };
+
+      // Paint cached values first so returning users do not wait on the network.
+      await Promise.all(activeTrips.map(async trip => {
+        const [tripMems, tripExps, tripSettlements, tripHouseholds] = await Promise.all([
+          db.tripMembers.where('tripId').equals(trip.id).toArray(),
+          db.expenses.where('tripId').equals(trip.id).toArray(),
+          db.settlements.where('tripId').equals(trip.id).toArray(),
+          db.households.where('tripId').equals(trip.id).toArray()
+        ]);
+        publishSummary(trip.id, calculateSummary(tripMems, tripExps, tripSettlements, tripHouseholds));
+      }));
+
+      if (!isAuthenticated || !isSupabaseConfigured() || !navigator.onLine || !isMounted) return;
+
+      // The home screen needs authoritative contents for every card, not only
+      // the last trip the user opened. Limit concurrency to keep PWA startup
+      // responsive while updating cards progressively.
+      const queue = [...activeTrips];
+      const workerCount = Math.min(3, queue.length);
+      await Promise.all(Array.from({ length: workerCount }, async () => {
+        while (queue.length > 0 && isMounted) {
+          const trip = queue.shift();
+          if (!trip) return;
+          try {
+            const [remoteMembers, remoteExpenses, remoteSettlements, remoteHouseholds] = await Promise.all([
+              fetchTripMembersFromCloud(trip.id, true),
+              fetchTripExpensesFromCloud(trip.id, true),
+              fetchTripSettlementsFromCloud(trip.id, true),
+              fetchTripHouseholdsFromCloud(trip.id, true)
+            ]);
+
+            const localMembers = await db.tripMembers.where('tripId').equals(trip.id).toArray();
+            const localExpenses = await db.expenses.where('tripId').equals(trip.id).toArray();
+            const mergedMembers = [...new Map(
+              [...localMembers, ...remoteMembers].map(member => [member.id, member])
+            ).values()];
+            const unsyncedExpenses = localExpenses.filter(expense =>
+              expense.clientSyncStatus === 'pending' || expense.clientSyncStatus === 'failed'
+            );
+            const mergedExpenses = [...new Map(
+              [...remoteExpenses, ...unsyncedExpenses].map(expense => [expense.id, expense])
+            ).values()];
+
+            await Promise.all([
+              remoteMembers.length ? db.tripMembers.bulkPut(remoteMembers) : Promise.resolve(),
+              remoteExpenses.length ? db.expenses.bulkPut(remoteExpenses) : Promise.resolve(),
+              remoteSettlements.length ? db.settlements.bulkPut(remoteSettlements) : Promise.resolve(),
+              remoteHouseholds.length ? db.households.bulkPut(remoteHouseholds) : Promise.resolve()
+            ]);
+
+            publishSummary(
+              trip.id,
+              calculateSummary(mergedMembers, mergedExpenses, remoteSettlements, remoteHouseholds)
+            );
+          } catch (error) {
+            console.warn('[Supabase] Home balance refresh will retry:', trip.id, error);
+          }
+        }
+      }));
     };
 
-    loadAllTripBalances();
+    void loadAllTripBalances();
 
     return () => {
       isMounted = false;
     };
-  }, [activeTrips, currentUser.id, currentUser.email, currentUser.name]);
+  }, [activeTrips, currentUser.id, currentUser.email, currentUser.name, isAuthenticated]);
 
   const formatDateRange = (startStr: string, endStr: string, currency: string) => {
     try {

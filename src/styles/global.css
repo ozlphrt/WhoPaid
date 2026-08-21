@@ -64,6 +64,16 @@ input, select, textarea {
   outline: none;
 }
 
+/* iOS Safari/PWA automatically zooms the viewport when a focused form field
+   renders below 16px, and can leave the trip screen enlarged after a sheet
+   closes. Keep mobile controls at the non-zoom threshold without disabling
+   the user's normal pinch-to-zoom accessibility. */
+@media (max-width: 600px), (pointer: coarse) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
 a {
   color: inherit;
   text-decoration: none;

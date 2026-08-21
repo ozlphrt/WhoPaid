@@ -16,9 +16,16 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   children,
   showClose = true
 }) => {
+  const closeSheet = () => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    onClose();
+  };
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) onClose();
+      if (e.key === 'Escape' && isOpen) closeSheet();
     };
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -33,7 +40,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="sheet-backdrop" onClick={onClose}>
+    <div className="sheet-backdrop" onClick={closeSheet}>
       <div 
         className="sheet-content animate-slide-up" 
         onClick={(e) => e.stopPropagation()}
@@ -47,7 +54,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
             {title && <h2 style={{ fontSize: '1.25rem', fontWeight: 800, letterSpacing: '-0.02em' }}>{title}</h2>}
             {showClose && (
               <button 
-                onClick={onClose}
+                onClick={closeSheet}
                 className="nav-icon-btn"
                 style={{ width: 32, height: 32, marginLeft: 'auto' }}
                 aria-label="Close"

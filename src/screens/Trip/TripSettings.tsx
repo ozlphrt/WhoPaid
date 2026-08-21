@@ -62,7 +62,7 @@ export const TripSettings: React.FC = () => {
 
   const handleRemoveMember = (memberId: string, memberName: string) => {
     showConfirm(
-      `Are you sure you want to remove ${memberName} from this trip? They will no longer have access to this trip.`,
+      `Are you sure you want to remove ${memberName} from this trip? They will lose access, and their shares in existing expenses will be redistributed among the remaining participants.`,
       async () => {
         await deleteMember(memberId);
       },

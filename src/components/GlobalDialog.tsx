@@ -5,6 +5,7 @@ export interface DialogOptions {
   type?: 'info' | 'success' | 'warning' | 'danger' | 'confirm';
   title?: string;
   message: string;
+  highlight?: string;
   confirmText?: string;
   cancelText?: string;
   isDestructive?: boolean;
@@ -110,6 +111,26 @@ export const GlobalDialog: React.FC<GlobalDialogProps> = ({
           }}>
             {options.title}
           </h3>
+        )}
+
+        {options.highlight && (
+          <div style={{
+            width: '100%',
+            maxWidth: 320,
+            margin: '5px 0 10px',
+            padding: '11px 14px',
+            borderRadius: 'var(--radius-lg)',
+            background: options.type === 'success' ? 'var(--positive-bg)' : 'var(--bg-subtle)',
+            border: `1px solid ${options.type === 'success' ? 'var(--positive-border)' : 'var(--border-subtle)'}`,
+            color: options.type === 'success' ? 'var(--positive-text)' : 'var(--text-primary)',
+            fontSize: 'clamp(1.75rem, 8vw, 2.15rem)',
+            fontWeight: 900,
+            lineHeight: 1.08,
+            letterSpacing: '-0.04em',
+            overflowWrap: 'anywhere'
+          }}>
+            {options.highlight}
+          </div>
         )}
 
         {/* Message */}
