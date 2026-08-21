@@ -162,10 +162,11 @@ export async function fetchTripFromCloud(tripId: string): Promise<Trip | null> {
   return (data?.payload as Trip) ?? null;
 }
 
-export async function fetchUserTripsFromCloud(userId: string): Promise<Trip[]> {
+export async function fetchUserTripsFromCloud(userId: string, strict = false): Promise<Trip[]> {
   if (!supabase || !userId) return [];
   const { data, error } = await supabase.from('trips').select('payload').eq('is_deleted', false);
   if (error) {
+    if (strict) throw error;
     console.warn('[Supabase] Could not fetch trips:', error.message);
     return [];
   }

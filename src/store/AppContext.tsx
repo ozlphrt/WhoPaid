@@ -602,19 +602,36 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           }));
         }
 
-        const remoteTrips = await fetchUserTripsFromCloud(currentUser.id);
-        if (remoteTrips.length > 0) {
-          await db.trips.bulkPut(remoteTrips);
-          // Publish the trip list immediately. Trip contents are hydrated by
-          // the active-trip realtime listeners only when the user opens one;
-          // fetching every subcollection here made fresh PWA installs appear
-          // stuck and could exceed the global startup timeout.
-          setTrips(previous => {
-            const merged = new Map(previous.map(trip => [trip.id, trip]));
-            remoteTrips.forEach(trip => merged.set(trip.id, trip));
-            return [...merged.values()].filter(trip => !trip.isDeleted);
-          });
+        // A successful strict fetch is authoritative for shared-trip access.
+        // Trips absent from this response were deleted or access was revoked;
+        // retain only locally owned rows so owners can restore soft deletions.
+        const remoteTrips = await fetchUserTripsFromCloud(currentUser.id, true);
+        const remoteTripIds = new Set(remoteTrips.map(trip => trip.id));
+        const cachedTrips = await db.trips.toArray();
+        const inaccessibleSharedTrips = cachedTrips.filter(trip =>
+          trip.ownerId !== currentUser.id && !remoteTripIds.has(trip.id)
+        );
 
+        for (const trip of inaccessibleSharedTrips) {
+          await Promise.all([
+            db.tripMembers.where('tripId').equals(trip.id).delete(),
+            db.households.where('tripId').equals(trip.id).delete(),
+            db.expenses.where('tripId').equals(trip.id).delete(),
+            db.settlements.where('tripId').equals(trip.id).delete(),
+            db.activities.where('tripId').equals(trip.id).delete(),
+            db.notifications.where('tripId').equals(trip.id).delete(),
+            db.trips.delete(trip.id)
+          ]);
+        }
+
+        if (remoteTrips.length > 0) await db.trips.bulkPut(remoteTrips);
+
+        const retainedOwnedTrips = cachedTrips.filter(trip => trip.ownerId === currentUser.id);
+        const visibleTrips = new Map(retainedOwnedTrips.map(trip => [trip.id, trip]));
+        remoteTrips.forEach(trip => visibleTrips.set(trip.id, trip));
+        setTrips([...visibleTrips.values()].filter(trip => !trip.isDeleted));
+
+        if (remoteTrips.length > 0) {
           // Home balances need members, expenses, settlements, and households.
           // Hydrate them after the trip list is visible, with limited
           // concurrency so a fresh device stays responsive.
