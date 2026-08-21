@@ -9,7 +9,7 @@ export const ProfileScreen: React.FC = () => {
   const { 
     currentUser, 
     setCurrentUser, 
-    isFirebaseActive, 
+    isCloudActive,
     logoutUser,
     clearAllData,
     enableNotifications,
@@ -124,13 +124,13 @@ export const ProfileScreen: React.FC = () => {
             gap: 5,
             padding: '5px 10px',
             borderRadius: 'var(--radius-full)',
-            background: isFirebaseActive ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-subtle)',
-            color: isFirebaseActive ? '#10b981' : 'var(--text-tertiary)',
+            background: isCloudActive ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-subtle)',
+            color: isCloudActive ? '#10b981' : 'var(--text-tertiary)',
             fontSize: '0.72rem',
             fontWeight: 800
           }}>
-            {isFirebaseActive ? <Cloud size={13} /> : <CloudOff size={13} />}
-            <span>{isFirebaseActive ? 'Synced' : 'Local'}</span>
+            {isCloudActive ? <Cloud size={13} /> : <CloudOff size={13} />}
+            <span>{isCloudActive ? 'Synced' : 'Local'}</span>
           </div>
         </div>
 

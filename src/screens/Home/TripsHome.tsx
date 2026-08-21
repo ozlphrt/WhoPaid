@@ -3,7 +3,7 @@ import { useApp } from '../../store/AppContext';
 import { Trip } from '../../types';
 import { formatMoney } from '../../lib/decimal';
 import { db } from '../../lib/db';
-import { calculateParticipantBalances } from '../../lib/balances';
+import { calculateParticipantBalances, resolveCurrentMemberUserId } from '../../lib/balances';
 import { Plus, Calendar, ChevronRight, Archive, Trash2 } from 'lucide-react';
 import { CreateTripModal } from '../../components/CreateTripModal';
 
@@ -399,11 +399,8 @@ export const TripsHome: React.FC<TripsHomeProps> = ({ onSelectTrip, onOpenArchiv
 
         const activeExps = tripExps.filter(e => !e.isDeleted);
         const b = calculateParticipantBalances(tripMems, tripExps, tripSettlements, tripHouseholds, allKnownUsers);
-        const myBal = b.individualBalances.find(ib => 
-          ib.userId === currentUser.id || 
-          (currentUser.email && ib.userId.toLowerCase() === currentUser.email.toLowerCase()) ||
-          (currentUser.name && ib.name.toLowerCase() === currentUser.name.toLowerCase())
-        );
+        const currentMemberUserId = resolveCurrentMemberUserId(currentUser, tripMems);
+        const myBal = b.individualBalances.find(ib => ib.userId === currentMemberUserId);
         results[trip.id] = {
           net: myBal ? myBal.net : 0,
           hasExpenses: activeExps.length > 0

@@ -6,6 +6,7 @@ import { AddExpenseSheet } from '../../components/AddExpenseSheet';
 import { ExpenseDetailModal } from '../../components/ExpenseDetailModal';
 import { QRCodeModal } from '../../components/QRCodeModal';
 import { CategoryIcon } from '../../components/CategoryIcon';
+import { resolveCurrentMemberUserId } from '../../lib/balances';
 
 interface TripHomeProps {
   onNavigateTab: (tab: 'expenses' | 'balances' | 'settle' | 'report' | 'settings') => void;
@@ -38,17 +39,14 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
   const isOwed = hasExpenses && userNetBalance > 0.009;
   const owes = hasExpenses && userNetBalance < -0.009;
 
-  const userBalanceObj = balances.individualBalances.find(b => 
-    b.userId === currentUser.id || 
-    (currentUser.email && b.userId.toLowerCase() === currentUser.email.toLowerCase()) ||
-    (currentUser.name && b.name.toLowerCase() === currentUser.name.toLowerCase())
+  const currentMemberUserId = resolveCurrentMemberUserId(currentUser, members);
+  const userBalanceObj = balances.individualBalances.find(b =>
+    b.userId === currentMemberUserId
   );
 
   // Immediate pending transfer recommendation for user
-  const myNextTransfer = recommendedTransfers.find(t => 
-    t.debtorId === currentUser.id || 
-    t.creditorId === currentUser.id ||
-    (currentUser.name && (t.debtorName?.toLowerCase() === currentUser.name.toLowerCase() || t.creditorName?.toLowerCase() === currentUser.name.toLowerCase()))
+  const myNextTransfer = recommendedTransfers.find(t =>
+    t.debtorId === currentMemberUserId || t.creditorId === currentMemberUserId
   );
 
   // Group expenses chronologically by date
@@ -192,7 +190,7 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
               color: 'var(--text-secondary)'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {myNextTransfer.debtorId === currentUser.id ? (
+                {myNextTransfer.debtorId === currentMemberUserId ? (
                   <>
                     <ArrowUpRight size={14} color="var(--negative-text)" />
                     <span>Send {formatMoney(myNextTransfer.amount, activeTrip.mainCurrency)} to <strong>{myNextTransfer.creditorName}</strong></span>
@@ -249,7 +247,7 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {balances.individualBalances.map(b => {
-            const isSelf = b.userId === currentUser.id;
+            const isSelf = b.userId === currentMemberUserId;
             const owesMoney = b.net < -0.009;
             const owedMoney = b.net > 0.009;
 

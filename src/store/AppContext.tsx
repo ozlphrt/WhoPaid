@@ -1,28 +1,28 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { db, seedInitialDataIfNeeded } from '../lib/db';
 import { User, Trip, TripMember, Household, Expense, Settlement, Activity, PushNotification, CurrencyCode } from '../types';
-import { calculateParticipantBalances } from '../lib/balances';
+import { calculateParticipantBalances, resolveCurrentMemberUserId } from '../lib/balances';
 import { calculateOptimizedSettlements } from '../lib/settlement';
 import { fetchHistoricalExchangeRate, convertAmount } from '../lib/fx';
 import { add, sub, roundMoney } from '../lib/decimal';
 import { checkForDuplicateExpense } from '../lib/duplicate';
 import { GlobalDialog, DialogOptions } from '../components/GlobalDialog';
-import { 
-  isFirebaseConfigured, 
+import {
+  isSupabaseConfigured,
   subscribeToAuthChanges, 
   loginAnonymously, 
-  loginWithGoogle as fbLoginGoogle, 
-  loginApple as fbLoginApple,
-  loginMicrosoft as fbLoginMicrosoft,
-  loginFacebook as fbLoginFacebook,
-  loginEmail as fbLoginEmail,
-  signupEmail as fbSignupEmail,
-  logoutFirebase as fbLogout,
-  initFirebase
-} from '../lib/firebase';
+  loginWithGoogle as cloudLoginGoogle,
+  loginApple as cloudLoginApple,
+  loginMicrosoft as cloudLoginMicrosoft,
+  loginFacebook as cloudLoginFacebook,
+  loginEmail as cloudLoginEmail,
+  signupEmail as cloudSignupEmail,
+  logoutSupabase as cloudLogout
+} from '../lib/supabase';
 import { 
   subscribeToTrip, 
   syncTripToCloud, 
+  deleteTripFromCloud,
   syncTripInvite,
   revokeTripInvite,
   syncUserTripMembership,
@@ -43,8 +43,9 @@ import {
   fetchTripMembersFromCloud,
   fetchTripHouseholdsFromCloud,
   fetchTripSettlementsFromCloud,
+  transferTripOwnershipInCloud,
   ActiveTripListeners
-} from '../lib/firestoreSync';
+} from '../lib/supabaseSync';
 import { sendLocalNotification, requestNotificationPermission, isNotificationGranted } from '../lib/notifications';
 import { createId } from '../lib/id';
 import { retryOperation } from '../lib/asyncReliability';
@@ -137,10 +138,10 @@ interface AppContextType {
   // Cloud & Sync state
   isOnline: boolean;
   isSyncing: boolean;
-  isFirebaseActive: boolean;
+  isCloudActive: boolean;
   cloudSyncStatus: 'offline' | 'connected' | 'syncing' | 'error';
-  firebaseUser: any | null;
-  isFirebaseAuthReady: boolean;
+  authUser: any | null;
+  isAuthReady: boolean;
   startupStatus: StartupStatus;
   loginAsGuest: () => Promise<void>;
   loginWithGoogleAuth: () => Promise<void>;
@@ -159,7 +160,19 @@ interface AppContextType {
   showConfirm: (message: string, onConfirm: () => void | Promise<void>, options?: { title?: string; confirmText?: string; cancelText?: string; isDestructive?: boolean }) => void;
 }
 
-const AppContext = createContext<AppContextType | null>(null);
+const appContextGlobal = globalThis as typeof globalThis & {
+  __whopaidAppContext?: React.Context<AppContextType | null>;
+};
+
+// Keep the context identity stable when Vite replaces this module. Without
+// this, consumers can briefly read a new context while the mounted provider is
+// still using the previous one, producing a false "outside AppProvider" error.
+const AppContext = appContextGlobal.__whopaidAppContext
+  ?? createContext<AppContextType | null>(null);
+
+if (import.meta.env.DEV) {
+  appContextGlobal.__whopaidAppContext = AppContext;
+}
 
 const DEFAULT_USER: User = {
   id: 'guest',
@@ -186,11 +199,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setStoredUser(u);
     localStorage.setItem('whopaid_auth_user', JSON.stringify(u));
     db.users.put(u);
-    if (isFirebaseConfigured() && isOnline) {
+    if (isSupabaseConfigured() && isOnline) {
       syncUserToCloud(u).catch(console.warn);
     }
 
-    // Propagate updated display name across all trip memberships in local DB and Firestore
+    // Propagate updated display name across local and cloud trip memberships.
     db.tripMembers.toArray().then(async (allMembers) => {
       for (const m of allMembers) {
         const isMatch = (u.id && (m.authUid === u.id || m.userId === u.id || m.legacyUserIds?.includes(u.id))) ||
@@ -206,7 +219,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               : m.legacyUserIds
           };
           await db.tripMembers.put(updatedMember);
-          if (isFirebaseConfigured() && isOnline) {
+          if (isSupabaseConfigured() && isOnline) {
             syncMemberToCloud(m.tripId, updatedMember).catch(console.warn);
           }
         }
@@ -242,8 +255,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [undoState, setUndoState] = useState<UndoState | null>(null);
   const [isOnline, setIsOnline] = useState<boolean>(navigator.onLine);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
-  const [firebaseUser, setFirebaseUser] = useState<any | null>(null);
-  const [isFirebaseAuthReady, setIsFirebaseAuthReady] = useState<boolean>(false);
+  const [authUser, setAuthUser] = useState<any | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'offline' | 'connected' | 'syncing' | 'error'>('offline');
   const [startupStatus, setStartupStatus] = useState<StartupStatus>({
     phase: 'loading-local',
@@ -284,7 +297,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
-      if (isFirebaseConfigured()) setCloudSyncStatus('connected');
+      if (isSupabaseConfigured()) setCloudSyncStatus('connected');
     };
     const handleOffline = () => {
       setIsOnline(false);
@@ -298,48 +311,87 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, []);
 
-  // Firebase Auth listener
+  // Supabase Auth listener
   useEffect(() => {
-    if (!isFirebaseConfigured()) {
+    if (!isSupabaseConfigured()) {
       setCloudSyncStatus('offline');
-      setIsFirebaseAuthReady(true);
+      setStoredUser(null);
+      localStorage.removeItem('whopaid_auth_user');
+      setIsAuthReady(true);
       return;
     }
 
     setCloudSyncStatus('connected');
-    const unsubscribeAuth = subscribeToAuthChanges(async (fbUser) => {
-      setFirebaseUser(fbUser);
-      setIsFirebaseAuthReady(true);
-      if (fbUser) {
+    const unsubscribeAuth = subscribeToAuthChanges(async (cloudUser) => {
+      setAuthUser(cloudUser);
+      setIsAuthReady(true);
+      if (cloudUser) {
         // Retrieve customized display name and currency if previously saved
-        const localExisting = await db.users.get(fbUser.uid);
-        const cloudExisting = isFirebaseConfigured() ? await fetchUserFromCloud(fbUser.uid) : null;
+        const localExisting = await db.users.get(cloudUser.id);
+        const cloudExisting = isSupabaseConfigured() ? await fetchUserFromCloud(cloudUser.id) : null;
         const savedAuth = localStorage.getItem('whopaid_auth_user');
         let savedUserObj: User | null = null;
         try {
           if (savedAuth) savedUserObj = JSON.parse(savedAuth);
         } catch {}
 
-        const resolvedName = (savedUserObj && savedUserObj.id === fbUser.uid && savedUserObj.name && savedUserObj.name !== 'User')
+        const previousAuthId = savedUserObj?.id || localStorage.getItem('whopaid_last_auth_uid');
+        if (previousAuthId && previousAuthId !== cloudUser.id) {
+          // IndexedDB is an offline cache, not cross-account storage. Never
+          // expose one user's cached trips after another user signs in.
+          await Promise.all([
+            db.trips.clear(),
+            db.tripMembers.clear(),
+            db.households.clear(),
+            db.expenses.clear(),
+            db.settlements.clear(),
+            db.activities.clear(),
+            db.notifications.clear()
+          ]);
+          setTrips([]);
+          setMembers([]);
+          setHouseholds([]);
+          setExpenses([]);
+          setSettlements([]);
+          setActivities([]);
+          setActiveTripId(null);
+        }
+        localStorage.setItem('whopaid_last_auth_uid', cloudUser.id);
+
+        const identityData = cloudUser.identities?.find((identity: any) => identity.provider === 'google')?.identity_data
+          || cloudUser.identities?.[0]?.identity_data
+          || {};
+        const metadataName = cloudUser.user_metadata?.full_name
+          || cloudUser.user_metadata?.name
+          || identityData.full_name
+          || identityData.name;
+        const metadataAvatar = cloudUser.user_metadata?.avatar_url
+          || cloudUser.user_metadata?.picture
+          || identityData.avatar_url
+          || identityData.picture;
+        const resolvedName = (savedUserObj && savedUserObj.id === cloudUser.id && savedUserObj.name && savedUserObj.name !== 'User')
           ? savedUserObj.name
           : (localExisting?.name && localExisting.name !== 'User')
           ? localExisting.name
           : (cloudExisting?.name && cloudExisting.name !== 'User')
           ? cloudExisting.name
-          : fbUser.displayName || savedUserObj?.name || 'Guest';
+          : metadataName || savedUserObj?.name || 'Guest';
 
         const resolvedCurrency = localExisting?.defaultCurrency || cloudExisting?.defaultCurrency || savedUserObj?.defaultCurrency || 'EUR';
-        const resolvedAvatar = fbUser.photoURL || localExisting?.avatarUrl || cloudExisting?.avatarUrl || savedUserObj?.avatarUrl;
+        const resolvedAvatar = metadataAvatar || localExisting?.avatarUrl || cloudExisting?.avatarUrl || savedUserObj?.avatarUrl;
 
         const updatedUser: User = {
-          id: fbUser.uid,
+          id: cloudUser.id,
           name: resolvedName,
-          email: fbUser.email || localExisting?.email || savedUserObj?.email || `${resolvedName.toLowerCase()}@whopaid.app`,
+          email: cloudUser.email || localExisting?.email || savedUserObj?.email || `${resolvedName.toLowerCase()}@whopaid.app`,
           defaultCurrency: resolvedCurrency,
           avatarUrl: resolvedAvatar
         };
         await db.users.put(updatedUser);
         setCurrentUser(updatedUser);
+      } else {
+        setStoredUser(null);
+        localStorage.removeItem('whopaid_auth_user');
       }
     });
 
@@ -412,7 +464,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           myMem.userId = currentUser.id;
           myMem.authUid = currentUser.id;
           await db.tripMembers.put(myMem);
-          if (isFirebaseConfigured() && navigator.onLine) {
+          if (isSupabaseConfigured() && navigator.onLine) {
             syncMemberToCloud(activeTripId, myMem).catch(console.warn);
           }
         }
@@ -445,13 +497,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     refreshData();
   }, [refreshData]);
 
-  // Reusable cloud sync function – fetches shared trips from Firestore and
+  // Reusable cloud sync function – fetches shared trips from PostgreSQL and
   // merges them into local IndexedDB. Called both at startup and when the user
   // taps "Sync".
   const syncWithCloud = useCallback(async () => {
     if (
       !isAuthenticated ||
-      !isFirebaseConfigured() ||
+      !isSupabaseConfigured() ||
       !navigator.onLine
     ) {
       // Offline or not logged in – just refresh from local DB
@@ -483,13 +535,33 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               ? localTrip
               : { ...localTrip, inviteToken: createId('invite') };
             await db.trips.put(migratedTrip);
+            // PostgreSQL foreign keys and RLS require the trip to exist before
+            // its invitation and membership rows are created.
+            await syncTripToCloud(migratedTrip);
             await Promise.all([
-              syncTripToCloud(migratedTrip),
               syncTripInvite(migratedTrip),
               syncUserTripMembership(migratedTrip.id, currentUser.id, 'owner')
             ]);
 
-            const localMembers = await db.tripMembers.where('tripId').equals(localTrip.id).toArray();
+            let localMembers = await db.tripMembers.where('tripId').equals(localTrip.id).toArray();
+            const hasOwnerParticipant = localMembers.some(member =>
+              member.authUid === currentUser.id || member.userId === currentUser.id
+            );
+            if (!hasOwnerParticipant) {
+              const repairedOwner: TripMember = {
+                id: `member_owner_${localTrip.id}`,
+                tripId: localTrip.id,
+                userId: currentUser.id,
+                authUid: currentUser.id,
+                name: currentUser.name || 'Owner',
+                email: currentUser.email,
+                role: 'owner',
+                isActive: true,
+                joinedAt: localTrip.createdAt || new Date().toISOString()
+              };
+              await db.tripMembers.put(repairedOwner);
+              localMembers = [...localMembers, repairedOwner];
+            }
             await Promise.all(localMembers.flatMap(member => {
               const writes: Promise<void>[] = [syncMemberToCloud(localTrip.id, member)];
               if (member.authUid && member.authUid !== currentUser.id) {
@@ -506,23 +578,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             await db.trips.put({ ...migratedTrip, clientSyncStatus: 'synced' });
           } catch (error) {
             await db.trips.put({ ...localTrip, clientSyncStatus: 'failed' });
-            console.warn('[Firestore] Owned trip sync will retry:', localTrip.id, error);
+            console.warn('[Supabase] Owned trip sync will retry:', localTrip.id, error);
           }
         }));
 
-        // 2. Sync membership for all active shared trips so all devices (PWA/Mobile) can access them
-        const sharedTrips = localTrips.filter(trip =>
-          !trip.isDeleted &&
-          trip.ownerId !== currentUser.id
-        );
-
-        await Promise.all(sharedTrips.map(async sharedTrip => {
-          try {
-            await syncUserTripMembership(sharedTrip.id, currentUser.id, 'member', sharedTrip.inviteToken);
-          } catch (err) {
-            console.warn('[Firestore] Failed to sync shared trip membership for:', sharedTrip.id, err);
-          }
-        }));
+        // Publish any owner-participant repairs immediately to the active UI.
+        await refreshData();
 
         const pendingExpenses = (await db.expenses
           .where('clientSyncStatus')
@@ -536,12 +597,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               await db.expenses.put({ ...expense, clientSyncStatus: 'synced' });
             } catch (error) {
               await db.expenses.put({ ...expense, clientSyncStatus: 'failed' });
-              console.warn('[Firestore] Pending expense sync will retry:', expense.id, error);
+              console.warn('[Supabase] Pending expense sync will retry:', expense.id, error);
             }
           }));
         }
 
-        const remoteTrips = await fetchUserTripsFromCloud(currentUser.id, currentUser.email);
+        const remoteTrips = await fetchUserTripsFromCloud(currentUser.id);
         if (remoteTrips.length > 0) {
           await db.trips.bulkPut(remoteTrips);
           // Publish the trip list immediately. Trip contents are hydrated by
@@ -580,7 +641,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
                       tripHouseholds.length > 0 ? db.households.bulkPut(tripHouseholds) : Promise.resolve()
                     ]);
                   } catch (error) {
-                    console.warn('[Firestore Sync] Home summary hydration will retry:', error);
+                    console.warn('[Supabase Sync] Home summary hydration will retry:', error);
                   }
                 }
               });
@@ -615,7 +676,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         progress: 100
       });
     } catch (error) {
-      console.warn('[Firestore Sync] Background reconciliation warning:', error);
+      console.warn('[Supabase Sync] Background reconciliation warning:', error);
       setCloudSyncStatus('connected');
       setStartupStatus({
         phase: 'ready',
@@ -645,7 +706,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (
       !isInitialized ||
       !isAuthenticated ||
-      !isFirebaseConfigured() ||
+      !isSupabaseConfigured() ||
       !isOnline ||
       cloudSyncInFlightRef.current
     ) {
@@ -662,7 +723,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     syncWithCloud();
   }, [isInitialized, isAuthenticated, isOnline, currentUser.id]);
 
-  // Realtime Firestore Subscriptions for Active Trip
+  // Supabase Realtime subscriptions for the active trip.
   useEffect(() => {
     if (tripListenersRef.current) {
       tripListenersRef.current.unsubscribeTrip();
@@ -674,7 +735,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       tripListenersRef.current = null;
     }
 
-    if (!activeTripId || !isFirebaseConfigured() || !isOnline) {
+    if (!activeTripId || !isSupabaseConfigured() || !isOnline) {
       return;
     }
 
@@ -696,43 +757,70 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       },
       onMembersUpdate: async (remoteMembers) => {
-        if (remoteMembers && remoteMembers.length > 0) {
-          await db.tripMembers.bulkPut(remoteMembers);
+        const local = await db.tripMembers.where('tripId').equals(activeTripId).toArray();
+        const remoteIds = new Set(remoteMembers.map(member => member.id));
+        const localTrip = await db.trips.get(activeTripId);
+        const isLocalBootstrap = localTrip?.ownerId === currentUser.id
+          && localTrip.clientSyncStatus !== 'synced';
+        if (!isLocalBootstrap) {
+          await db.tripMembers.bulkDelete(local.filter(member => !remoteIds.has(member.id)).map(member => member.id));
         }
+        if (remoteMembers.length > 0) await db.tripMembers.bulkPut(remoteMembers);
         const currentLocalMembers = await db.tripMembers.where('tripId').equals(activeTripId).toArray();
         setMembers(currentLocalMembers);
       },
       onHouseholdsUpdate: async (remoteHouseholds) => {
-        if (remoteHouseholds && remoteHouseholds.length > 0) {
-          await db.households.bulkPut(remoteHouseholds);
+        const local = await db.households.where('tripId').equals(activeTripId).toArray();
+        const remoteIds = new Set(remoteHouseholds.map(household => household.id));
+        const localTrip = await db.trips.get(activeTripId);
+        const isLocalBootstrap = localTrip?.ownerId === currentUser.id
+          && localTrip.clientSyncStatus !== 'synced';
+        if (!isLocalBootstrap) {
+          await db.households.bulkDelete(local.filter(household => !remoteIds.has(household.id)).map(household => household.id));
         }
+        if (remoteHouseholds.length > 0) await db.households.bulkPut(remoteHouseholds);
         const currentLocalHouseholds = await db.households.where('tripId').equals(activeTripId).toArray();
         setHouseholds(currentLocalHouseholds);
       },
       onExpensesUpdate: async (remoteExpenses) => {
-        if (remoteExpenses && remoteExpenses.length > 0) {
-          await db.expenses.bulkPut(remoteExpenses);
-        }
+        const local = await db.expenses.where('tripId').equals(activeTripId).toArray();
+        const remoteIds = new Set(remoteExpenses.map(expense => expense.id));
+        await db.expenses.bulkDelete(local.filter(expense =>
+          !remoteIds.has(expense.id) && expense.clientSyncStatus === 'synced'
+        ).map(expense => expense.id));
+        if (remoteExpenses.length > 0) await db.expenses.bulkPut(remoteExpenses);
         const currentLocal = await db.expenses.where('tripId').equals(activeTripId).toArray();
         currentLocal.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         setExpenses(currentLocal);
         setCloudSyncStatus('connected');
       },
       onSettlementsUpdate: async (remoteSettlements) => {
-        if (remoteSettlements && remoteSettlements.length > 0) {
-          await db.settlements.bulkPut(remoteSettlements);
+        const local = await db.settlements.where('tripId').equals(activeTripId).toArray();
+        const remoteIds = new Set(remoteSettlements.map(settlement => settlement.id));
+        const localTrip = await db.trips.get(activeTripId);
+        const isLocalBootstrap = localTrip?.ownerId === currentUser.id
+          && localTrip.clientSyncStatus !== 'synced';
+        if (!isLocalBootstrap) {
+          await db.settlements.bulkDelete(local.filter(settlement => !remoteIds.has(settlement.id)).map(settlement => settlement.id));
         }
+        if (remoteSettlements.length > 0) await db.settlements.bulkPut(remoteSettlements);
         const currentLocalStl = await db.settlements.where('tripId').equals(activeTripId).toArray();
         setSettlements(currentLocalStl);
       },
       onActivitiesUpdate: async (remoteActs) => {
-        if (remoteActs.length > 0) {
-          await db.activities.bulkPut(remoteActs);
-          setActivities(remoteActs);
+        const local = await db.activities.where('tripId').equals(activeTripId).toArray();
+        const remoteIds = new Set(remoteActs.map(activity => activity.id));
+        const localTrip = await db.trips.get(activeTripId);
+        const isLocalBootstrap = localTrip?.ownerId === currentUser.id
+          && localTrip.clientSyncStatus !== 'synced';
+        if (!isLocalBootstrap) {
+          await db.activities.bulkDelete(local.filter(activity => !remoteIds.has(activity.id)).map(activity => activity.id));
         }
+        if (remoteActs.length > 0) await db.activities.bulkPut(remoteActs);
+        setActivities(await db.activities.where('tripId').equals(activeTripId).toArray());
       },
       onError: (err) => {
-        console.warn('[Firestore Sync] Listener warning:', err);
+        console.warn('[Supabase Sync] Listener warning:', err);
         setCloudSyncStatus('error');
       }
     });
@@ -742,7 +830,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // Auto-sync any existing local expenses to cloud that may have been blocked
-    if (isFirebaseConfigured() && isOnline) {
+    if (isSupabaseConfigured() && isOnline) {
       db.expenses.where('tripId').equals(activeTripId).toArray().then(async (localExps) => {
         for (const exp of localExps) {
           if (exp.clientSyncStatus === 'pending' || exp.clientSyncStatus === 'failed') {
@@ -751,7 +839,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
               await db.expenses.put({ ...exp, clientSyncStatus: 'synced' });
             } catch (error) {
               await db.expenses.put({ ...exp, clientSyncStatus: 'failed' });
-              console.warn('[Firestore Sync] Retry failed:', error);
+              console.warn('[Supabase Sync] Retry failed:', error);
             }
           }
         }
@@ -769,7 +857,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         tripListenersRef.current = null;
       }
     };
-  }, [activeTripId, isOnline]);
+  }, [activeTripId, isOnline, currentUser.id]);
 
   const activeTrip = trips.find(t => t.id === activeTripId && !t.isDeleted) || (activeTripId === null && trips.length > 0 ? trips[0] : null);
   const archivedTrips = trips.filter(t => t.isClosed && !t.isDeleted);
@@ -791,11 +879,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     true
   );
 
-  // Current User's Net balance (match by id, email, or display name)
-  const userBalanceObj = balances.individualBalances.find(b => 
-    b.userId === currentUser.id || 
-    (currentUser.email && b.userId.toLowerCase() === currentUser.email.toLowerCase()) ||
-    (currentUser.name && b.name.toLowerCase() === currentUser.name.toLowerCase())
+  // Display names are not identifiers and may legitimately be identical.
+  const currentMemberUserId = resolveCurrentMemberUserId(currentUser, members);
+  const userBalanceObj = balances.individualBalances.find(b =>
+    b.userId === currentMemberUserId
   );
   const userNetBalance = userBalanceObj ? userBalanceObj.net : 0;
 
@@ -818,14 +905,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: new Date().toISOString()
     };
     await db.activities.put(act);
-    if (isFirebaseConfigured() && isOnline) {
+    if (isSupabaseConfigured() && isOnline) {
       syncActivityToCloud(activeTripId, act).catch(console.warn);
     }
     await refreshData();
   };
 
   const syncExpenseAndPersistStatus = async (expense: Expense): Promise<Expense> => {
-    if (!isFirebaseConfigured() || !isOnline) {
+    if (!isSupabaseConfigured() || !isOnline) {
       const pending = { ...expense, clientSyncStatus: 'pending' as const };
       await db.expenses.put(pending);
       setExpenses(prev => prev.map(item => item.id === pending.id ? pending : item));
@@ -845,7 +932,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await db.expenses.put(failed);
       setExpenses(prev => prev.map(item => item.id === failed.id ? failed : item));
       setCloudSyncStatus('error');
-      console.warn('[Firestore Sync] Expense remains local after upload failure:', error);
+      console.warn('[Supabase Sync] Expense remains local after upload failure:', error);
       return failed;
     }
   };
@@ -962,7 +1049,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     await db.expenses.delete(exp.id);
     setExpenses(prev => prev.filter(e => e.id !== exp.id));
-    if (isFirebaseConfigured() && isOnline && activeTrip) {
+    if (isSupabaseConfigured() && isOnline && activeTrip) {
       deleteExpenseFromCloud(activeTrip.id, exp.id).catch(console.warn);
     }
     await addActivity('expense_deleted', `undid added expense: ${exp.description}`);
@@ -976,8 +1063,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const updateExpense = async (updated: Expense) => {
     const now = new Date().toISOString();
+    const expenseTrip = activeTrip?.id === updated.tripId
+      ? activeTrip
+      : await db.trips.get(updated.tripId);
+    if (!expenseTrip) throw new Error('The expense trip is no longer available.');
+
+    const exchangeRateDate = (updated.date || now).split('T')[0];
+    let exchangeRate = updated.exchangeRate || 1;
+    let exchangeRateSource = updated.exchangeRateSource;
+
+    if (!updated.isManualExchangeRate && updated.originalCurrency !== expenseTrip.mainCurrency) {
+      const fxResult = await fetchHistoricalExchangeRate(
+        updated.originalCurrency,
+        expenseTrip.mainCurrency,
+        exchangeRateDate
+      );
+      exchangeRate = fxResult.rate;
+      exchangeRateSource = fxResult.source;
+    } else if (updated.originalCurrency === expenseTrip.mainCurrency) {
+      exchangeRate = 1;
+      exchangeRateSource = 'Direct (1:1)';
+    }
+
     const savePayload: Expense = {
       ...updated,
+      mainCurrency: expenseTrip.mainCurrency,
+      exchangeRate,
+      exchangeRateDate,
+      exchangeRateSource,
+      convertedAmount: convertAmount(updated.originalAmount, exchangeRate),
       updatedAt: now,
       clientSyncStatus: 'pending'
     };
@@ -1060,7 +1174,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     await db.settlements.put(settlement);
-    if (isFirebaseConfigured() && isOnline) {
+    if (isSupabaseConfigured() && isOnline) {
       syncSettlementToCloud(activeTrip.id, settlement).catch(console.warn);
     }
 
@@ -1089,7 +1203,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       confirmedAt: now
     };
     await db.settlements.put(updated);
-    if (isFirebaseConfigured() && isOnline && activeTrip) {
+    if (isSupabaseConfigured() && isOnline && activeTrip) {
       syncSettlementToCloud(activeTrip.id, updated).catch(console.warn);
     }
 
@@ -1108,7 +1222,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!stl) return;
     const updated: Settlement = { ...stl, status: 'cancelled' };
     await db.settlements.put(updated);
-    if (isFirebaseConfigured() && isOnline && activeTrip) {
+    if (isSupabaseConfigured() && isOnline && activeTrip) {
       syncSettlementToCloud(activeTrip.id, updated).catch(console.warn);
     }
     await refreshData();
@@ -1180,7 +1294,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // The local trip is complete and usable now. Cloud publication continues
     // in the background; the sharing screen verifies it before exposing a link.
-    if (isFirebaseConfigured() && isOnline) {
+    if (isSupabaseConfigured() && isOnline) {
       void (async () => {
         try {
           // The parent trip must exist before membership-scoped rules permit
@@ -1198,7 +1312,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           await db.trips.put(failedTrip);
           setTrips(previous => previous.map(trip => trip.id === tripId ? failedTrip : trip));
           setCloudSyncStatus('error');
-          console.warn('[Firestore Sync] Trip remains local after upload failure:', error);
+          console.warn('[Supabase Sync] Trip remains local after upload failure:', error);
         }
       })();
     }
@@ -1208,7 +1322,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const joinTrip = async (inviteToken: string) => {
     if (!currentUser.id || currentUser.id === 'guest') throw new Error('Sign in before joining a trip.');
-    if (!isFirebaseConfigured() || !isOnline) throw new Error('An internet connection is required to join a trip.');
+    if (!isSupabaseConfigured() || !isOnline) throw new Error('An internet connection is required to join a trip.');
 
     const remoteTrip = await joinTripInCloud(inviteToken, currentUser.id);
     const tripId = remoteTrip.id;
@@ -1273,7 +1387,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setSettlements(await db.settlements.where('tripId').equals(tripId).toArray());
       setTrips(previous => [...previous.filter(trip => trip.id !== remoteTrip.id), remoteTrip]);
     } catch (error) {
-      console.warn('[Firestore] Trip membership created but content hydration failed:', error);
+      console.warn('[Supabase] Trip membership created but content hydration failed:', error);
       throw new Error(
         `Trip access was added, but its participants and expenses could not be synchronized. ${error instanceof Error ? error.message : 'Please reopen WhoPaid and use Sync.'}`
       );
@@ -1299,7 +1413,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           exchangeRateSource: fx.source
         };
         await db.expenses.put(updatedExp);
-        if (isFirebaseConfigured() && isOnline) {
+        if (isSupabaseConfigured() && isOnline) {
           syncExpenseToCloud(trip.id, updatedExp).catch(console.warn);
         }
       }
@@ -1307,7 +1421,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const updatedTrip = { ...trip, updatedAt: now };
     await db.trips.put(updatedTrip);
-    if (isFirebaseConfigured() && isOnline) {
+    if (isSupabaseConfigured() && isOnline) {
       syncTripToCloud(updatedTrip).catch(console.warn);
     }
     await refreshData();
@@ -1319,7 +1433,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (t) {
       const updated = { ...t, isClosed: true, closedAt: now, updatedAt: now };
       await db.trips.put(updated);
-      if (isFirebaseConfigured() && isOnline) syncTripToCloud(updated).catch(console.warn);
+      if (isSupabaseConfigured() && isOnline) syncTripToCloud(updated).catch(console.warn);
     }
     await addActivity('trip_closed', 'closed this trip (archived)');
     await refreshData();
@@ -1331,7 +1445,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (t) {
       const updated = { ...t, isClosed: false, updatedAt: now };
       await db.trips.put(updated);
-      if (isFirebaseConfigured() && isOnline) syncTripToCloud(updated).catch(console.warn);
+      if (isSupabaseConfigured() && isOnline) syncTripToCloud(updated).catch(console.warn);
     }
     await addActivity('trip_reopened', 'reopened this trip');
     await refreshData();
@@ -1343,7 +1457,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (t) {
       const updated = { ...t, isDeleted: true, deletedAt: now, updatedAt: now };
       await db.trips.put(updated);
-      if (isFirebaseConfigured() && isOnline) syncTripToCloud(updated).catch(console.warn);
+      if (isSupabaseConfigured() && isOnline) syncTripToCloud(updated).catch(console.warn);
     }
     if (activeTripId === tripId) {
       const remaining = trips.find(trip => trip.id !== tripId && !trip.isDeleted);
@@ -1358,13 +1472,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (t) {
       const updated = { ...t, isDeleted: false, deletedAt: undefined, updatedAt: now };
       await db.trips.put(updated);
-      if (isFirebaseConfigured() && isOnline) syncTripToCloud(updated).catch(console.warn);
+      if (isSupabaseConfigured() && isOnline) syncTripToCloud(updated).catch(console.warn);
     }
     setActiveTripId(tripId);
     await refreshData();
   };
 
   const permanentlyDeleteTrip = async (tripId: string) => {
+    if (isSupabaseConfigured() && isOnline) {
+      await deleteTripFromCloud(tripId);
+    }
     await db.expenses.where('tripId').equals(tripId).delete();
     await db.tripMembers.where('tripId').equals(tripId).delete();
     await db.households.where('tripId').equals(tripId).delete();
@@ -1399,7 +1516,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       joinedAt: now
     };
     await db.tripMembers.put(member);
-    if (isFirebaseConfigured() && isOnline) {
+    if (isSupabaseConfigured() && isOnline) {
       syncMemberToCloud(tripId, member).catch(console.warn);
     }
     await addActivity('member_joined', `${name} joined the trip`);
@@ -1411,7 +1528,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (m) {
       const updated = { ...m, isActive };
       await db.tripMembers.put(updated);
-      if (isFirebaseConfigured() && isOnline && activeTrip) {
+      if (isSupabaseConfigured() && isOnline && activeTrip) {
         syncMemberToCloud(activeTrip.id, updated).catch(console.warn);
       }
     }
@@ -1435,13 +1552,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const updatedIds = hh.memberUserIds.filter(id => id !== m.userId);
         if (updatedIds.length < 2) {
           await db.households.delete(hh.id);
-          if (isFirebaseConfigured() && isOnline) {
+          if (isSupabaseConfigured() && isOnline) {
             deleteHouseholdFromCloud(activeTrip.id, hh.id).catch(console.warn);
           }
         } else {
           const updatedHh = { ...hh, memberUserIds: updatedIds };
           await db.households.put(updatedHh);
-          if (isFirebaseConfigured() && isOnline) {
+          if (isSupabaseConfigured() && isOnline) {
             syncHouseholdToCloud(activeTrip.id, updatedHh).catch(console.warn);
           }
         }
@@ -1452,9 +1569,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     await db.tripMembers.delete(memberId);
 
     // Delete from Cloud
-    if (isFirebaseConfigured() && isOnline) {
+    if (isSupabaseConfigured() && isOnline) {
       deleteMemberFromCloud(activeTrip.id, memberId).catch(console.warn);
-      removeUserFromTripAccess(activeTrip.id, m.authUid || m.userId).catch(console.warn);
+      if (m.authUid) removeUserFromTripAccess(activeTrip.id, m.authUid).catch(console.warn);
     }
 
     const removedUid = m.authUid || m.userId;
@@ -1483,7 +1600,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       createdAt: now
     };
     await db.households.put(household);
-    if (isFirebaseConfigured() && isOnline) {
+    if (isSupabaseConfigured() && isOnline) {
       syncHouseholdToCloud(hh.tripId, household).catch(console.warn);
     }
     await refreshData();
@@ -1492,13 +1609,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteHousehold = async (householdId: string) => {
     const hh = await db.households.get(householdId);
     await db.households.delete(householdId);
-    if (hh && isFirebaseConfigured() && isOnline) {
+    if (hh && isSupabaseConfigured() && isOnline) {
       deleteHouseholdFromCloud(hh.tripId, householdId).catch(console.warn);
     }
     await refreshData();
   };
 
   const transferOwnership = async (tripId: string, newOwnerUserId: string) => {
+    if (!isSupabaseConfigured() || !isOnline) {
+      throw new Error('An internet connection is required to transfer trip ownership.');
+    }
+    // The database function changes the owner and membership roles atomically.
+    // Only update the device cache after the authoritative transaction succeeds.
+    await transferTripOwnershipInCloud(tripId, newOwnerUserId);
+
     const allTripMembers = await db.tripMembers.where('tripId').equals(tripId).toArray();
     for (const m of allTripMembers) {
       let newRole = m.role;
@@ -1510,18 +1634,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (newRole !== m.role) {
         const updated = { ...m, role: newRole };
         await db.tripMembers.put(updated);
-        if (isFirebaseConfigured() && isOnline) {
-          syncMemberToCloud(tripId, updated).catch(console.warn);
-        }
+        syncMemberToCloud(tripId, updated).catch(console.warn);
       }
     }
     const t = await db.trips.get(tripId);
     if (t) {
       const updatedTrip = { ...t, ownerId: newOwnerUserId };
       await db.trips.put(updatedTrip);
-      if (isFirebaseConfigured() && isOnline) {
-        syncTripToCloud(updatedTrip).catch(console.warn);
-      }
     }
     await refreshData();
   };
@@ -1531,7 +1650,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!trip || trip.ownerId !== currentUser.id) {
       throw new Error('Only the trip owner can reset its invitation link.');
     }
-    if (!isFirebaseConfigured() || !isOnline) {
+    if (!isSupabaseConfigured() || !isOnline) {
       throw new Error('An internet connection is required to reset an invitation link.');
     }
 
@@ -1555,7 +1674,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const prepareTripForSharing = async (tripId: string) => {
     const trip = await db.trips.get(tripId);
     if (!trip?.inviteToken) throw new Error('This trip does not have a valid invitation link.');
-    if (!isFirebaseConfigured() || !isOnline) {
+    if (!isSupabaseConfigured() || !isOnline) {
       throw new Error('Connect to the internet before sharing this trip.');
     }
 
@@ -1620,7 +1739,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const failedTrip = { ...trip, clientSyncStatus: 'failed' as const };
       await db.trips.put(failedTrip);
       setTrips(previous => previous.map(item => item.id === tripId ? failedTrip : item));
-      console.warn('[Firestore Sync] Trip share preparation failed:', error);
+      console.warn('[Supabase Sync] Trip share preparation failed:', error);
       throw new Error('WhoPaid could not finish uploading this trip. Nothing was shared; please check the connection and try again.');
     }
   };
@@ -1639,16 +1758,26 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const handlePostLogin = async (fbUser: any) => {
-    if (!fbUser) return;
+  const handlePostLogin = async (cloudUser: any) => {
+    if (!cloudUser) return;
     try {
-      const resolvedName = fbUser.displayName || (fbUser.email ? fbUser.email.split('@')[0] : 'User');
-      const resolvedAvatar = fbUser.photoURL;
+      const identityData = cloudUser.identities?.find((identity: any) => identity.provider === 'google')?.identity_data
+        || cloudUser.identities?.[0]?.identity_data
+        || {};
+      const resolvedName = cloudUser.user_metadata?.full_name
+        || cloudUser.user_metadata?.name
+        || identityData.full_name
+        || identityData.name
+        || (cloudUser.email ? cloudUser.email.split('@')[0] : 'User');
+      const resolvedAvatar = cloudUser.user_metadata?.avatar_url
+        || cloudUser.user_metadata?.picture
+        || identityData.avatar_url
+        || identityData.picture;
 
       const u: User = {
-        id: fbUser.uid,
+        id: cloudUser.id,
         name: resolvedName,
-        email: fbUser.email || 'user@whopaid.app',
+        email: cloudUser.email || 'user@whopaid.app',
         defaultCurrency: 'EUR',
         avatarUrl: resolvedAvatar
       };
@@ -1662,7 +1791,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       db.users.put(u).catch(console.warn);
 
       // 3. Background sync without blocking login response
-      if (isFirebaseConfigured()) {
+      if (isSupabaseConfigured()) {
         syncUserToCloud(u).catch(console.warn);
       }
 
@@ -1677,8 +1806,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const loginWithGoogleAuth = async () => {
     try {
-      const fbUser = await fbLoginGoogle();
-      await handlePostLogin(fbUser);
+      const cloudUser = await cloudLoginGoogle();
+      await handlePostLogin(cloudUser);
     } catch (err: any) {
       console.error('Google login failed:', err);
       throw err;
@@ -1687,8 +1816,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const loginWithAppleAuth = async () => {
     try {
-      const fbUser = await fbLoginApple();
-      await handlePostLogin(fbUser);
+      const cloudUser = await cloudLoginApple();
+      await handlePostLogin(cloudUser);
     } catch (err: any) {
       console.error('Apple login failed:', err);
       throw err;
@@ -1697,8 +1826,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const loginWithMicrosoftAuth = async () => {
     try {
-      const fbUser = await fbLoginMicrosoft();
-      await handlePostLogin(fbUser);
+      const cloudUser = await cloudLoginMicrosoft();
+      await handlePostLogin(cloudUser);
     } catch (err: any) {
       console.error('Microsoft login failed:', err);
       throw err;
@@ -1707,8 +1836,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const loginWithFacebookAuth = async () => {
     try {
-      const fbUser = await fbLoginFacebook();
-      await handlePostLogin(fbUser);
+      const cloudUser = await cloudLoginFacebook();
+      await handlePostLogin(cloudUser);
     } catch (err: any) {
       console.error('Facebook login failed:', err);
       throw err;
@@ -1717,8 +1846,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const loginWithEmailAuth = async (email: string, pass: string) => {
     try {
-      const fbUser = await fbLoginEmail(email, pass);
-      await handlePostLogin(fbUser);
+      const cloudUser = await cloudLoginEmail(email, pass);
+      await handlePostLogin(cloudUser);
     } catch (err: any) {
       console.error('Email login failed:', err);
       throw err;
@@ -1727,8 +1856,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const signUpWithEmailAuth = async (email: string, pass: string, name: string) => {
     try {
-      const fbUser = await fbSignupEmail(email, pass, name);
-      await handlePostLogin(fbUser);
+      const cloudUser = await cloudSignupEmail(email, pass, name);
+      await handlePostLogin(cloudUser);
     } catch (err: any) {
       console.error('Email signup failed:', err);
       throw err;
@@ -1741,7 +1870,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     for (const t of allTrips) {
       const deleted = { ...t, isDeleted: true, deletedAt: now, updatedAt: now };
       await db.trips.put(deleted);
-      if (isFirebaseConfigured() && isOnline) {
+      if (isSupabaseConfigured() && isOnline) {
         syncTripToCloud(deleted).catch(console.warn);
       }
     }
@@ -1764,8 +1893,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const logoutUser = async () => {
+    if (currentUser.id && currentUser.id !== 'guest') {
+      localStorage.setItem('whopaid_last_auth_uid', currentUser.id);
+    }
     try {
-      await fbLogout();
+      await cloudLogout();
     } catch (err) {
       console.error('Logout failed:', err);
     }
@@ -1835,10 +1967,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         markNotificationRead,
         isOnline,
         isSyncing,
-        isFirebaseActive: isFirebaseConfigured(),
+        isCloudActive: isSupabaseConfigured(),
         cloudSyncStatus,
-        firebaseUser,
-        isFirebaseAuthReady,
+        authUser,
+        isAuthReady,
         startupStatus,
         loginAsGuest,
         loginWithGoogleAuth,

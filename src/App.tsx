@@ -132,8 +132,8 @@ const AppContent: React.FC<AppContentProps> = () => {
     joinTrip,
     showAlert,
     startupStatus,
-    firebaseUser,
-    isFirebaseAuthReady
+    authUser,
+    isAuthReady
   } = useApp();
   const joiningTripRef = useRef<string | null>(null);
   const slowJoinTimerRef = useRef<number | null>(null);
@@ -179,7 +179,7 @@ const AppContent: React.FC<AppContentProps> = () => {
 
   // Process pending invitation after user is fully initialized and authenticated
   useEffect(() => {
-    if (!isInitialized || !isFirebaseAuthReady || !isAuthenticated || !firebaseUser) return;
+    if (!isInitialized || !isAuthReady || !isAuthenticated || !authUser) return;
 
     const pendingJoin = localStorage.getItem(PENDING_INVITE_KEY) || sessionStorage.getItem(PENDING_INVITE_KEY);
     const alreadyJoinedTrip = pendingJoin
@@ -256,7 +256,7 @@ const AppContent: React.FC<AppContentProps> = () => {
           setIsJoiningTrip(false);
         });
     }
-  }, [isInitialized, isFirebaseAuthReady, isAuthenticated, firebaseUser, trips, setActiveTripId, joinTrip, showAlert]);
+  }, [isInitialized, isAuthReady, isAuthenticated, authUser, trips, setActiveTripId, joinTrip, showAlert]);
 
   const handleSelectTrip = (tripId: string) => {
     setActiveTripId(tripId);
@@ -284,11 +284,11 @@ const AppContent: React.FC<AppContentProps> = () => {
   );
 
   // A local cached profile is sufficient for offline use, but accepting an
-  // invitation requires a real Firebase session in this browser/PWA context.
+  // invitation requires a real Supabase session in this browser/PWA context.
   if (
     !isAuthenticated ||
     !currentUser ||
-    (hasPendingInvitation && isFirebaseAuthReady && !firebaseUser)
+    (hasPendingInvitation && isAuthReady && !authUser)
   ) {
     return <AuthScreen />;
   }

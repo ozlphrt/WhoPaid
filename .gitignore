@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# Privileged migration material and data exports
+firebase-service.json
+supabase-service.json
+supabase-data.json
+migration-data/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

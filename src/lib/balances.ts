@@ -1,6 +1,34 @@
 import { Expense, TripMember, Household, Settlement, ParticipantBalance, HouseholdBalance, User } from '../types';
 import { add, sub, mul, div, roundMoney } from './decimal';
 
+export function resolveCurrentMemberUserId(
+  user: Pick<User, 'id' | 'email' | 'name'>,
+  members: TripMember[]
+): string {
+  const exact = members.find(member =>
+    member.userId === user.id || member.authUid === user.id
+  );
+  if (exact) return exact.userId;
+
+  if (user.email) {
+    const normalizedEmail = user.email.trim().toLowerCase();
+    const emailMatches = members.filter(member =>
+      member.email?.trim().toLowerCase() === normalizedEmail
+    );
+    if (emailMatches.length === 1) return emailMatches[0].userId;
+  }
+
+  if (user.name) {
+    const normalizedName = user.name.trim().toLowerCase();
+    const nameMatches = members.filter(member =>
+      member.name?.trim().toLowerCase() === normalizedName
+    );
+    if (nameMatches.length === 1) return nameMatches[0].userId;
+  }
+
+  return user.id;
+}
+
 export function resolveMemberUserId(
   rawId: string | undefined | null,
   members: TripMember[],
@@ -25,18 +53,22 @@ export function resolveMemberUserId(
   if (byEmail) return byEmail.userId;
 
   // 5. Name match (case-insensitive)
-  const byName = members.find(m => m.name && m.name.toLowerCase() === rawId.toLowerCase());
-  if (byName) return byName.userId;
+  const byName = members.filter(m => m.name && m.name.toLowerCase() === rawId.toLowerCase());
+  if (byName.length === 1) return byName[0].userId;
 
-  // 6. Look up in allUsers (e.g. rawId is Firebase Auth UID, look up user name and find member with that name)
+  // 6. Look up in allUsers (e.g. rawId is an Auth user ID, then match the member by name)
   if (allUsers && allUsers.length > 0) {
     const matchedUser = allUsers.find(u => u.id === rawId || (u.email && u.email.toLowerCase() === rawId.toLowerCase()));
     if (matchedUser) {
-      const memByName = members.find(m => 
-        (matchedUser.name && m.name.toLowerCase() === matchedUser.name.toLowerCase()) ||
-        (matchedUser.email && m.email && m.email.toLowerCase() === matchedUser.email.toLowerCase())
-      );
-      if (memByName) return memByName.userId;
+      const memByEmail = matchedUser.email
+        ? members.find(m => m.email?.toLowerCase() === matchedUser.email?.toLowerCase())
+        : undefined;
+      if (memByEmail) return memByEmail.userId;
+
+      const memByName = matchedUser.name
+        ? members.filter(m => m.name.toLowerCase() === matchedUser.name.toLowerCase())
+        : [];
+      if (memByName.length === 1) return memByName[0].userId;
     }
   }
 

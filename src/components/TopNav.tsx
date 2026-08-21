@@ -30,10 +30,10 @@ export const TopNav: React.FC<TopNavProps> = ({ currentView, onNavigate }) => {
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
     try {
-      // Full cloud sync – fetches shared trips from Firestore, not just local DB
+      // Full cloud sync – fetches shared trips from PostgreSQL, not just local DB.
       await syncWithCloud();
       // On standalone PWA, check for service worker updates
-      if ('serviceWorker' in navigator) {
+      if (import.meta.env.PROD && 'serviceWorker' in navigator) {
         const reg = await navigator.serviceWorker.getRegistration();
         if (reg) await reg.update();
       }

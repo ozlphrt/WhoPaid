@@ -41,7 +41,7 @@ export interface TripMember {
   id: string;
   tripId: string;
   userId: string;
-  /** Firebase Auth UID when this participant has joined the trip. */
+  /** Supabase Auth user ID when this participant has joined the trip. */
   authUid?: string;
   /** Exact historical IDs retained when an invited placeholder is claimed. */
   legacyUserIds?: string[];

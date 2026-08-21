@@ -32,7 +32,8 @@ You and your friends can test the live application directly in your browser or i
 
 - **Framework**: React 18 + TypeScript + Vite
 - **Styling**: Pure Vanilla CSS Design System with CSS variables & responsive layout
-- **Local Storage**: Dexie.js (IndexedDB)
+- **Backend**: Supabase Auth + PostgreSQL + Realtime
+- **Offline Cache**: Dexie.js (IndexedDB)
 - **Icons**: Custom SVG Glyphs + Lucide Icons
 - **PWA**: vite-plugin-pwa + Workbox
 
@@ -50,14 +51,17 @@ cd WhoPaid
 # Install dependencies
 npm install
 
+# Configure the public Supabase client values
+copy .env.example .env.local
+
+# Apply supabase/migrations/202608210001_initial_schema.sql to the project
+
 # Start local dev server
 npm run dev
 ```
 
 ## 🔐 Security and testing
 
-Run the unit suite with `npm test`, the Firebase emulator authorization suite
-with `npm run test:rules`, and the production build with `npm run build`.
+Run the unit suite with `npm test` and the production build with `npm run build`.
 
-See [SECURITY.md](./SECURITY.md) for the access model, legacy-trip migration,
-and the separate Firebase Rules deployment checklist.
+See [SECURITY.md](./SECURITY.md) for the PostgreSQL access model and deployment checklist.

@@ -2,6 +2,19 @@ export interface SingleFlightLock {
   current: boolean;
 }
 
+function normalizeOperationError(error: unknown): Error {
+  if (error instanceof Error) return error;
+  if (error && typeof error === 'object') {
+    const value = error as Record<string, unknown>;
+    const message = [value.message, value.details, value.hint]
+      .filter((part): part is string => typeof part === 'string' && part.length > 0)
+      .join(' ');
+    const code = typeof value.code === 'string' ? ` [${value.code}]` : '';
+    if (message) return new Error(`${message}${code}`);
+  }
+  return new Error('Operation failed.');
+}
+
 export function acquireSingleFlight(lock: SingleFlightLock): boolean {
   if (lock.current) return false;
   lock.current = true;
@@ -28,5 +41,5 @@ export async function retryOperation<T>(
       }
     }
   }
-  throw lastError instanceof Error ? lastError : new Error('Operation failed.');
+  throw normalizeOperationError(lastError);
 }

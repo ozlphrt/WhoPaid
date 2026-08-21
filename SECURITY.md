@@ -1,22 +1,24 @@
 # WhoPaid security model
 
-WhoPaid is a client-side Firebase application. The Firebase web configuration
-is public by design; authorization is enforced by Firestore and Storage Rules.
+WhoPaid uses Supabase Auth and PostgreSQL. The browser receives only the project
+URL and publishable anonymous key; authorization is enforced in PostgreSQL with
+Row Level Security (RLS). A Supabase service-role key must never be placed in a
+Vite variable, browser bundle, repository, or GitHub Pages secret.
 
 ## Access model
 
-- A user profile at `users/{uid}` is readable and writable only by that UID.
-- A trip owner is identified by `trips/{tripId}.ownerId`.
-- A joined user is authorized by
-  `users/{uid}/tripMemberships/{tripId}`.
+- A profile row is readable and writable only by its authenticated user.
+- A trip owner is identified by `trips.owner_id`.
+- Joined-user access is represented by `trip_memberships`, independently from
+  display-only participant records in `trip_members`.
 - Trip invitations use a cryptographically random token. The public share URL
-  contains this token, not the Firestore trip ID.
-- `tripInvites/{token}` resolves the token to a trip. It can be fetched only by
-  a signed-in user and cannot be listed.
-- Creating a membership document requires a live invite whose stored `tripId`
-  matches the requested membership.
-- Trip documents, expenses, settlements, members, activities, and receipts are
+  contains this token, not the PostgreSQL trip ID.
+- The `join_trip` database function validates an active token and inserts the
+  caller's membership atomically; invitation rows are not readable by invitees.
+- Trip rows, expenses, settlements, members, activities, and receipts are
   available only to the owner or a user with that trip membership.
+- Receipt images are compressed and stored inside protected expense JSONB;
+  WhoPaid does not create public receipt URLs.
 
 Anyone who possesses an active invite link can join its trip after signing in.
 Treat invite links like bearer credentials and share them only with intended
@@ -26,46 +28,29 @@ participants.
 
 ```bash
 npm test
-npm run test:rules
 npm run build
 npm audit --omit=dev
 ```
 
-`npm run test:rules` requires Java 21 because Firebase's local Firestore and
-Storage emulators run on Java. CI installs this runtime automatically.
+## Deployment checklist
 
-## Safe deployment and legacy migration
+1. Create a Supabase project and apply
+   `supabase/migrations/202608210001_initial_schema.sql` before deploying the client.
+2. Enable only the required Auth providers and add both the GitHub Pages URL and
+   local development URL to the Supabase Auth redirect allow list.
+3. Store `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` as GitHub repository
+   secrets. Never create a client-side service-role variable.
+4. Verify with two separate accounts that an outsider cannot read a trip, a
+   signed-in invitee can join once, and a member sees expense changes in realtime.
+5. Migrate existing production records before switching DNS/deployment. This
+   repository intentionally contains no privileged migration credentials.
 
-The GitHub Pages workflow deploys the frontend only. It does not deploy Firebase
-Rules. Review the generated changes before running:
+## Supabase console checklist
 
-```bash
-npx firebase login
-npx firebase use <your-project-id>
-npx firebase deploy --only firestore:rules,storage
-```
-
-For existing trips:
-
-1. Deploy the new frontend first.
-2. Have each trip owner sign in once while the previous rules are still active.
-   The app adds an invite token and the owner's membership index automatically.
-3. Deploy the new Firestore and Storage Rules.
-4. Existing non-owner participants should open a newly generated invite link
-   once. This creates their indexed membership under their authenticated UID.
-5. Confirm access using two test accounts before inviting real users.
-
-If an old trip contains sensitive information and its owner cannot perform the
-migration, create a new trip rather than keeping permissive rules enabled.
-
-## Firebase console checklist
-
-- Restrict the public Firebase API key to the Firebase APIs used by this app.
 - Disable authentication providers that are not used.
-- Review Firestore and Storage usage after the rules deployment.
-- Consider enabling Firebase App Check after monitoring its metrics. App Check
-  is defense in depth and does not replace Security Rules.
-- Enable billing and quota alerts appropriate to the project.
+- Keep RLS enabled on every public table.
+- Review Auth, database, and Realtime usage and configure quota alerts.
+- Rotate any key immediately if a service-role key is exposed.
 
 ## Reporting a vulnerability
 

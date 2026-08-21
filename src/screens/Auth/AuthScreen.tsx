@@ -7,8 +7,7 @@ export const AuthScreen: React.FC = () => {
   const { 
     loginWithGoogleAuth,
     loginWithEmailAuth,
-    signUpWithEmailAuth,
-    isFirebaseActive 
+    signUpWithEmailAuth
   } = useApp();
 
   const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signin');
@@ -35,15 +34,7 @@ export const AuthScreen: React.FC = () => {
       await loginWithGoogleAuth();
     } catch (err: any) {
       console.error('Google Sign In Error:', err);
-      if (err.code === 'auth/unauthorized-domain') {
-        setErrorMsg(`Domain not authorized: Please add "${window.location.hostname}" to Firebase Console → Authentication → Settings → Authorized domains.`);
-      } else if (err.code === 'auth/popup-blocked') {
-        setErrorMsg('Please allow popups in your browser settings and try Google Sign-In again.');
-      } else if (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request') {
-        setErrorMsg(null);
-      } else {
-        setErrorMsg(err.message || 'Google sign-in could not be completed. Please try again.');
-      }
+      setErrorMsg(err.message || 'Google sign-in could not be completed. Please try again.');
     } finally {
       setGoogleLoading(false);
     }
@@ -70,15 +61,13 @@ export const AuthScreen: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Email Auth Error:', err);
-      if (err.code === 'auth/operation-not-allowed') {
-        setErrorMsg('Email/Password sign-in is not enabled yet in your Firebase Console. Go to Authentication -> Sign-in method -> Email/Password -> Enable.');
-      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+      if (/invalid login credentials/i.test(err.message || '')) {
         setErrorMsg('Incorrect email or password. If you are new, please click "Create Account".');
-      } else if (err.code === 'auth/email-already-in-use') {
+      } else if (/already registered/i.test(err.message || '')) {
         setErrorMsg('An account with this email already exists. Please switch to "Sign In".');
-      } else if (err.code === 'auth/weak-password') {
+      } else if (/password/i.test(err.message || '') && /characters|weak/i.test(err.message || '')) {
         setErrorMsg('Password should be at least 6 characters.');
-      } else if (err.code === 'auth/invalid-email') {
+      } else if (/email/i.test(err.message || '') && /invalid/i.test(err.message || '')) {
         setErrorMsg('Please enter a valid email address.');
       } else {
         setErrorMsg(err.message || 'Authentication failed. Please check your credentials and try again.');
@@ -374,7 +363,7 @@ export const AuthScreen: React.FC = () => {
           <span>Secure sign-in • Private trip access • Cloud backup</span>
         </div>
         <span style={{ fontSize: '0.68rem', color: 'var(--text-tertiary)' }}>
-          WhoPaid • v1.4.7
+          WhoPaid • v2.0.0
         </span>
       </div>
 

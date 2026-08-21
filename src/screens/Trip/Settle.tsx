@@ -25,6 +25,7 @@ export const Settle: React.FC = () => {
   const [settlementCurrency, setSettlementCurrency] = useState<CurrencyCode>(activeTrip?.mainCurrency || 'EUR');
   const [customAmountStr, setCustomAmountStr] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
 
   if (!activeTrip) return null;
 
@@ -40,7 +41,7 @@ export const Settle: React.FC = () => {
 
   const handleMarkAsPaid = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedTransfer) return;
+    if (!selectedTransfer || isSubmittingPayment) return;
 
     const amount = parseFloat(customAmountStr) || selectedTransfer.amount;
     if (amount <= 0) {
@@ -60,15 +61,20 @@ export const Settle: React.FC = () => {
       actualCreditorId = creditorHh.memberUserIds[0];
     }
 
-    await initiateSettlement({
-      debtorId: actualDebtorId,
-      creditorId: actualCreditorId,
-      amount,
-      currency: settlementCurrency,
-      notes: notes.trim() || undefined
-    });
+    setIsSubmittingPayment(true);
+    try {
+      await initiateSettlement({
+        debtorId: actualDebtorId,
+        creditorId: actualCreditorId,
+        amount,
+        currency: settlementCurrency,
+        notes: notes.trim() || undefined
+      });
 
-    setSelectedTransfer(null);
+      setSelectedTransfer(null);
+    } finally {
+      setIsSubmittingPayment(false);
+    }
   };
 
   const handleConfirmReceipt = async (settlementId: string) => {
@@ -81,6 +87,17 @@ export const Settle: React.FC = () => {
   };
 
   const pendingSettlements = settlements.filter(s => s.status === 'pending_confirmation');
+  const visibleRecommendedTransfers = recommendedTransfers.filter(transfer => {
+    const debtorHousehold = households.find(household => household.id === transfer.debtorId);
+    const creditorHousehold = households.find(household => household.id === transfer.creditorId);
+    return !pendingSettlements.some(settlement => {
+      const sameDebtor = settlement.debtorId === transfer.debtorId
+        || debtorHousehold?.memberUserIds.includes(settlement.debtorId);
+      const sameCreditor = settlement.creditorId === transfer.creditorId
+        || creditorHousehold?.memberUserIds.includes(settlement.creditorId);
+      return sameDebtor && sameCreditor;
+    });
+  });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '16px 20px 80px' }}>
@@ -158,7 +175,7 @@ export const Settle: React.FC = () => {
           Recommended Payments
         </h2>
 
-        {recommendedTransfers.length === 0 ? (
+        {visibleRecommendedTransfers.length === 0 ? (
           <div style={{
             background: 'var(--bg-surface)',
             border: '1px solid var(--border-subtle)',
@@ -170,15 +187,27 @@ export const Settle: React.FC = () => {
             alignItems: 'center',
             gap: 8
           }}>
-            <CheckCircle2 size={32} color="var(--positive-text)" />
-            <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Group is fully settled</h3>
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)' }}>
-              No outstanding balances remain.
-            </p>
+            {pendingSettlements.length > 0 ? (
+              <>
+                <Clock size={32} color="var(--warning-text)" />
+                <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Payment awaiting confirmation</h3>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)' }}>
+                  No additional payment is needed while receipt is pending.
+                </p>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 size={32} color="var(--positive-text)" />
+                <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Group is fully settled</h3>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-tertiary)' }}>
+                  No outstanding balances remain.
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {recommendedTransfers.map((t, idx) => {
+            {visibleRecommendedTransfers.map((t, idx) => {
               const debtorIsCurrent = t.debtorId === currentUser.id || (t.debtorHouseholdName && households.some(h => h.name === t.debtorHouseholdName && h.memberUserIds.includes(currentUser.id)));
               const creditorIsCurrent = t.creditorId === currentUser.id || (t.creditorHouseholdName && households.some(h => h.name === t.creditorHouseholdName && h.memberUserIds.includes(currentUser.id)));
 
@@ -330,8 +359,8 @@ export const Settle: React.FC = () => {
               />
             </div>
 
-            <button type="submit" className="btn-primary" style={{ marginTop: 4 }}>
-              <span>Mark as Paid</span>
+            <button type="submit" className="btn-primary" disabled={isSubmittingPayment} style={{ marginTop: 4 }}>
+              <span>{isSubmittingPayment ? 'Saving…' : 'Mark as Paid'}</span>
             </button>
           </form>
         </BottomSheet>

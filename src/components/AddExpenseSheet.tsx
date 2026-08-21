@@ -19,7 +19,7 @@ import {
   Keyboard
 } from 'lucide-react';
 import { checkForDuplicateExpense } from '../lib/duplicate';
-import { compressAndUploadReceipt } from '../lib/firestoreSync';
+import { compressAndUploadReceipt } from '../lib/supabaseSync';
 import { parseReceiptText } from '../lib/receiptOcr';
 import { NumericKeypad } from './NumericKeypad';
 import { acquireSingleFlight, releaseSingleFlight } from '../lib/asyncReliability';
@@ -45,8 +45,6 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     lastUsedCurrency,
     addExpense,
     updateExpense,
-    isFirebaseActive,
-    isOnline,
     showAlert
   } = useApp();
 
@@ -91,16 +89,8 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
 
     setIsUploadingReceipt(true);
     try {
-      if (isFirebaseActive && isOnline) {
-        const url = await compressAndUploadReceipt(activeTrip.id, file);
-        setReceiptUrl(url);
-      } else {
-        const reader = new FileReader();
-        reader.onload = () => {
-          setReceiptUrl(reader.result as string);
-        };
-        reader.readAsDataURL(file);
-      }
+      const url = await compressAndUploadReceipt(activeTrip.id, file);
+      setReceiptUrl(url);
 
       const parsed = parseReceiptText(file.name.replace(/[._-]/g, ' '));
       if (parsed.amount && !amountStr) {
@@ -114,7 +104,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
         if (parsed.category) setCategory(parsed.category);
       }
     } catch (err: any) {
-      console.warn('Firebase upload fallback to local dataURL:', err);
+      console.warn('Receipt compression fallback to local data URL:', err);
       const reader = new FileReader();
       reader.onload = () => {
         setReceiptUrl(reader.result as string);
