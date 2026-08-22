@@ -48,6 +48,7 @@ import { retryOperation } from '../lib/asyncReliability';
 import { assertTripContentsHydrated } from '../lib/tripHydration';
 import { consolidateTripMembers, hasMemberWithEmail, isGuestMemberEmail, normalizeMemberEmail, uniqueInvitedEmails } from '../lib/memberIdentity';
 import { memberPaidExpense, redistributeExpenseAfterMemberRemoval } from '../lib/memberRemoval';
+import { addMemberToEqualExpense } from '../lib/expenseParticipation';
 
 interface UndoState {
   expense: Expense;
@@ -185,6 +186,43 @@ async function removeTripFromLocalCache(tripId: string): Promise<void> {
     db.notifications.where('tripId').equals(tripId).delete(),
     db.trips.delete(tripId)
   ]);
+}
+
+async function includeMemberInExistingEqualExpenses(
+  tripId: string,
+  memberUserId: string,
+  identityAliases: string[] = [],
+  sourceExpenses?: Expense[],
+  syncCloud = false
+): Promise<Expense[]> {
+  const tripExpenses = sourceExpenses
+    ?? await db.expenses.where('tripId').equals(tripId).toArray();
+  const revisedExpenses = tripExpenses
+    .map(expense => addMemberToEqualExpense(expense, memberUserId, identityAliases))
+    .filter((expense): expense is Expense => expense !== null);
+
+  if (revisedExpenses.length === 0) return [];
+
+  let cloudSynced = false;
+  if (syncCloud) {
+    try {
+      await Promise.all(
+        revisedExpenses.map(expense => retryOperation(() => syncExpenseToCloud(tripId, expense)))
+      );
+      cloudSynced = true;
+    } catch (error) {
+      // Preserve the recalculation locally as pending. The normal background
+      // sync queue will retry it without allowing duplicate member creation.
+      console.warn('[Supabase] New-member expense redistribution will retry:', error);
+    }
+  }
+
+  const persistedExpenses = revisedExpenses.map(expense => ({
+    ...expense,
+    clientSyncStatus: cloudSynced ? 'synced' as const : 'pending' as const
+  }));
+  await db.expenses.bulkPut(persistedExpenses);
+  return persistedExpenses;
 }
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -1343,6 +1381,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     // A join is complete only when its critical contents are available. This
     // keeps the success message honest and prevents an empty trip shell from
     // being mistaken for a successful synchronization.
+    let reassignedExpenseCount = 0;
     try {
       const [remoteMembers, remoteExpenses, remoteHouseholds, remoteSettlements] = await retryOperation(
         async () => {
@@ -1392,6 +1431,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       await db.tripMembers.put(memberRecord);
       await retryOperation(() => syncMemberToCloud(tripId, memberRecord));
 
+      // A placeholder that has never authenticated is also a first join. Its
+      // legacy user id prevents duplication in expenses where it was already
+      // included before the account was claimed.
+      if (!existing?.authUid) {
+        const reassignedExpenses = await includeMemberInExistingEqualExpenses(
+          tripId,
+          memberRecord.userId,
+          memberRecord.legacyUserIds || [],
+          remoteExpenses,
+          true
+        );
+        reassignedExpenseCount = reassignedExpenses.length;
+      }
+
       setMembers(consolidateTripMembers(await db.tripMembers.where('tripId').equals(tripId).toArray()));
       const hydratedExpenses = await db.expenses.where('tripId').equals(tripId).toArray();
       hydratedExpenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -1406,7 +1459,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       );
     }
 
-    showAlert('You now have access to this trip and its shared expenses.', 'Trip Joined 🎉', 'success', remoteTrip.name);
+    showAlert(
+      reassignedExpenseCount > 0
+        ? `You now have access to this trip and were included in ${reassignedExpenseCount} existing equal-split expense${reassignedExpenseCount === 1 ? '' : 's'}. Review them and flag any assignment that does not apply to you.`
+        : 'You now have access to this trip and its shared expenses.',
+      'Trip Joined 🎉',
+      'success',
+      remoteTrip.name
+    );
   };
 
   const updateTrip = async (trip: Trip) => {
@@ -1551,7 +1611,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         console.warn('[Supabase] Member remains local after upload failure:', error);
       }
     }
-    await addActivity('member_joined', `${name} joined the trip`);
+    const reassignedExpenses = await includeMemberInExistingEqualExpenses(
+      tripId,
+      member.userId,
+      [],
+      undefined,
+      isSupabaseConfigured() && isOnline
+    );
+    await addActivity(
+      'member_joined',
+      `${name} joined the trip.${reassignedExpenses.length > 0 ? ` Added to ${reassignedExpenses.length} existing equal-split expense${reassignedExpenses.length === 1 ? '' : 's'}.` : ''}`
+    );
     await refreshData();
   };
 

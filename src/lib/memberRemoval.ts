@@ -1,28 +1,5 @@
-import { Expense, ExpenseParticipant } from '../types';
-import { add, div, mul, roundMoney, sub } from './decimal';
-
-function uniqueIds(ids: string[]): string[] {
-  return [...new Set(ids.filter(Boolean))];
-}
-
-function allocateAmount(total: number, userIds: string[], weights?: number[]): ExpenseParticipant[] {
-  const ids = uniqueIds(userIds);
-  if (ids.length === 0) return [];
-
-  const safeWeights = weights && weights.length === ids.length && weights.some(weight => weight > 0)
-    ? weights.map(weight => Math.max(0, weight))
-    : ids.map(() => 1);
-  const totalWeight = safeWeights.reduce((sum, weight) => add(sum, weight), 0);
-  let allocated = 0;
-
-  return ids.map((userId, index) => {
-    const amount = index === ids.length - 1
-      ? roundMoney(sub(total, allocated), 2)
-      : roundMoney(mul(total, div(safeWeights[index], totalWeight)), 2);
-    allocated = add(allocated, amount);
-    return { userId, amount };
-  });
-}
+import { Expense } from '../types';
+import { allocateExpenseAmount } from './expenseParticipation';
 
 export function memberPaidExpense(expense: Expense, memberUserIds: Set<string>): boolean {
   if (expense.isDeleted) return false;
@@ -46,7 +23,7 @@ export function redistributeExpenseAfterMemberRemoval(
   const participantIds = remaining.length > 0
     ? remaining.map(participant => participant.userId)
     : fallbackParticipantIds;
-  const participants = allocateAmount(
+  const participants = allocateExpenseAmount(
     expense.originalAmount,
     participantIds,
     useExistingCustomWeights ? remaining.map(participant => participant.amount) : undefined
