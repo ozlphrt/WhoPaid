@@ -236,7 +236,7 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
             <div>
               <div style={{ fontWeight: 700 }}>Rate: {formatHumanExchangeRate(exp.originalCurrency, exp.mainCurrency, exp.exchangeRate)}</div>
               <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: 2 }}>
-                Source: {exp.exchangeRateSource?.includes(exp.exchangeRateDate || '') ? exp.exchangeRateSource : `${exp.exchangeRateSource || 'Frankfurter API'}${exp.exchangeRateDate ? ` (${exp.exchangeRateDate})` : ''}`}
+                Source: {exp.exchangeRateSource || 'Exchange-rate provider'}
               </div>
             </div>
           </div>

@@ -1,10 +1,15 @@
-import { roundMoney, div, mul } from './decimal';
+import { roundMoney, mul } from './decimal';
 
-// In-memory & localStorage cached rates key
-const FX_CACHE_KEY = 'whopaid_fx_cache_v1';
+const FX_CACHE_KEY = 'whopaid_fx_cache_v2';
+
+interface CachedRate {
+  rate: number;
+  rateDate: string;
+  cachedAt: string;
+}
 
 interface CachedRates {
-  [dateAndCurrencies: string]: number; // key: 'YYYY-MM-DD:FROM:TO', val: rate
+  [dateAndCurrencies: string]: CachedRate;
 }
 
 function getLocalFxCache(): CachedRates {
@@ -19,35 +24,36 @@ function getLocalFxCache(): CachedRates {
 function saveLocalFxCache(cache: CachedRates) {
   try {
     localStorage.setItem(FX_CACHE_KEY, JSON.stringify(cache));
-  } catch (e) {
-    console.warn('Failed to save FX cache to localStorage', e);
+  } catch (error) {
+    console.warn('Failed to save FX cache to localStorage', error);
   }
 }
 
-// Fallback baseline rates relative to EUR in case device is completely offline and not in cache
-const BASE_FALLBACK_RATES_EUR: Record<string, number> = {
-  EUR: 1.0,
-  USD: 1.08,
-  GBP: 0.85,
-  TRY: 37.5,
-  JPY: 165.0,
-  CHF: 0.94,
-  CAD: 1.48,
-  AUD: 1.66,
-  SEK: 11.35,
-  NOK: 11.7,
-  DKK: 7.46,
-  PLN: 4.28,
-  SGD: 1.45,
-  THB: 37.2,
-  BRL: 5.95,
-  MXN: 21.5
-};
+function cacheKey(date: string, from: string, to: string): string {
+  return `${date}:${from}:${to}`;
+}
+
+function findMostRecentVerifiedRate(
+  cache: CachedRates,
+  requestedDate: string,
+  from: string,
+  to: string
+): CachedRate | undefined {
+  return Object.entries(cache)
+    .filter(([key, entry]) =>
+      key.endsWith(`:${from}:${to}`) &&
+      entry.rateDate <= requestedDate &&
+      Number.isFinite(entry.rate) &&
+      entry.rate > 0
+    )
+    .map(([, entry]) => entry)
+    .sort((a, b) => b.rateDate.localeCompare(a.rateDate))[0];
+}
 
 export async function fetchHistoricalExchangeRate(
   fromCurrency: string,
   toCurrency: string,
-  dateStr: string // YYYY-MM-DD
+  dateStr: string
 ): Promise<{ rate: number; source: string }> {
   const from = fromCurrency.toUpperCase();
   const to = toCurrency.toUpperCase();
@@ -56,56 +62,78 @@ export async function fetchHistoricalExchangeRate(
     return { rate: 1, source: 'Direct (1:1)' };
   }
 
-  const cacheKey = `${dateStr}:${from}:${to}`;
   const cache = getLocalFxCache();
-  if (cache[cacheKey]) {
-    return { rate: cache[cacheKey], source: 'Frankfurter (Cached)' };
+  const exactCached = cache[cacheKey(dateStr, from, to)];
+  if (exactCached?.rate > 0) {
+    return {
+      rate: exactCached.rate,
+      source: `Frankfurter / ECB cached rate (${exactCached.rateDate})`
+    };
   }
 
-  // Attempt API call to Frankfurter
   try {
-    const url = `https://api.frankfurter.app/${dateStr}?from=${from}&to=${to}`;
+    const url = `https://api.frankfurter.dev/v2/rate/${encodeURIComponent(from)}/${encodeURIComponent(to)}?date=${encodeURIComponent(dateStr)}&providers=ECB`;
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 1500);
+    const timeoutId = globalThis.setTimeout(() => controller.abort(), 5000);
 
-    const res = await fetch(url, { signal: controller.signal });
-    clearTimeout(timeoutId);
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: { Accept: 'application/json' }
+      });
+      if (!response.ok) throw new Error(`FX provider returned ${response.status}`);
 
-    if (res.ok) {
-      const data = await res.json();
-      const fetchedRate = data.rates?.[to];
-      if (typeof fetchedRate === 'number' && fetchedRate > 0) {
-        cache[cacheKey] = fetchedRate;
-        saveLocalFxCache(cache);
-        return { rate: fetchedRate, source: `Frankfurter ECB (${dateStr})` };
+      const data = await response.json() as { date?: string; rate?: number };
+      if (!Number.isFinite(data.rate) || !data.rate || data.rate <= 0) {
+        throw new Error('FX provider returned an invalid rate');
       }
+
+      const rateDate = data.date || dateStr;
+      const entry: CachedRate = {
+        rate: data.rate,
+        rateDate,
+        cachedAt: new Date().toISOString()
+      };
+      cache[cacheKey(dateStr, from, to)] = entry;
+      cache[cacheKey(rateDate, from, to)] = entry;
+
+      const inverseEntry: CachedRate = {
+        rate: roundMoney(1 / data.rate, 8),
+        rateDate,
+        cachedAt: entry.cachedAt
+      };
+      cache[cacheKey(dateStr, to, from)] = inverseEntry;
+      cache[cacheKey(rateDate, to, from)] = inverseEntry;
+      saveLocalFxCache(cache);
+
+      return {
+        rate: data.rate,
+        source: `Frankfurter / ECB (${rateDate})`
+      };
+    } finally {
+      globalThis.clearTimeout(timeoutId);
     }
-  } catch (err) {
-    console.info(`Offline or API unavailable for FX (${from}->${to} on ${dateStr}), using fallback calculation.`);
+  } catch (error) {
+    const verifiedCached = findMostRecentVerifiedRate(cache, dateStr, from, to);
+    if (verifiedCached) {
+      return {
+        rate: verifiedCached.rate,
+        source: `Last verified Frankfurter / ECB rate (${verifiedCached.rateDate})`
+      };
+    }
+
+    console.warn(`Verified FX rate unavailable for ${from}->${to} on ${dateStr}.`, error);
+    throw new Error(
+      `The ${from} to ${to} exchange rate could not be verified. Check your connection and try again.`
+    );
   }
-
-  // Fallback calculation via baseline rates
-  const fromEur = BASE_FALLBACK_RATES_EUR[from] || 1;
-  const toEur = BASE_FALLBACK_RATES_EUR[to] || 1;
-  const estimatedRate = roundMoney(mul(div(1, fromEur), toEur), 6);
-
-  cache[cacheKey] = estimatedRate;
-  saveLocalFxCache(cache);
-  return { rate: estimatedRate, source: 'Offline FX Fallback Table' };
 }
 
-export function convertAmount(
-  amount: number,
-  exchangeRate: number
-): number {
+export function convertAmount(amount: number, exchangeRate: number): number {
   return roundMoney(mul(amount, exchangeRate), 2);
 }
 
-/**
- * Formats exchange rate so that the more valuable currency is always displayed as 1.
- * e.g. If 1 TRY = 0.0208 EUR, displays "1 EUR = 48.08 TRY".
- * If 1 GBP = 1.18 EUR, displays "1 GBP = 1.18 EUR".
- */
+/** Formats the rate with the more valuable currency displayed as one unit. */
 export function formatHumanExchangeRate(
   originalCurrency: string,
   mainCurrency: string,
@@ -115,23 +143,12 @@ export function formatHumanExchangeRate(
     return `1 ${originalCurrency} = 1 ${mainCurrency}`;
   }
 
-  // If 1 originalCurrency = rate mainCurrency
-  // If rate < 1 (e.g. TRY to EUR: rate is 0.0208), EUR is more valuable
   if (rate < 1 && rate > 0) {
     const inverseRate = 1 / rate;
-    const formatted = inverseRate >= 100 
-      ? inverseRate.toFixed(2)
-      : inverseRate >= 10 
-        ? inverseRate.toFixed(2) 
-        : inverseRate.toFixed(4);
+    const formatted = inverseRate >= 10 ? inverseRate.toFixed(2) : inverseRate.toFixed(4);
     return `1 ${mainCurrency} = ${formatted} ${originalCurrency}`;
   }
 
-  // If rate >= 1 (e.g. GBP to EUR: rate is 1.18), originalCurrency is more valuable
-  const formatted = rate >= 100 
-    ? rate.toFixed(2) 
-    : rate >= 10 
-      ? rate.toFixed(2) 
-      : rate.toFixed(4);
+  const formatted = rate >= 10 ? rate.toFixed(2) : rate.toFixed(4);
   return `1 ${originalCurrency} = ${formatted} ${mainCurrency}`;
 }

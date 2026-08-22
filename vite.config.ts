@@ -35,23 +35,9 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/api\.frankfurter\.app\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'frankfurter-fx-cache',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          }
-        ]
+        // FX data is cached by src/lib/fx.ts only after it has been parsed and
+        // validated. Workbox should not intercept third-party API requests.
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}']
       }
     })
   ],

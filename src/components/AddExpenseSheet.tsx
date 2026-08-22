@@ -106,6 +106,8 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   const [autoFxRate, setAutoFxRate] = useState<number>(1);
   const [isManualFx, setIsManualFx] = useState<boolean>(false);
   const [manualFxRate, setManualFxRate] = useState<string>('1.00');
+  const [isFxLoading, setIsFxLoading] = useState<boolean>(false);
+  const [fxError, setFxError] = useState<string | null>(null);
 
   // Autocomplete Suggestions
   const [showSuggestions, setShowSuggestions] = useState<boolean>(false);
@@ -114,10 +116,14 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   useEffect(() => {
     if (!activeTrip || currency === activeTrip.mainCurrency) {
       setAutoFxRate(1);
+      setFxError(null);
+      setIsFxLoading(false);
       return;
     }
     let isMounted = true;
     const fetchRate = async () => {
+      setIsFxLoading(true);
+      setFxError(null);
       try {
         const dateStr = date ? date.slice(0, 10) : new Date().toISOString().slice(0, 10);
         const res = await fetchHistoricalExchangeRate(currency, activeTrip.mainCurrency, dateStr);
@@ -126,6 +132,11 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
         }
       } catch (err) {
         console.warn('FX fetch failed in AddExpenseSheet:', err);
+        if (isMounted) {
+          setFxError(err instanceof Error ? err.message : 'The exchange rate could not be verified.');
+        }
+      } finally {
+        if (isMounted) setIsFxLoading(false);
       }
     };
     fetchRate();
@@ -351,6 +362,19 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     }
     if (includedUserIds.length === 0) {
       showAlert('Please select at least one person included in this expense.', 'Select Participants', 'warning');
+      return;
+    }
+    if (
+      activeTrip &&
+      currency !== activeTrip.mainCurrency &&
+      !isManualFx &&
+      (isFxLoading || fxError)
+    ) {
+      showAlert(
+        fxError || 'The exchange rate is still loading. Please wait a moment.',
+        'Exchange Rate Unavailable',
+        'warning'
+      );
       return;
     }
 
@@ -632,14 +656,22 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
           {isForeignCurrency && parsedAmount > 0 && (
             <div style={{
               fontSize: '0.72rem',
-              color: 'var(--text-tertiary)',
+              color: fxError ? 'var(--warning-text)' : 'var(--text-tertiary)',
               marginTop: 4,
               display: 'flex',
               alignItems: 'center',
               gap: 4
             }}>
-              <span>≈ {formatAmount(convertedAmount, activeTrip.mainCurrency)}</span>
-              <span>(1 {currency} = {isManualFx ? manualFxRate : autoFxRate.toFixed(3)} {activeTrip.mainCurrency})</span>
+              {isFxLoading ? (
+                <span>Checking the ECB exchange rate…</span>
+              ) : fxError ? (
+                <span>Exchange rate unavailable — reconnect before saving.</span>
+              ) : (
+                <>
+                  <span>≈ {formatAmount(convertedAmount, activeTrip.mainCurrency)}</span>
+                  <span>(1 {currency} = {isManualFx ? manualFxRate : autoFxRate.toFixed(4)} {activeTrip.mainCurrency})</span>
+                </>
+              )}
             </div>
           )}
         </div>
