@@ -1115,10 +1115,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (!expenseTrip) throw new Error('The expense trip is no longer available.');
 
     const exchangeRateDate = (updated.date || now).split('T')[0];
-    let exchangeRate = updated.exchangeRate || 1;
+    let exchangeRate = updated.exchangeRate ?? Number.NaN;
     let exchangeRateSource = updated.exchangeRateSource;
 
-    if (!updated.isManualExchangeRate && updated.originalCurrency !== expenseTrip.mainCurrency) {
+    if (
+      !updated.isManualExchangeRate &&
+      updated.originalCurrency !== expenseTrip.mainCurrency &&
+      (!Number.isFinite(exchangeRate) || exchangeRate <= 0)
+    ) {
       const fxResult = await fetchHistoricalExchangeRate(
         updated.originalCurrency,
         expenseTrip.mainCurrency,

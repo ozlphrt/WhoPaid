@@ -72,6 +72,10 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   } = useApp();
 
   const activeMembers = useMemo(() => members.filter(m => m.isActive), [members]);
+  const editExpense = useMemo(
+    () => editExpenseId ? expenses.find(expense => expense.id === editExpenseId) : undefined,
+    [editExpenseId, expenses]
+  );
   const [isUploadingReceipt, setIsUploadingReceipt] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -104,6 +108,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
 
   // FX Conversion State
   const [autoFxRate, setAutoFxRate] = useState<number>(1);
+  const [autoFxSource, setAutoFxSource] = useState<string | undefined>(undefined);
   const [isManualFx, setIsManualFx] = useState<boolean>(false);
   const [manualFxRate, setManualFxRate] = useState<string>('1.00');
   const [isFxLoading, setIsFxLoading] = useState<boolean>(false);
@@ -116,11 +121,31 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   useEffect(() => {
     if (!activeTrip || currency === activeTrip.mainCurrency) {
       setAutoFxRate(1);
+      setAutoFxSource('Direct (1:1)');
       setFxError(null);
       setIsFxLoading(false);
       return;
     }
     if (isManualFx) {
+      setIsFxLoading(false);
+      return;
+    }
+
+    // An existing expense's saved rate is canonical until the user changes
+    // its currency/date or explicitly requests a fresh ECB rate. Previewing a
+    // newly fetched rate here would disagree with the detail view and balances.
+    const expenseDate = editExpense?.date?.slice(0, 10);
+    const formDate = date?.slice(0, 10);
+    if (
+      editExpense &&
+      currency === editExpense.originalCurrency &&
+      formDate === expenseDate &&
+      Number.isFinite(editExpense.exchangeRate) &&
+      editExpense.exchangeRate > 0
+    ) {
+      setAutoFxRate(editExpense.exchangeRate);
+      setAutoFxSource(editExpense.exchangeRateSource);
+      setFxError(null);
       setIsFxLoading(false);
       return;
     }
@@ -133,6 +158,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
         const res = await fetchHistoricalExchangeRate(currency, activeTrip.mainCurrency, dateStr);
         if (isMounted && res.rate) {
           setAutoFxRate(res.rate);
+          setAutoFxSource(res.source);
         }
       } catch (err) {
         console.warn('FX fetch failed in AddExpenseSheet:', err);
@@ -147,7 +173,24 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     };
     fetchRate();
     return () => { isMounted = false; };
-  }, [currency, activeTrip, date, isManualFx]);
+  }, [currency, activeTrip, date, isManualFx, editExpense]);
+
+  const refreshAutoFxRate = async () => {
+    if (!activeTrip || currency === activeTrip.mainCurrency) return;
+
+    setIsFxLoading(true);
+    setFxError(null);
+    try {
+      const dateStr = date ? date.slice(0, 10) : new Date().toISOString().slice(0, 10);
+      const result = await fetchHistoricalExchangeRate(currency, activeTrip.mainCurrency, dateStr);
+      setAutoFxRate(result.rate);
+      setAutoFxSource(result.source);
+    } catch (error) {
+      setFxError(error instanceof Error ? error.message : 'The exchange rate could not be verified.');
+    } finally {
+      setIsFxLoading(false);
+    }
+  };
 
   const handleReceiptFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -207,6 +250,8 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
         setIncludedUserIds(exp.participants ? exp.participants.map(p => p.userId) : activeMembers.map(m => m.userId));
         setSplitMode(exp.splitMode || 'equal');
         setIsManualFx(Boolean(exp.isManualExchangeRate));
+        setAutoFxRate(exp.exchangeRate > 0 ? exp.exchangeRate : 1);
+        setAutoFxSource(exp.exchangeRateSource);
         setManualFxRate(exp.exchangeRate > 0 ? (1 / exp.exchangeRate).toFixed(4) : '');
 
         const shares: Record<string, string> = {};
@@ -447,8 +492,8 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
       participants,
       splitMode: effectiveSplitMode,
       isManualExchangeRate: isManualFx,
-      exchangeRate: isManualFx ? 1 / enteredManualRate : undefined,
-      exchangeRateSource: isManualFx ? 'Manual rate entered by user' : undefined
+      exchangeRate: isManualFx ? 1 / enteredManualRate : autoFxRate,
+      exchangeRateSource: isManualFx ? 'Manual rate entered by user' : autoFxSource
     };
 
     if (!acquireSingleFlight(submissionInFlightRef)) return;
@@ -763,6 +808,25 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                   >
                     Edit rate
                   </button>
+                  {editExpense && (
+                    <button
+                      type="button"
+                      onClick={refreshAutoFxRate}
+                      disabled={isFxLoading}
+                      style={{
+                        border: 'none',
+                        background: 'transparent',
+                        color: 'var(--text-secondary)',
+                        fontSize: '0.72rem',
+                        fontWeight: 800,
+                        textDecoration: 'underline',
+                        cursor: isFxLoading ? 'wait' : 'pointer',
+                        opacity: isFxLoading ? 0.65 : 1
+                      }}
+                    >
+                      {isFxLoading ? 'Updating…' : 'Update ECB rate'}
+                    </button>
+                  )}
                 </>
               )}
             </div>
