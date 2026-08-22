@@ -39,12 +39,15 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
   ));
 
   useEffect(() => {
+    if (!exp || !isLegacyUnverifiedFxSource(exp.exchangeRateSource)) {
+      setIsRepairingFx(false);
+      return;
+    }
+
     if (
-      !exp ||
       !isCreator ||
       exp.isManualExchangeRate ||
       exp.originalCurrency === exp.mainCurrency ||
-      !isLegacyUnverifiedFxSource(exp.exchangeRateSource) ||
       fxRepairAttempts.current.has(exp.id)
     ) return;
 
@@ -283,7 +286,7 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
             <Info size={16} style={{ flexShrink: 0, marginTop: 1 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 700 }}>
-                {isRepairingFx
+                {isRepairingFx && isLegacyUnverifiedFxSource(exp.exchangeRateSource)
                   ? 'Updating verified ECB rate…'
                   : `Rate: ${formatHumanExchangeRate(exp.originalCurrency, exp.mainCurrency, exp.exchangeRate)}`}
               </div>
