@@ -22,6 +22,7 @@ You and your friends can test the live application directly in your browser or i
 - **Household / Couple Grouping**: Combined balances for couples (e.g., *Ozalp + Betül*, *Erhan + Janna*).
 - **Multi-Currency & Real-Time FX**: Automatic ECB historical rates via Frankfurter API with offline fallback tables and human-readable format (`1 EUR = 48.00 TRY`).
 - **Flexible Splitting**: Equal split, custom percentage/amount splits, and multi-payer support.
+- **Exclusion Lists & Participation Review**: Audit non-participating members across expenses (by persona or by expense) directly in the Trip Summary tab.
 - **Offline First & PWA**: IndexedDB storage via Dexie.js with cloud sync status indicator and offline support.
 - **Audit History & Activity Log**: Full chronological feed of expenses, edits, deletions, and settlements.
 - **Export & Reports**: Instant PDF summary reports and CSV transaction exports.
