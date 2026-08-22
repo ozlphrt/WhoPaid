@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../store/AppContext';
 import { BottomSheet } from './BottomSheet';
 import { CategoryIcon } from './CategoryIcon';
@@ -29,6 +29,22 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
 
   const [showFlagOptions, setShowFlagOptions] = useState<boolean>(false);
   const [showReceiptFull, setShowReceiptFull] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!showReceiptFull) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setShowReceiptFull(false);
+    };
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showReceiptFull]);
 
   const exp = expenses.find(e => e.id === expenseId);
 
@@ -369,6 +385,9 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
       {/* Full-screen Receipt Lightbox */}
       {showReceiptFull && exp.receiptUrl && (
         <div 
+          role="dialog"
+          aria-modal="true"
+          aria-label="Receipt photo viewer"
           onClick={() => setShowReceiptFull(false)}
           style={{
             position: 'fixed',
@@ -378,43 +397,85 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: 16,
+            padding: 'calc(82px + env(safe-area-inset-top, 0px)) 16px calc(90px + env(safe-area-inset-bottom, 0px))',
             backdropFilter: 'blur(8px)'
           }}
         >
-          <button
-            type="button"
-            onClick={() => setShowReceiptFull(false)}
+          <div
+            onClick={(event) => event.stopPropagation()}
             style={{
               position: 'absolute',
-              top: 'calc(16px + env(safe-area-inset-top, 0px))',
+              top: 'calc(12px + env(safe-area-inset-top, 0px))',
+              left: 16,
               right: 16,
-              background: 'rgba(255,255,255,0.2)',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: 'var(--radius-full)',
-              width: 40,
-              height: 40,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer'
+              justifyContent: 'space-between',
+              minHeight: 48
             }}
           >
-            <X size={22} />
-          </button>
+            <strong style={{ color: '#ffffff', fontSize: '1rem' }}>Receipt</strong>
+            <button
+              type="button"
+              aria-label="Close receipt"
+              onClick={() => setShowReceiptFull(false)}
+              style={{
+                minWidth: 96,
+                height: 48,
+                padding: '0 18px',
+                background: 'rgba(255,255,255,0.18)',
+                color: '#ffffff',
+                border: '1px solid rgba(255,255,255,0.35)',
+                borderRadius: 'var(--radius-full)',
+                display: 'flex',
+                gap: 8,
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1rem',
+                fontWeight: 800,
+                cursor: 'pointer'
+              }}
+            >
+              <X size={21} />
+              Close
+            </button>
+          </div>
           <img
             src={exp.receiptUrl}
             alt="Full Receipt"
             onClick={(e) => e.stopPropagation()}
             style={{
               maxWidth: '100%',
-              maxHeight: '90vh',
+              maxHeight: 'calc(100dvh - 190px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))',
               objectFit: 'contain',
               borderRadius: 'var(--radius-md)',
               boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
             }}
           />
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setShowReceiptFull(false);
+            }}
+            style={{
+              position: 'absolute',
+              left: 16,
+              right: 16,
+              bottom: 'calc(12px + env(safe-area-inset-bottom, 0px))',
+              minHeight: 52,
+              border: 'none',
+              borderRadius: 'var(--radius-lg)',
+              background: '#ffffff',
+              color: '#111827',
+              fontSize: '1rem',
+              fontWeight: 900,
+              cursor: 'pointer',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.35)'
+            }}
+          >
+            Done
+          </button>
         </div>
       )}
     </BottomSheet>
