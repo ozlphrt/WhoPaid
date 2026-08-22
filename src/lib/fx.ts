@@ -1,6 +1,8 @@
 import { roundMoney, mul } from './decimal';
 
-const FX_CACHE_KEY = 'whopaid_fx_cache_v2';
+// v3 invalidates legacy fallback values that could have been labelled as
+// Frankfurter rates before provider responses were strictly verified.
+const FX_CACHE_KEY = 'whopaid_fx_cache_v3';
 
 interface CachedRate {
   rate: number;
@@ -53,7 +55,8 @@ function findMostRecentVerifiedRate(
 export async function fetchHistoricalExchangeRate(
   fromCurrency: string,
   toCurrency: string,
-  dateStr: string
+  dateStr: string,
+  options: { forceRefresh?: boolean } = {}
 ): Promise<{ rate: number; source: string }> {
   const from = fromCurrency.toUpperCase();
   const to = toCurrency.toUpperCase();
@@ -64,7 +67,7 @@ export async function fetchHistoricalExchangeRate(
 
   const cache = getLocalFxCache();
   const exactCached = cache[cacheKey(dateStr, from, to)];
-  if (exactCached?.rate > 0) {
+  if (!options.forceRefresh && exactCached?.rate > 0) {
     return {
       rate: exactCached.rate,
       source: `Frankfurter / ECB cached rate (${exactCached.rateDate})`
@@ -114,6 +117,13 @@ export async function fetchHistoricalExchangeRate(
       globalThis.clearTimeout(timeoutId);
     }
   } catch (error) {
+    if (options.forceRefresh) {
+      console.warn(`Fresh FX rate unavailable for ${from}->${to} on ${dateStr}.`, error);
+      throw new Error(
+        `A fresh ${from} to ${to} exchange rate could not be verified. Check your connection or enter it manually.`
+      );
+    }
+
     const verifiedCached = findMostRecentVerifiedRate(cache, dateStr, from, to);
     if (verifiedCached) {
       return {

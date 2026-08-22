@@ -59,6 +59,30 @@ describe('verified FX rates', () => {
     expect(cached.rate).toBe(0.01778);
     expect(cached.source).toContain('cached rate (2026-08-21)');
   });
+
+  it('bypasses an exact-date cache when a fresh rate is requested', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ date: '2026-08-21', rate: 37.5 })
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ date: '2026-08-21', rate: 56.2318 })
+      });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await fetchHistoricalExchangeRate('EUR', 'TRY', '2026-08-22');
+    const refreshed = await fetchHistoricalExchangeRate(
+      'EUR',
+      'TRY',
+      '2026-08-22',
+      { forceRefresh: true }
+    );
+
+    expect(refreshed.rate).toBe(56.2318);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('exchange-rate presentation', () => {

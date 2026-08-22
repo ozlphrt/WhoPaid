@@ -182,7 +182,12 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     setFxError(null);
     try {
       const dateStr = date ? date.slice(0, 10) : new Date().toISOString().slice(0, 10);
-      const result = await fetchHistoricalExchangeRate(currency, activeTrip.mainCurrency, dateStr);
+      const result = await fetchHistoricalExchangeRate(
+        currency,
+        activeTrip.mainCurrency,
+        dateStr,
+        { forceRefresh: true }
+      );
       setAutoFxRate(result.rate);
       setAutoFxSource(result.source);
     } catch (error) {
