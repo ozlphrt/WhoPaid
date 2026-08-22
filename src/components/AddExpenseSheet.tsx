@@ -120,6 +120,10 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
       setIsFxLoading(false);
       return;
     }
+    if (isManualFx) {
+      setIsFxLoading(false);
+      return;
+    }
     let isMounted = true;
     const fetchRate = async () => {
       setIsFxLoading(true);
@@ -134,6 +138,8 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
         console.warn('FX fetch failed in AddExpenseSheet:', err);
         if (isMounted) {
           setFxError(err instanceof Error ? err.message : 'The exchange rate could not be verified.');
+          setManualFxRate('');
+          setIsManualFx(true);
         }
       } finally {
         if (isMounted) setIsFxLoading(false);
@@ -141,7 +147,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     };
     fetchRate();
     return () => { isMounted = false; };
-  }, [currency, activeTrip, date]);
+  }, [currency, activeTrip, date, isManualFx]);
 
   const handleReceiptFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -158,6 +164,8 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
       }
       if (parsed.currency && (!currency || currency === lastUsedCurrency)) {
         setCurrency(parsed.currency);
+        setIsManualFx(false);
+        setManualFxRate('');
       }
       if (parsed.vendor && !description) {
         setDescription(parsed.vendor);
@@ -199,7 +207,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
         setIncludedUserIds(exp.participants ? exp.participants.map(p => p.userId) : activeMembers.map(m => m.userId));
         setSplitMode(exp.splitMode || 'equal');
         setIsManualFx(Boolean(exp.isManualExchangeRate));
-        setManualFxRate(exp.exchangeRate != null ? exp.exchangeRate.toString() : '1.00');
+        setManualFxRate(exp.exchangeRate > 0 ? (1 / exp.exchangeRate).toFixed(4) : '');
 
         const shares: Record<string, string> = {};
         if (exp.participants) {
@@ -377,6 +385,20 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
       );
       return;
     }
+    const enteredManualRate = Number.parseFloat(manualFxRate);
+    if (
+      activeTrip &&
+      currency !== activeTrip.mainCurrency &&
+      isManualFx &&
+      (!Number.isFinite(enteredManualRate) || enteredManualRate <= 0)
+    ) {
+      showAlert(
+        `Enter how many ${currency} equal 1 ${activeTrip.mainCurrency}.`,
+        'Manual Exchange Rate Required',
+        'warning'
+      );
+      return;
+    }
 
     if (isMultiPayer && Math.abs(multiPayerTotal - parsedAmount) > 0.01) {
       showAlert(`Payer amounts (${currency} ${multiPayerTotal.toFixed(2)}) must equal total amount (${currency} ${parsedAmount.toFixed(2)}).`, 'Payer Total Mismatch', 'warning');
@@ -425,7 +447,8 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
       participants,
       splitMode: effectiveSplitMode,
       isManualExchangeRate: isManualFx,
-      exchangeRate: isManualFx ? parseFloat(manualFxRate) || 1 : undefined
+      exchangeRate: isManualFx ? 1 / enteredManualRate : undefined,
+      exchangeRateSource: isManualFx ? 'Manual rate entered by user' : undefined
     };
 
     if (!acquireSingleFlight(submissionInFlightRef)) return;
@@ -467,8 +490,11 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     : 0;
 
   const isForeignCurrency = activeTrip && currency !== activeTrip.mainCurrency;
+  const parsedManualRate = Number.parseFloat(manualFxRate);
   const convertedAmount = isForeignCurrency
-    ? roundMoney(parsedAmount * (isManualFx ? (parseFloat(manualFxRate) || 1) : autoFxRate), 2)
+    ? roundMoney(parsedAmount * (
+        isManualFx && parsedManualRate > 0 ? 1 / parsedManualRate : autoFxRate
+      ), 2)
     : 0;
 
   const dateObj = new Date(date);
@@ -659,17 +685,86 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
               color: fxError ? 'var(--warning-text)' : 'var(--text-tertiary)',
               marginTop: 4,
               display: 'flex',
+              flexWrap: 'wrap',
               alignItems: 'center',
-              gap: 4
+              justifyContent: 'center',
+              gap: 6
             }}>
               {isFxLoading ? (
                 <span>Checking the ECB exchange rate…</span>
-              ) : fxError ? (
-                <span>Exchange rate unavailable — reconnect before saving.</span>
+              ) : isManualFx ? (
+                <>
+                  <span style={{ fontWeight: 700 }}>Manual: 1 {activeTrip.mainCurrency} =</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0.000001"
+                    step="any"
+                    aria-label={`Manual rate: 1 ${activeTrip.mainCurrency} in ${currency}`}
+                    value={manualFxRate}
+                    onChange={(event) => setManualFxRate(event.target.value)}
+                    placeholder="Enter rate"
+                    style={{
+                      width: 92,
+                      minHeight: 36,
+                      padding: '6px 8px',
+                      borderRadius: 'var(--radius-sm)',
+                      border: `1px solid ${fxError ? 'var(--warning-border)' : 'var(--border-strong)'}`,
+                      background: 'var(--bg-surface)',
+                      color: 'var(--text-primary)',
+                      fontSize: '1rem',
+                      fontWeight: 800,
+                      textAlign: 'center'
+                    }}
+                  />
+                  <span style={{ fontWeight: 700 }}>{currency}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFxError(null);
+                      setIsManualFx(false);
+                    }}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'var(--brand-500)',
+                      fontSize: '0.72rem',
+                      fontWeight: 800,
+                      textDecoration: 'underline',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Use ECB rate
+                  </button>
+                  {fxError && (
+                    <span style={{ width: '100%' }}>Live rate unavailable—enter a manual rate to continue.</span>
+                  )}
+                </>
               ) : (
                 <>
                   <span>≈ {formatAmount(convertedAmount, activeTrip.mainCurrency)}</span>
-                  <span>(1 {currency} = {isManualFx ? manualFxRate : autoFxRate.toFixed(4)} {activeTrip.mainCurrency})</span>
+                  <span>
+                    (1 {activeTrip.mainCurrency} = {(1 / autoFxRate) >= 10 ? (1 / autoFxRate).toFixed(2) : (1 / autoFxRate).toFixed(4)} {currency})
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setManualFxRate((1 / autoFxRate).toFixed(4));
+                      setFxError(null);
+                      setIsManualFx(true);
+                    }}
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'var(--brand-500)',
+                      fontSize: '0.72rem',
+                      fontWeight: 800,
+                      textDecoration: 'underline',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Edit rate
+                  </button>
                 </>
               )}
             </div>
@@ -1470,6 +1565,9 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                   type="button"
                   onClick={() => {
                     setCurrency(curr);
+                    setIsManualFx(false);
+                    setManualFxRate('');
+                    setFxError(null);
                     setActiveModal('none');
                   }}
                   style={{

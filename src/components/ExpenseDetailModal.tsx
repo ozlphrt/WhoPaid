@@ -233,12 +233,40 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
             gap: 10
           }}>
             <Info size={16} style={{ flexShrink: 0, marginTop: 1 }} />
-            <div>
+            <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 700 }}>Rate: {formatHumanExchangeRate(exp.originalCurrency, exp.mainCurrency, exp.exchangeRate)}</div>
               <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: 2 }}>
                 Source: {exp.exchangeRateSource || 'Exchange-rate provider'}
               </div>
             </div>
+            {isCreator && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onEdit(exp.id);
+                }}
+                aria-label="Edit exchange rate"
+                style={{
+                  flexShrink: 0,
+                  minHeight: 38,
+                  padding: '0 10px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border-strong)',
+                  background: 'var(--bg-subtle)',
+                  color: 'var(--info-text)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 5,
+                  fontSize: '0.74rem',
+                  fontWeight: 800,
+                  cursor: 'pointer'
+                }}
+              >
+                <Edit2 size={14} />
+                Edit rate
+              </button>
+            )}
           </div>
         )}
 
