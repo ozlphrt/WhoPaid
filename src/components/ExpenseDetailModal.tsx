@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useApp } from '../store/AppContext';
 import { BottomSheet } from './BottomSheet';
 import { CategoryIcon } from './CategoryIcon';
 import { formatMoney, formatAmount, getCurrencySymbol, resolveMemberName } from '../lib/decimal';
-import { formatHumanExchangeRate } from '../lib/fx';
+import { fetchHistoricalExchangeRate, formatHumanExchangeRate, isLegacyUnverifiedFxSource } from '../lib/fx';
 import { Calendar, Clock, Edit2, Trash2, Flag, AlertCircle, Info, ChevronRight, X } from 'lucide-react';
 import { Expense } from '../types';
 
@@ -23,12 +23,63 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
     members,
     currentUser,
     deleteExpense,
+    updateExpense,
     flagExpenseWrong,
     showConfirm
   } = useApp();
 
   const [showFlagOptions, setShowFlagOptions] = useState<boolean>(false);
   const [showReceiptFull, setShowReceiptFull] = useState<boolean>(false);
+  const [isRepairingFx, setIsRepairingFx] = useState<boolean>(false);
+  const fxRepairAttempts = useRef(new Set<string>());
+
+  const exp = expenses.find(e => e.id === expenseId);
+  const isCreator = Boolean(exp && (
+    exp.addedByUserId === currentUser.id || exp.paidByUserId === currentUser.id
+  ));
+
+  useEffect(() => {
+    if (
+      !exp ||
+      !isCreator ||
+      exp.isManualExchangeRate ||
+      exp.originalCurrency === exp.mainCurrency ||
+      !isLegacyUnverifiedFxSource(exp.exchangeRateSource) ||
+      fxRepairAttempts.current.has(exp.id)
+    ) return;
+
+    fxRepairAttempts.current.add(exp.id);
+    let cancelled = false;
+
+    const repairLegacyRate = async () => {
+      setIsRepairingFx(true);
+      try {
+        const rateDate = exp.exchangeRateDate || exp.date.slice(0, 10);
+        const result = await fetchHistoricalExchangeRate(
+          exp.originalCurrency,
+          exp.mainCurrency,
+          rateDate,
+          { forceRefresh: true }
+        );
+        if (!cancelled) {
+          await updateExpense({
+            ...exp,
+            exchangeRate: result.rate,
+            exchangeRateDate: rateDate,
+            exchangeRateSource: result.source
+          });
+        }
+      } catch (error) {
+        fxRepairAttempts.current.delete(exp.id);
+        console.warn('Could not repair legacy exchange rate:', error);
+      } finally {
+        if (!cancelled) setIsRepairingFx(false);
+      }
+    };
+
+    void repairLegacyRate();
+    return () => { cancelled = true; };
+  }, [exp?.id, exp?.updatedAt, isCreator]);
 
   useEffect(() => {
     if (!showReceiptFull) return;
@@ -46,12 +97,9 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
     };
   }, [showReceiptFull]);
 
-  const exp = expenses.find(e => e.id === expenseId);
-
   if (!exp) return null;
 
   const memberMap = new Map(members.map(m => [m.userId, m.name]));
-  const isCreator = exp.addedByUserId === currentUser.id || exp.paidByUserId === currentUser.id;
 
   const handleDelete = () => {
     showConfirm(
@@ -234,7 +282,11 @@ export const ExpenseDetailModal: React.FC<ExpenseDetailModalProps> = ({
           }}>
             <Info size={16} style={{ flexShrink: 0, marginTop: 1 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 700 }}>Rate: {formatHumanExchangeRate(exp.originalCurrency, exp.mainCurrency, exp.exchangeRate)}</div>
+              <div style={{ fontWeight: 700 }}>
+                {isRepairingFx
+                  ? 'Updating verified ECB rate…'
+                  : `Rate: ${formatHumanExchangeRate(exp.originalCurrency, exp.mainCurrency, exp.exchangeRate)}`}
+              </div>
               <div style={{ fontSize: '0.76rem', color: 'var(--text-secondary)', marginTop: 2 }}>
                 Source: {exp.exchangeRateSource || 'Exchange-rate provider'}
               </div>

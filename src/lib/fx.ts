@@ -14,6 +14,12 @@ interface CachedRates {
   [dateAndCurrencies: string]: CachedRate;
 }
 
+/** Rates saved by the pre-ECB-verification implementation must be refreshed. */
+export function isLegacyUnverifiedFxSource(source?: string): boolean {
+  if (!source) return false;
+  return /^Frankfurter(?: \(Cached\))?$/.test(source.trim());
+}
+
 function getLocalFxCache(): CachedRates {
   try {
     const raw = localStorage.getItem(FX_CACHE_KEY);

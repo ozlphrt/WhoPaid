@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchHistoricalExchangeRate, formatHumanExchangeRate } from './fx';
+import { fetchHistoricalExchangeRate, formatHumanExchangeRate, isLegacyUnverifiedFxSource } from './fx';
 
 function memoryStorage(): Storage {
   const values = new Map<string, string>();
@@ -91,5 +91,12 @@ describe('exchange-rate presentation', () => {
       .toBe('1 EUR = 56.23 TRY');
     expect(formatHumanExchangeRate('EUR', 'TRY', 56.2318))
       .toBe('1 TRY = 0.01778 EUR');
+  });
+
+  it('identifies only pre-verification Frankfurter sources as legacy', () => {
+    expect(isLegacyUnverifiedFxSource('Frankfurter (Cached)')).toBe(true);
+    expect(isLegacyUnverifiedFxSource('Frankfurter')).toBe(true);
+    expect(isLegacyUnverifiedFxSource('Frankfurter / ECB (2026-08-21)')).toBe(false);
+    expect(isLegacyUnverifiedFxSource('Manual rate entered by user')).toBe(false);
   });
 });
