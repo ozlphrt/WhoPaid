@@ -24,7 +24,7 @@ import { compressAndUploadReceipt } from '../lib/supabaseSync';
 import { parseReceiptText } from '../lib/receiptOcr';
 import { NumericKeypad } from './NumericKeypad';
 import { acquireSingleFlight, releaseSingleFlight } from '../lib/asyncReliability';
-import { fetchHistoricalExchangeRate } from '../lib/fx';
+import { fetchHistoricalExchangeRate, formatHumanExchangeRate } from '../lib/fx';
 
 interface AddExpenseSheetProps {
   isOpen: boolean;
@@ -743,9 +743,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
               ) : (
                 <>
                   <span>≈ {formatAmount(convertedAmount, activeTrip.mainCurrency)}</span>
-                  <span>
-                    (1 {activeTrip.mainCurrency} = {(1 / autoFxRate) >= 10 ? (1 / autoFxRate).toFixed(2) : (1 / autoFxRate).toFixed(4)} {currency})
-                  </span>
+                  <span>({formatHumanExchangeRate(currency, activeTrip.mainCurrency, autoFxRate)})</span>
                   <button
                     type="button"
                     onClick={() => {

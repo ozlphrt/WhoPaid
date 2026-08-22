@@ -133,7 +133,16 @@ export function convertAmount(amount: number, exchangeRate: number): number {
   return roundMoney(mul(amount, exchangeRate), 2);
 }
 
-/** Formats the rate with the more valuable currency displayed as one unit. */
+function formatDisplayedRate(rate: number): string {
+  if (rate >= 10) return rate.toFixed(2);
+  if (rate >= 0.1) return rate.toFixed(4);
+  return rate.toFixed(5);
+}
+
+/**
+ * Formats the stored original-to-main rate in the same direction used by the
+ * expense form: one unit of the trip's main currency in the expense currency.
+ */
 export function formatHumanExchangeRate(
   originalCurrency: string,
   mainCurrency: string,
@@ -143,12 +152,6 @@ export function formatHumanExchangeRate(
     return `1 ${originalCurrency} = 1 ${mainCurrency}`;
   }
 
-  if (rate < 1 && rate > 0) {
-    const inverseRate = 1 / rate;
-    const formatted = inverseRate >= 10 ? inverseRate.toFixed(2) : inverseRate.toFixed(4);
-    return `1 ${mainCurrency} = ${formatted} ${originalCurrency}`;
-  }
-
-  const formatted = rate >= 10 ? rate.toFixed(2) : rate.toFixed(4);
-  return `1 ${originalCurrency} = ${formatted} ${mainCurrency}`;
+  if (!Number.isFinite(rate) || rate <= 0) return 'Exchange rate unavailable';
+  return `1 ${mainCurrency} = ${formatDisplayedRate(1 / rate)} ${originalCurrency}`;
 }

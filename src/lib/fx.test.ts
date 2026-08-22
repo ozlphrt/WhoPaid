@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchHistoricalExchangeRate } from './fx';
+import { fetchHistoricalExchangeRate, formatHumanExchangeRate } from './fx';
 
 function memoryStorage(): Storage {
   const values = new Map<string, string>();
@@ -58,5 +58,14 @@ describe('verified FX rates', () => {
 
     expect(cached.rate).toBe(0.01778);
     expect(cached.source).toContain('cached rate (2026-08-21)');
+  });
+});
+
+describe('exchange-rate presentation', () => {
+  it('shows the trip currency as the base on both screens', () => {
+    expect(formatHumanExchangeRate('TRY', 'EUR', 1 / 56.2318))
+      .toBe('1 EUR = 56.23 TRY');
+    expect(formatHumanExchangeRate('EUR', 'TRY', 56.2318))
+      .toBe('1 TRY = 0.01778 EUR');
   });
 });
