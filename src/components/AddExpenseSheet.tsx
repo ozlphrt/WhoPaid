@@ -16,13 +16,11 @@ import {
   Camera, 
   X, 
   Loader2, 
-  Keyboard,
   SlidersHorizontal
 } from 'lucide-react';
 import { checkForDuplicateExpense } from '../lib/duplicate';
 import { compressAndUploadReceipt } from '../lib/supabaseSync';
 import { parseReceiptText } from '../lib/receiptOcr';
-import { NumericKeypad } from './NumericKeypad';
 import { acquireSingleFlight, releaseSingleFlight } from '../lib/asyncReliability';
 import { fetchHistoricalExchangeRate, formatHumanExchangeRate } from '../lib/fx';
 
@@ -104,7 +102,6 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   
   // Modal states for focused selection
   const [activeModal, setActiveModal] = useState<'none' | 'category' | 'paidBy' | 'splitWith' | 'currency'>('none');
-  const [useNativeKeyboard, setUseNativeKeyboard] = useState<boolean>(false);
 
   // FX Conversion State
   const [autoFxRate, setAutoFxRate] = useState<number>(1);
@@ -588,7 +585,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
           padding: '6px 12px 4px',
           position: 'relative'
         }}>
-          {/* Floating Currency Pill & Native Keyboard Switcher (Top Right) */}
+          {/* Floating Currency Pill (Top Right) */}
           <div style={{ position: 'absolute', top: 0, right: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
             <button 
               type="button"
@@ -610,23 +607,6 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
               <span>{currency}</span>
               <ChevronDown size={12} color="var(--text-tertiary)" />
             </button>
-
-            <button
-              type="button"
-              onClick={() => setUseNativeKeyboard(prev => !prev)}
-              title={useNativeKeyboard ? 'Use In-App Keypad' : 'Use System Keyboard'}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: useNativeKeyboard ? 'var(--brand-500)' : 'var(--text-tertiary)',
-                cursor: 'pointer',
-                padding: 4,
-                display: 'flex',
-                alignItems: 'center'
-              }}
-            >
-              <Keyboard size={16} />
-            </button>
           </div>
 
           {/* Centered Hero Monetary Typography */}
@@ -639,67 +619,38 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             }}>
               {getCurrencySymbol(currency)}
             </span>
-            {useNativeKeyboard ? (
-              <input
-                type="text"
-                inputMode="decimal"
-                placeholder="0.00"
-                value={amountStr}
-                onChange={(e) => {
-                  if (/^\d*\.?\d*$/.test(e.target.value)) setAmountStr(e.target.value);
-                }}
-                style={{
-                  fontSize: (amountStr || '0.00').length <= 4 
-                    ? 'clamp(3.1rem, 10.5vw, 3.9rem)' 
-                    : (amountStr || '0.00').length <= 6 
-                      ? 'clamp(2.6rem, 8.8vw, 3.3rem)' 
-                      : (amountStr || '0.00').length <= 8 
-                        ? 'clamp(2.1rem, 7.2vw, 2.7rem)' 
-                        : (amountStr || '0.00').length <= 10 
-                          ? 'clamp(1.75rem, 5.8vw, 2.2rem)' 
-                          : 'clamp(1.4rem, 4.8vw, 1.8rem)',
-                  fontWeight: 900,
-                  color: 'var(--text-primary)',
-                  width: '100%',
-                  textAlign: 'center',
-                  border: 'none',
-                  outline: 'none',
-                  background: 'transparent',
-                  fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Rounded', 'Segoe UI Rounded', 'Quicksand', Roboto, sans-serif",
-                  letterSpacing: '-0.04em',
-                  lineHeight: 1
-                }}
-              />
-            ) : (
-              <div 
-                style={{
-                  fontSize: (amountStr || '0.00').length <= 4 
-                    ? 'clamp(3.1rem, 10.5vw, 3.9rem)' 
-                    : (amountStr || '0.00').length <= 6 
-                      ? 'clamp(2.6rem, 8.8vw, 3.3rem)' 
-                      : (amountStr || '0.00').length <= 8 
-                        ? 'clamp(2.1rem, 7.2vw, 2.7rem)' 
-                        : (amountStr || '0.00').length <= 10 
-                          ? 'clamp(1.75rem, 5.8vw, 2.2rem)' 
-                          : 'clamp(1.4rem, 4.8vw, 1.8rem)',
-                  fontWeight: 900,
-                  color: amountStr ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                  fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Rounded', 'Segoe UI Rounded', 'Quicksand', Roboto, sans-serif",
-                  letterSpacing: '-0.04em',
-                  lineHeight: 1,
-                  cursor: 'pointer',
-                  textAlign: 'center',
-                  maxWidth: '100%',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                  textShadow: amountStr ? '0 0 24px rgba(255, 255, 255, 0.16)' : 'none',
-                  transition: 'all 0.12s ease'
-                }}
-              >
-                {amountStr || '0.00'}
-              </div>
-            )}
+            <input
+              type="text"
+              inputMode="decimal"
+              placeholder="0.00"
+              value={amountStr}
+              onChange={(e) => {
+                const val = e.target.value.replace(',', '.');
+                if (/^\d*\.?\d*$/.test(val)) setAmountStr(val);
+              }}
+              aria-label="Expense amount"
+              style={{
+                fontSize: (amountStr || '0.00').length <= 4 
+                  ? 'clamp(3.1rem, 10.5vw, 3.9rem)' 
+                  : (amountStr || '0.00').length <= 6 
+                    ? 'clamp(2.6rem, 8.8vw, 3.3rem)' 
+                    : (amountStr || '0.00').length <= 8 
+                      ? 'clamp(2.1rem, 7.2vw, 2.7rem)' 
+                      : (amountStr || '0.00').length <= 10 
+                        ? 'clamp(1.75rem, 5.8vw, 2.2rem)' 
+                        : 'clamp(1.4rem, 4.8vw, 1.8rem)',
+                fontWeight: 900,
+                color: 'var(--text-primary)',
+                width: '100%',
+                textAlign: 'center',
+                border: 'none',
+                outline: 'none',
+                background: 'transparent',
+                fontFamily: "system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Rounded', 'Segoe UI Rounded', 'Quicksand', Roboto, sans-serif",
+                letterSpacing: '-0.04em',
+                lineHeight: 1
+              }}
+            />
           </div>
 
           {/* Dynamic Live Split Breakdown Badge */}
@@ -1201,23 +1152,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
           </div>
         )}
 
-        {/* 6. Clean In-App 3-Column Numeric Keypad */}
-        {!useNativeKeyboard && (
-          <div style={{
-            background: 'var(--bg-subtle)',
-            padding: 5,
-            borderRadius: 'var(--radius-lg)',
-            border: '1px solid var(--border-subtle)',
-            marginTop: 'auto'
-          }}>
-            <NumericKeypad
-              value={amountStr}
-              onChange={setAmountStr}
-            />
-          </div>
-        )}
-
-        {/* 7. Primary Action Button */}
+        {/* Primary Action Button */}
         <button
           type="submit"
           disabled={isSubmitting || isUploadingReceipt}
@@ -1227,7 +1162,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
             fontSize: '0.95rem',
             fontWeight: 800,
             borderRadius: 'var(--radius-md)',
-            marginTop: useNativeKeyboard ? 'auto' : 2
+            marginTop: 'auto'
           }}
         >
           {isSubmitting && <Loader2 size={16} className="animate-spin" />}
