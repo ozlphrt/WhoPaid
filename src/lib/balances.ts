@@ -214,26 +214,30 @@ export function calculateParticipantBalances(
 }
 
 /**
- * Calculates trip balances converted to a specific target currency.
- * If targetCurrency is the trip's main currency, the standard balances are returned.
- * Otherwise, expenses originally entered in targetCurrency retain their exact
- * original values, and other expenses/settlements are converted via the recorded exchange rate.
+ * Converts canonical participant balances to a target currency using the trip's
+ * recorded exchange rates for that currency.
+ *
+ * All balances in WhoPaid are maintained with mathematical integrity in the trip's
+ * main currency (where sum of all nets = 0 and paid - share = net).
+ * Converting the resulting balances ensures perfect mathematical consistency
+ * across all currencies without rounding corruptions or phantom debts.
  */
 export function getBalancesForCurrency(
   targetCurrency: string,
   mainCurrency: string,
-  members: TripMember[],
-  expenses: Expense[],
-  settlements: Settlement[] = [],
-  households: Household[] = [],
-  allUsers: Array<{ id: string; name: string; email?: string }> = []
+  canonicalBalances: {
+    individualBalances: ParticipantBalance[];
+    householdBalances: HouseholdBalance[];
+    totalSpend: number;
+  },
+  expenses: Expense[]
 ): {
   individualBalances: ParticipantBalance[];
   householdBalances: HouseholdBalance[];
   totalSpend: number;
 } {
   if (targetCurrency === mainCurrency) {
-    return calculateParticipantBalances(members, expenses, settlements, households, allUsers);
+    return canonicalBalances;
   }
 
   // Find the exchange rate between targetCurrency and mainCurrency:
@@ -243,69 +247,36 @@ export function getBalancesForCurrency(
     .find(e => !e.isDeleted && e.originalCurrency === targetCurrency && Number.isFinite(e.exchangeRate) && e.exchangeRate > 0);
   const targetRate = targetExp?.exchangeRate && targetExp.exchangeRate > 0 ? targetExp.exchangeRate : 1;
 
-  // Map expenses to targetCurrency
-  const mappedExpenses: Expense[] = expenses.map(exp => {
-    if (exp.isDeleted) return exp;
+  const convertVal = (amount: number) => roundMoney(div(amount, targetRate), 2);
 
-    // If expense was originally in targetCurrency, preserve exact original amounts!
-    if (exp.originalCurrency === targetCurrency) {
-      return {
-        ...exp,
-        convertedAmount: exp.originalAmount,
-        payers: exp.payers ? exp.payers.map(p => ({ ...p })) : [{ userId: exp.paidByUserId, amount: exp.originalAmount }],
-        participants: exp.participants ? exp.participants.map(p => ({ ...p })) : []
-      };
-    }
-
-    // Otherwise, convert from mainCurrency to targetCurrency (convertedAmount in main / targetRate)
-    const convertedInTarget = roundMoney(div(exp.convertedAmount, targetRate), 2);
-    const origAmount = exp.originalAmount || 0;
-
-    const mappedPayers = exp.payers
-      ? exp.payers.map(p => {
-          const fraction = origAmount > 0 ? div(p.amount, origAmount) : 0;
-          return {
-            ...p,
-            amount: roundMoney(mul(fraction, convertedInTarget), 2)
-          };
-        })
-      : [{ userId: exp.paidByUserId, amount: convertedInTarget }];
-
-    const mappedParticipants = exp.participants
-      ? exp.participants.map(part => {
-          if (exp.splitMode === 'custom') {
-            const fraction = origAmount > 0 ? div(part.amount, origAmount) : 0;
-            return {
-              ...part,
-              amount: roundMoney(mul(fraction, convertedInTarget), 2)
-            };
-          }
-          return { ...part };
-        })
-      : [];
-
+  const individualBalances: ParticipantBalance[] = canonicalBalances.individualBalances.map(b => {
+    const paid = convertVal(b.paid);
+    const share = convertVal(b.share);
+    const net = roundMoney(sub(paid, share), 2);
     return {
-      ...exp,
-      convertedAmount: convertedInTarget,
-      payers: mappedPayers,
-      participants: mappedParticipants
+      ...b,
+      paid,
+      share,
+      net
     };
   });
 
-  // Map settlements to targetCurrency
-  const mappedSettlements: Settlement[] = settlements.map(s => {
-    if (s.currency === targetCurrency) {
-      return {
-        ...s,
-        convertedAmount: s.amount
-      };
-    }
+  const householdBalances: HouseholdBalance[] = canonicalBalances.householdBalances.map(hh => {
+    const paid = convertVal(hh.paid);
+    const share = convertVal(hh.share);
+    const net = roundMoney(sub(paid, share), 2);
     return {
-      ...s,
-      convertedAmount: roundMoney(div(s.convertedAmount, targetRate), 2)
+      ...hh,
+      paid,
+      share,
+      net
     };
   });
 
-  return calculateParticipantBalances(members, mappedExpenses, mappedSettlements, households, allUsers);
+  return {
+    individualBalances,
+    householdBalances,
+    totalSpend: convertVal(canonicalBalances.totalSpend)
+  };
 }
 

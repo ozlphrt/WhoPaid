@@ -60,19 +60,13 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
   };
 
   const effectiveBalances = useMemo(() => {
-    if (displayCurrency === activeTrip.mainCurrency) {
-      return balances;
-    }
     return getBalancesForCurrency(
       displayCurrency,
       activeTrip.mainCurrency,
-      members,
-      expenses,
-      settlements,
-      households,
-      allUsers
+      balances,
+      activeExpenses
     );
-  }, [displayCurrency, activeTrip.mainCurrency, balances, members, expenses, settlements, households, allUsers]);
+  }, [displayCurrency, activeTrip.mainCurrency, balances, activeExpenses]);
 
   const hasExpenses = activeExpenses.length > 0;
 

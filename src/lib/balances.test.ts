@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveCurrentMemberUserId, resolveMemberUserId, getBalancesForCurrency } from './balances';
+import { resolveCurrentMemberUserId, resolveMemberUserId, calculateParticipantBalances, getBalancesForCurrency } from './balances';
 import type { TripMember } from '../types';
 
 const members: TripMember[] = [
@@ -112,20 +112,81 @@ describe('getBalancesForCurrency', () => {
     }
   ];
 
-  it('preserves exact original amounts when target currency matches original currency', () => {
-    const usdBalances = getBalancesForCurrency('USD', 'TRY', testMembers, testExpenses);
-    expect(usdBalances.totalSpend).toBe(963);
-    expect(usdBalances.individualBalances[0].paid).toBe(963);
-    expect(usdBalances.individualBalances[0].share).toBe(963);
-    expect(usdBalances.individualBalances[0].net).toBe(0);
-  });
+  const multiCurrencyExpenses: import('../types').Expense[] = [
+    {
+      id: 'exp-1',
+      tripId: 'trip-1',
+      description: 'dinner',
+      originalAmount: 100,
+      originalCurrency: 'EUR',
+      convertedAmount: 5616,
+      mainCurrency: 'TRY',
+      exchangeRate: 56.16,
+      isManualExchangeRate: false,
+      exchangeRateDate: '2026-09-14',
+      paidByUserId: 'user-1',
+      addedByUserId: 'user-1',
+      payers: [{ userId: 'user-1', amount: 100 }],
+      participants: [{ userId: 'user-1', amount: 100 }],
+      splitMode: 'equal',
+      category: 'Food',
+      date: '2026-09-14T10:00:00.000Z',
+      createdAt: '2026-09-14T10:00:00.000Z',
+      updatedAt: '2026-09-14T10:00:00.000Z',
+      isFlaggedWrong: false,
+      clientSyncStatus: 'synced',
+      isDeleted: false
+    },
+    {
+      id: 'exp-2',
+      tripId: 'trip-1',
+      description: 'Pera Residence',
+      originalAmount: 963,
+      originalCurrency: 'USD',
+      convertedAmount: 46823,
+      mainCurrency: 'TRY',
+      exchangeRate: 48.6220145,
+      isManualExchangeRate: false,
+      exchangeRateDate: '2026-09-14',
+      paidByUserId: 'user-1',
+      addedByUserId: 'user-1',
+      payers: [{ userId: 'user-1', amount: 963 }],
+      participants: [{ userId: 'user-1', amount: 963 }],
+      splitMode: 'equal',
+      category: 'Hotel',
+      date: '2026-09-14T10:00:00.000Z',
+      createdAt: '2026-09-14T10:00:00.000Z',
+      updatedAt: '2026-09-14T10:00:00.000Z',
+      isFlaggedWrong: false,
+      clientSyncStatus: 'synced',
+      isDeleted: false
+    }
+  ];
 
-  it('returns standard main currency balances when target currency is main currency', () => {
-    const tryBalances = getBalancesForCurrency('TRY', 'TRY', testMembers, testExpenses);
-    expect(tryBalances.totalSpend).toBe(46823);
-    expect(tryBalances.individualBalances[0].paid).toBe(46823);
-    expect(tryBalances.individualBalances[0].share).toBe(46823);
-    expect(tryBalances.individualBalances[0].net).toBe(0);
+  it('preserves exact mathematical integrity with 0 net balance in EUR, USD, and TRY', () => {
+    const canonical = calculateParticipantBalances(testMembers, multiCurrencyExpenses, []);
+    expect(canonical.totalSpend).toBe(52439);
+    expect(canonical.individualBalances[0].paid).toBe(52439);
+    expect(canonical.individualBalances[0].share).toBe(52439);
+    expect(canonical.individualBalances[0].net).toBe(0);
+
+    // In TRY
+    const tryBal = getBalancesForCurrency('TRY', 'TRY', canonical, multiCurrencyExpenses);
+    expect(tryBal.individualBalances[0].paid).toBe(52439);
+    expect(tryBal.individualBalances[0].share).toBe(52439);
+    expect(tryBal.individualBalances[0].net).toBe(0);
+
+    // In EUR (must be 0 net balance, NOT -€112)
+    const eurBal = getBalancesForCurrency('EUR', 'TRY', canonical, multiCurrencyExpenses);
+    expect(eurBal.individualBalances[0].paid).toBe(933.74);
+    expect(eurBal.individualBalances[0].share).toBe(933.74);
+    expect(eurBal.individualBalances[0].net).toBe(0);
+
+    // In USD (must be 0 net balance, NOT +$18)
+    const usdBal = getBalancesForCurrency('USD', 'TRY', canonical, multiCurrencyExpenses);
+    expect(usdBal.individualBalances[0].paid).toBe(1078.5);
+    expect(usdBal.individualBalances[0].share).toBe(1078.5);
+    expect(usdBal.individualBalances[0].net).toBe(0);
   });
 });
 
