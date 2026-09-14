@@ -149,25 +149,86 @@ export function convertAmount(amount: number, exchangeRate: number): number {
   return roundMoney(mul(amount, exchangeRate), 2);
 }
 
-function formatDisplayedRate(rate: number): string {
+export interface ExchangeRateDisplayParts {
+  baseCurrency: string;
+  quoteCurrency: string;
+  displayedRate: number;
+  formattedRate: string;
+  isOriginalBase: boolean;
+}
+
+export function formatDisplayedRate(rate: number): string {
   if (rate >= 10) return rate.toFixed(2);
   if (rate >= 0.1) return rate.toFixed(4);
   return rate.toFixed(5);
 }
 
 /**
- * Formats the stored original-to-main rate in the same direction used by the
- * expense form: one unit of the trip's main currency in the expense currency.
+ * Breaks down the exchange rate between originalCurrency and mainCurrency such that
+ * whichever currency has the bigger unit value is placed first (as the base unit "1"),
+ * avoiding 0.00xxx conversions.
+ *
+ * `rate` represents: 1 originalCurrency = `rate` mainCurrency.
+ */
+export function getExchangeRateDisplayParts(
+  originalCurrency: string,
+  mainCurrency: string,
+  rate: number
+): ExchangeRateDisplayParts {
+  const orig = originalCurrency.toUpperCase();
+  const main = mainCurrency.toUpperCase();
+
+  if (!Number.isFinite(rate) || rate <= 0 || rate === 1 || orig === main) {
+    return {
+      baseCurrency: orig,
+      quoteCurrency: main,
+      displayedRate: 1,
+      formattedRate: '1',
+      isOriginalBase: true
+    };
+  }
+
+  // If rate >= 1: 1 originalCurrency = `rate` mainCurrency.
+  // Original currency is the stronger unit (e.g. 1 USD = 48.61 TRY).
+  if (rate >= 1) {
+    return {
+      baseCurrency: orig,
+      quoteCurrency: main,
+      displayedRate: rate,
+      formattedRate: formatDisplayedRate(rate),
+      isOriginalBase: true
+    };
+  }
+
+  // If rate < 1: 1 mainCurrency = `1 / rate` originalCurrency.
+  // Main currency is the stronger unit (e.g. 1 EUR = 56.23 TRY).
+  const inverted = 1 / rate;
+  return {
+    baseCurrency: main,
+    quoteCurrency: orig,
+    displayedRate: inverted,
+    formattedRate: formatDisplayedRate(inverted),
+    isOriginalBase: false
+  };
+}
+
+/**
+ * Formats the stored original-to-main rate showing whichever currency has the
+ * bigger unit value first (1 [Bigger] = X [Smaller]) to avoid confusing
+ * 0.00xxx conversions.
  */
 export function formatHumanExchangeRate(
   originalCurrency: string,
   mainCurrency: string,
   rate: number
 ): string {
-  if (originalCurrency === mainCurrency || rate === 1) {
-    return `1 ${originalCurrency} = 1 ${mainCurrency}`;
+  if (originalCurrency.toUpperCase() === mainCurrency.toUpperCase() || rate === 1) {
+    return `1 ${originalCurrency.toUpperCase()} = 1 ${mainCurrency.toUpperCase()}`;
   }
 
   if (!Number.isFinite(rate) || rate <= 0) return 'Exchange rate unavailable';
-  return `1 ${mainCurrency} = ${formatDisplayedRate(1 / rate)} ${originalCurrency}`;
+
+  const parts = getExchangeRateDisplayParts(originalCurrency, mainCurrency, rate);
+  return `1 ${parts.baseCurrency} = ${parts.formattedRate} ${parts.quoteCurrency}`;
 }
+

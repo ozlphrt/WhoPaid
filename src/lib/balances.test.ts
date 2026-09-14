@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveCurrentMemberUserId, resolveMemberUserId } from './balances';
+import { resolveCurrentMemberUserId, resolveMemberUserId, getBalancesForCurrency } from './balances';
 import type { TripMember } from '../types';
 
 const members: TripMember[] = [
@@ -70,3 +70,62 @@ describe('resolveCurrentMemberUserId', () => {
     }, duplicateNames)).toBe('unknown-uid');
   });
 });
+
+describe('getBalancesForCurrency', () => {
+  const testMembers: TripMember[] = [
+    {
+      id: 'm1',
+      tripId: 'trip-1',
+      userId: 'user-1',
+      name: 'Ozalp',
+      email: 'ozalp@example.test',
+      role: 'owner',
+      isActive: true,
+      joinedAt: '2026-01-01T00:00:00.000Z'
+    }
+  ];
+
+  const testExpenses: import('../types').Expense[] = [
+    {
+      id: 'exp-1',
+      tripId: 'trip-1',
+      description: 'Pera Residence',
+      originalAmount: 963,
+      originalCurrency: 'USD',
+      convertedAmount: 46823,
+      mainCurrency: 'TRY',
+      exchangeRate: 48.6220145,
+      isManualExchangeRate: false,
+      exchangeRateDate: '2026-09-14',
+      paidByUserId: 'user-1',
+      addedByUserId: 'user-1',
+      payers: [{ userId: 'user-1', amount: 963 }],
+      participants: [{ userId: 'user-1', amount: 963 }],
+      splitMode: 'equal',
+      category: 'Hotel',
+      date: '2026-09-14T10:00:00.000Z',
+      createdAt: '2026-09-14T10:00:00.000Z',
+      updatedAt: '2026-09-14T10:00:00.000Z',
+      isFlaggedWrong: false,
+      clientSyncStatus: 'synced',
+      isDeleted: false
+    }
+  ];
+
+  it('preserves exact original amounts when target currency matches original currency', () => {
+    const usdBalances = getBalancesForCurrency('USD', 'TRY', testMembers, testExpenses);
+    expect(usdBalances.totalSpend).toBe(963);
+    expect(usdBalances.individualBalances[0].paid).toBe(963);
+    expect(usdBalances.individualBalances[0].share).toBe(963);
+    expect(usdBalances.individualBalances[0].net).toBe(0);
+  });
+
+  it('returns standard main currency balances when target currency is main currency', () => {
+    const tryBalances = getBalancesForCurrency('TRY', 'TRY', testMembers, testExpenses);
+    expect(tryBalances.totalSpend).toBe(46823);
+    expect(tryBalances.individualBalances[0].paid).toBe(46823);
+    expect(tryBalances.individualBalances[0].share).toBe(46823);
+    expect(tryBalances.individualBalances[0].net).toBe(0);
+  });
+});
+

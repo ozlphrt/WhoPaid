@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchHistoricalExchangeRate, formatHumanExchangeRate, isLegacyUnverifiedFxSource } from './fx';
+import {
+  fetchHistoricalExchangeRate,
+  formatHumanExchangeRate,
+  getExchangeRateDisplayParts,
+  isLegacyUnverifiedFxSource
+} from './fx';
 
 function memoryStorage(): Storage {
   const values = new Map<string, string>();
@@ -86,11 +91,49 @@ describe('verified FX rates', () => {
 });
 
 describe('exchange-rate presentation', () => {
-  it('shows the trip currency as the base on both screens', () => {
+  it('displays the bigger value currency first to avoid 0.00xxx conversions', () => {
+    // When TRY is original and EUR is main (rate ~ 0.01778)
     expect(formatHumanExchangeRate('TRY', 'EUR', 1 / 56.2318))
       .toBe('1 EUR = 56.23 TRY');
+
+    // When EUR is original and TRY is main (rate = 56.2318)
     expect(formatHumanExchangeRate('EUR', 'TRY', 56.2318))
-      .toBe('1 TRY = 0.01778 EUR');
+      .toBe('1 EUR = 56.23 TRY');
+
+    // When USD is original and TRY is main (as in user screenshot: 1 USD = 48.61 TRY)
+    expect(formatHumanExchangeRate('USD', 'TRY', 48.6145))
+      .toBe('1 USD = 48.61 TRY');
+
+    // When TRY is original and USD is main (rate = 0.02057)
+    expect(formatHumanExchangeRate('TRY', 'USD', 0.02057))
+      .toBe('1 USD = 48.61 TRY');
+
+    // Close currencies (EUR vs USD)
+    expect(formatHumanExchangeRate('EUR', 'USD', 1.0825))
+      .toBe('1 EUR = 1.0825 USD');
+    expect(formatHumanExchangeRate('USD', 'EUR', 1 / 1.0825))
+      .toBe('1 EUR = 1.0825 USD');
+
+    // Same currency
+    expect(formatHumanExchangeRate('USD', 'USD', 1))
+      .toBe('1 USD = 1 USD');
+  });
+
+  it('breaks down exchange rates into structured parts with base currency first', () => {
+    const parts = getExchangeRateDisplayParts('USD', 'TRY', 48.6145);
+    expect(parts).toEqual({
+      baseCurrency: 'USD',
+      quoteCurrency: 'TRY',
+      displayedRate: 48.6145,
+      formattedRate: '48.61',
+      isOriginalBase: true
+    });
+
+    const invertedParts = getExchangeRateDisplayParts('TRY', 'USD', 1 / 48.6145);
+    expect(invertedParts.baseCurrency).toBe('USD');
+    expect(invertedParts.quoteCurrency).toBe('TRY');
+    expect(invertedParts.formattedRate).toBe('48.61');
+    expect(invertedParts.isOriginalBase).toBe(false);
   });
 
   it('identifies only pre-verification Frankfurter sources as legacy', () => {

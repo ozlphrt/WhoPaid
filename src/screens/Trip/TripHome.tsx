@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../../store/AppContext';
 import { formatMoney, formatAmount, getCurrencySymbol, resolveMemberName } from '../../lib/decimal';
-import { Plus, ChevronRight, Scale, HandCoins, FileSpreadsheet, Settings, AlertCircle, Users, ArrowUpRight, ArrowDownLeft, Receipt, PieChart, UserPlus } from 'lucide-react';
+import { Plus, ChevronRight, Scale, HandCoins, FileSpreadsheet, Settings, AlertCircle, Users, ArrowUpRight, ArrowDownLeft, Receipt, PieChart, UserPlus, ArrowLeftRight } from 'lucide-react';
 import { AddExpenseSheet } from '../../components/AddExpenseSheet';
 import { ExpenseDetailModal } from '../../components/ExpenseDetailModal';
 import { QRCodeModal } from '../../components/QRCodeModal';
 import { CategoryIcon } from '../../components/CategoryIcon';
-import { resolveCurrentMemberUserId } from '../../lib/balances';
+import { resolveCurrentMemberUserId, getBalancesForCurrency } from '../../lib/balances';
 
 interface TripHomeProps {
   onNavigateTab: (tab: 'expenses' | 'balances' | 'settle' | 'report' | 'settings') => void;
@@ -21,13 +21,16 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
     balances,
     userNetBalance,
     recommendedTransfers,
-    allUsers
+    allUsers,
+    settlements,
+    households
   } = useApp();
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [selectedExpenseId, setSelectedExpenseId] = useState<string | null>(null);
   const [editingExpenseId, setEditingExpenseId] = useState<string | undefined>(undefined);
+  const [selectedCurrency, setSelectedCurrency] = useState<string | null>(null);
 
   if (!activeTrip) return null;
 
@@ -35,14 +38,51 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
   const memberMap = new Map(members.map(m => [m.userId, m.name]));
   const activeExpenses = expenses.filter(e => !e.isDeleted);
 
+  const usedCurrencies = useMemo(() => {
+    const list: string[] = [activeTrip.mainCurrency];
+    activeExpenses.forEach(e => {
+      if (e.originalCurrency && !list.includes(e.originalCurrency)) {
+        list.push(e.originalCurrency);
+      }
+    });
+    return list;
+  }, [activeTrip.mainCurrency, activeExpenses]);
+
+  const displayCurrency = (selectedCurrency && usedCurrencies.includes(selectedCurrency))
+    ? selectedCurrency
+    : activeTrip.mainCurrency;
+
+  const handleCycleCurrency = () => {
+    if (usedCurrencies.length <= 1) return;
+    const currentIndex = usedCurrencies.indexOf(displayCurrency);
+    const nextIndex = (currentIndex + 1) % usedCurrencies.length;
+    setSelectedCurrency(usedCurrencies[nextIndex]);
+  };
+
+  const effectiveBalances = useMemo(() => {
+    if (displayCurrency === activeTrip.mainCurrency) {
+      return balances;
+    }
+    return getBalancesForCurrency(
+      displayCurrency,
+      activeTrip.mainCurrency,
+      members,
+      expenses,
+      settlements,
+      households,
+      allUsers
+    );
+  }, [displayCurrency, activeTrip.mainCurrency, balances, members, expenses, settlements, households, allUsers]);
+
   const hasExpenses = activeExpenses.length > 0;
-  const isOwed = hasExpenses && userNetBalance > 0.009;
-  const owes = hasExpenses && userNetBalance < -0.009;
 
   const currentMemberUserId = resolveCurrentMemberUserId(currentUser, members);
-  const userBalanceObj = balances.individualBalances.find(b =>
+  const userBalanceObj = effectiveBalances.individualBalances.find(b =>
     b.userId === currentMemberUserId
   );
+  const effectiveUserNetBalance = userBalanceObj ? userBalanceObj.net : 0;
+  const isOwed = hasExpenses && effectiveUserNetBalance > 0.009;
+  const owes = hasExpenses && effectiveUserNetBalance < -0.009;
 
   // Immediate pending transfer recommendation for user
   const myNextTransfer = recommendedTransfers.find(t =>
@@ -110,27 +150,83 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
           </div>
 
           {userBalanceObj && (
-            <div style={{ textAlign: 'right', fontSize: '0.76rem', color: 'var(--text-tertiary)', lineHeight: 1.35, flexShrink: 0 }}>
-              <div>Paid <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{formatMoney(userBalanceObj.paid, activeTrip.mainCurrency)}</strong></div>
-              <div>Share <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{formatMoney(userBalanceObj.share, activeTrip.mainCurrency)}</strong></div>
+            <div
+              onClick={handleCycleCurrency}
+              role={usedCurrencies.length > 1 ? "button" : undefined}
+              tabIndex={usedCurrencies.length > 1 ? 0 : undefined}
+              onKeyDown={(e) => {
+                if (usedCurrencies.length > 1 && (e.key === 'Enter' || e.key === ' ')) {
+                  e.preventDefault();
+                  handleCycleCurrency();
+                }
+              }}
+              style={{
+                textAlign: 'right',
+                fontSize: '0.76rem',
+                color: 'var(--text-tertiary)',
+                lineHeight: 1.35,
+                flexShrink: 0,
+                cursor: usedCurrencies.length > 1 ? 'pointer' : 'default',
+                userSelect: 'none'
+              }}
+              title={usedCurrencies.length > 1 ? `Click to cycle currency (${displayCurrency} • ${usedCurrencies.join(' → ')})` : undefined}
+            >
+              <div>Paid <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{formatMoney(userBalanceObj.paid, displayCurrency)}</strong></div>
+              <div>Share <strong style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>{formatMoney(userBalanceObj.share, displayCurrency)}</strong></div>
             </div>
           )}
         </div>
 
         {/* Sculpted Large Balance + Big Circular Add Button */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16 }}>
-          <div>
-            <span style={{
-              fontSize: '0.72rem',
-              fontWeight: 700,
-              textTransform: 'uppercase',
-              letterSpacing: '0.06em',
-              color: 'var(--text-tertiary)',
-              display: 'block',
-              marginBottom: 2
-            }}>
-              Net Balance
-            </span>
+          <div
+            onClick={handleCycleCurrency}
+            role={usedCurrencies.length > 1 ? "button" : undefined}
+            tabIndex={usedCurrencies.length > 1 ? 0 : undefined}
+            onKeyDown={(e) => {
+              if (usedCurrencies.length > 1 && (e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault();
+                handleCycleCurrency();
+              }
+            }}
+            title={usedCurrencies.length > 1 ? `Click to cycle currency (${displayCurrency} • ${usedCurrencies.join(' → ')})` : undefined}
+            style={{
+              cursor: usedCurrencies.length > 1 ? 'pointer' : 'default',
+              userSelect: 'none',
+              borderRadius: 'var(--radius-md)'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+              <span style={{
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.06em',
+                color: 'var(--text-tertiary)',
+                display: 'block'
+              }}>
+                Net Balance
+              </span>
+              {usedCurrencies.length > 1 && (
+                <span style={{
+                  fontSize: '0.66rem',
+                  fontWeight: 800,
+                  color: 'var(--brand-500)',
+                  background: 'rgba(99, 102, 241, 0.12)',
+                  border: '1px solid rgba(99, 102, 241, 0.25)',
+                  borderRadius: 'var(--radius-full)',
+                  padding: '1px 6px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 3,
+                  letterSpacing: '0.02em',
+                  textTransform: 'none'
+                }}>
+                  {displayCurrency}
+                  <ArrowLeftRight size={10} strokeWidth={2.5} />
+                </span>
+              )}
+            </div>
             <div style={{
               fontSize: '2.6rem',
               fontWeight: 800,
@@ -140,11 +236,11 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
               color: isOwed ? 'var(--positive-text)' : owes ? 'var(--negative-text)' : 'var(--text-primary)'
             }}>
               {isOwed ? (
-                <span>+{formatMoney(userNetBalance, activeTrip.mainCurrency)}</span>
+                <span>+{formatMoney(effectiveUserNetBalance, displayCurrency)}</span>
               ) : owes ? (
-                <span>−{formatMoney(Math.abs(userNetBalance), activeTrip.mainCurrency)}</span>
+                <span>−{formatMoney(Math.abs(effectiveUserNetBalance), displayCurrency)}</span>
               ) : (
-                <span style={{ fontSize: '2rem', color: 'var(--text-primary)' }}>{formatMoney(0, activeTrip.mainCurrency)}</span>
+                <span style={{ fontSize: '2rem', color: 'var(--text-primary)' }}>{formatMoney(0, displayCurrency)}</span>
               )}
             </div>
           </div>
@@ -246,7 +342,7 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {balances.individualBalances.map(b => {
+          {effectiveBalances.individualBalances.map(b => {
             const isSelf = b.userId === currentMemberUserId;
             const owesMoney = b.net < -0.009;
             const owedMoney = b.net > 0.009;
@@ -290,11 +386,11 @@ export const TripHome: React.FC<TripHomeProps> = ({ onNavigateTab }) => {
 
                 <div style={{ fontWeight: 700, fontFamily: 'var(--font-mono)', fontSize: '0.9rem' }}>
                   {owedMoney ? (
-                    <span style={{ color: 'var(--positive-text)' }}>+{formatMoney(b.net, activeTrip.mainCurrency)}</span>
+                    <span style={{ color: 'var(--positive-text)' }}>+{formatMoney(b.net, displayCurrency)}</span>
                   ) : owesMoney ? (
-                    <span style={{ color: 'var(--negative-text)' }}>−{formatMoney(Math.abs(b.net), activeTrip.mainCurrency)}</span>
+                    <span style={{ color: 'var(--negative-text)' }}>−{formatMoney(Math.abs(b.net), displayCurrency)}</span>
                   ) : (
-                    <span style={{ color: 'var(--text-tertiary)' }}>{hasExpenses ? 'Settled' : formatMoney(0, activeTrip.mainCurrency)}</span>
+                    <span style={{ color: 'var(--text-tertiary)' }}>{hasExpenses ? 'Settled' : formatMoney(0, displayCurrency)}</span>
                   )}
                 </div>
               </div>

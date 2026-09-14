@@ -16,13 +16,14 @@ import {
   Camera, 
   X, 
   Loader2, 
-  SlidersHorizontal
+  SlidersHorizontal,
+  ArrowLeftRight
 } from 'lucide-react';
 import { checkForDuplicateExpense } from '../lib/duplicate';
 import { compressAndUploadReceipt } from '../lib/supabaseSync';
 import { parseReceiptText } from '../lib/receiptOcr';
 import { acquireSingleFlight, releaseSingleFlight } from '../lib/asyncReliability';
-import { fetchHistoricalExchangeRate, formatHumanExchangeRate } from '../lib/fx';
+import { fetchHistoricalExchangeRate, formatHumanExchangeRate, getExchangeRateDisplayParts } from '../lib/fx';
 
 interface AddExpenseSheetProps {
   isOpen: boolean;
@@ -107,6 +108,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
   const [autoFxRate, setAutoFxRate] = useState<number>(1);
   const [autoFxSource, setAutoFxSource] = useState<string | undefined>(undefined);
   const [isManualFx, setIsManualFx] = useState<boolean>(false);
+  const [isManualBaseExpenseCurrency, setIsManualBaseExpenseCurrency] = useState<boolean>(true);
   const [manualFxRate, setManualFxRate] = useState<string>('1.00');
   const [isFxLoading, setIsFxLoading] = useState<boolean>(false);
   const [fxError, setFxError] = useState<string | null>(null);
@@ -252,9 +254,17 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
         setIncludedUserIds(exp.participants ? exp.participants.map(p => p.userId) : activeMembers.map(m => m.userId));
         setSplitMode(exp.splitMode || 'equal');
         setIsManualFx(Boolean(exp.isManualExchangeRate));
-        setAutoFxRate(exp.exchangeRate > 0 ? exp.exchangeRate : 1);
+        const currentRate = exp.exchangeRate > 0 ? exp.exchangeRate : 1;
+        setAutoFxRate(currentRate);
         setAutoFxSource(exp.exchangeRateSource);
-        setManualFxRate(exp.exchangeRate > 0 ? (1 / exp.exchangeRate).toFixed(4) : '');
+        if (exp.exchangeRate > 0 && activeTrip) {
+          const parts = getExchangeRateDisplayParts(exp.originalCurrency, activeTrip.mainCurrency, exp.exchangeRate);
+          setIsManualBaseExpenseCurrency(parts.isOriginalBase);
+          setManualFxRate(parts.formattedRate);
+        } else {
+          setIsManualBaseExpenseCurrency(true);
+          setManualFxRate('');
+        }
 
         const shares: Record<string, string> = {};
         if (exp.participants) {
@@ -285,6 +295,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     setSplitMode('equal');
     setCustomShares({});
     setIsManualFx(false);
+    setIsManualBaseExpenseCurrency(true);
     setManualFxRate('1.00');
     setActiveToolDrawer('none');
     setActiveModal('none');
@@ -439,8 +450,10 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
       isManualFx &&
       (!Number.isFinite(enteredManualRate) || enteredManualRate <= 0)
     ) {
+      const manualBase = isManualBaseExpenseCurrency ? currency : activeTrip.mainCurrency;
+      const manualQuote = isManualBaseExpenseCurrency ? activeTrip.mainCurrency : currency;
       showAlert(
-        `Enter how many ${currency} equal 1 ${activeTrip.mainCurrency}.`,
+        `Enter how many ${manualQuote} equal 1 ${manualBase}.`,
         'Manual Exchange Rate Required',
         'warning'
       );
@@ -481,6 +494,10 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
       ? payers.filter(p => p.amount > 0)
       : [{ userId: paidByUserId, amount: parsedAmount }];
 
+    const effectiveManualRate = isManualBaseExpenseCurrency
+      ? enteredManualRate
+      : (1 / enteredManualRate);
+
     const expensePayload: Partial<import('../types').Expense> = {
       description: description.trim(),
       category,
@@ -494,7 +511,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
       participants,
       splitMode: effectiveSplitMode,
       isManualExchangeRate: isManualFx,
-      exchangeRate: isManualFx ? 1 / enteredManualRate : autoFxRate,
+      exchangeRate: isManualFx ? effectiveManualRate : autoFxRate,
       exchangeRateSource: isManualFx ? 'Manual rate entered by user' : autoFxSource
     };
 
@@ -536,12 +553,14 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
     ? roundMoney(parsedAmount / activeCount, 2)
     : 0;
 
-  const isForeignCurrency = activeTrip && currency !== activeTrip.mainCurrency;
+  const isForeignCurrency = Boolean(activeTrip && currency !== activeTrip.mainCurrency);
   const parsedManualRate = Number.parseFloat(manualFxRate);
-  const convertedAmount = isForeignCurrency
-    ? roundMoney(parsedAmount * (
-        isManualFx && parsedManualRate > 0 ? 1 / parsedManualRate : autoFxRate
-      ), 2)
+  const effectiveManualRate = Number.isFinite(parsedManualRate) && parsedManualRate > 0
+    ? (isManualBaseExpenseCurrency ? parsedManualRate : 1 / parsedManualRate)
+    : 0;
+  const effectiveExchangeRate = isManualFx ? effectiveManualRate : autoFxRate;
+  const convertedAmount = isForeignCurrency && activeTrip && effectiveExchangeRate > 0
+    ? roundMoney(parsedAmount * effectiveExchangeRate, 2)
     : 0;
 
   const dateObj = new Date(date);
@@ -680,7 +699,7 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
           </div>
 
           {/* Foreign Currency FX Badge */}
-          {isForeignCurrency && parsedAmount > 0 && (
+          {activeTrip && isForeignCurrency && parsedAmount > 0 && (
             <div style={{
               fontSize: '0.72rem',
               color: fxError ? 'var(--warning-text)' : 'var(--text-tertiary)',
@@ -695,13 +714,15 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                 <span>Checking the ECB exchange rate…</span>
               ) : isManualFx ? (
                 <>
-                  <span style={{ fontWeight: 700 }}>Manual: 1 {activeTrip.mainCurrency} =</span>
+                  <span style={{ fontWeight: 700 }}>
+                    Manual: 1 {isManualBaseExpenseCurrency ? currency : activeTrip.mainCurrency} =
+                  </span>
                   <input
                     type="number"
                     inputMode="decimal"
                     min="0.000001"
                     step="any"
-                    aria-label={`Manual rate: 1 ${activeTrip.mainCurrency} in ${currency}`}
+                    aria-label={`Manual rate: 1 ${isManualBaseExpenseCurrency ? currency : activeTrip.mainCurrency} in ${isManualBaseExpenseCurrency ? activeTrip.mainCurrency : currency}`}
                     value={manualFxRate}
                     onChange={(event) => setManualFxRate(event.target.value)}
                     placeholder="Enter rate"
@@ -718,7 +739,38 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                       textAlign: 'center'
                     }}
                   />
-                  <span style={{ fontWeight: 700 }}>{currency}</span>
+                  <span style={{ fontWeight: 700 }}>
+                    {isManualBaseExpenseCurrency ? activeTrip.mainCurrency : currency}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsManualBaseExpenseCurrency(prev => !prev);
+                      const cur = Number.parseFloat(manualFxRate);
+                      if (Number.isFinite(cur) && cur > 0) {
+                        const inv = 1 / cur;
+                        setManualFxRate(inv >= 10 ? inv.toFixed(2) : (inv >= 0.1 ? inv.toFixed(4) : inv.toFixed(5)));
+                      }
+                    }}
+                    title={`Swap base currency (1 ${isManualBaseExpenseCurrency ? activeTrip.mainCurrency : currency} = ... ${isManualBaseExpenseCurrency ? currency : activeTrip.mainCurrency})`}
+                    aria-label="Swap exchange rate direction"
+                    style={{
+                      border: '1px solid var(--border-strong)',
+                      background: 'var(--bg-subtle)',
+                      color: 'var(--text-secondary)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '4px 6px',
+                      fontSize: '0.72rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minHeight: 30
+                    }}
+                  >
+                    <ArrowLeftRight size={13} />
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -748,7 +800,9 @@ export const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      setManualFxRate((1 / autoFxRate).toFixed(4));
+                      const parts = getExchangeRateDisplayParts(currency, activeTrip.mainCurrency, autoFxRate);
+                      setIsManualBaseExpenseCurrency(parts.isOriginalBase);
+                      setManualFxRate(parts.formattedRate);
                       setFxError(null);
                       setIsManualFx(true);
                     }}
